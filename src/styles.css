@@ -57,12 +57,107 @@ body {
 
 .viewport {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow: hidden;
+  background: #0b0e14;
 }
 
 .viewport-placeholder {
   color: var(--muted);
   font-size: 14px;
 }
+
+.viewport-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.viewport-canvas canvas {
+  display: block;
+}
+
+.hud {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  background: rgba(16, 20, 24, 0.72);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.field-label {
+  display: block;
+  margin: 14px 0 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.cmd-input {
+  width: 100%;
+  resize: vertical;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 12.5px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.cmd-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+button {
+  font: inherit;
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #08221f;
+  font-weight: 600;
+}
+
+button.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.errors {
+  margin-top: 12px;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 12px;
+  color: #f87171;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+

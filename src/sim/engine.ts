@@ -163,6 +163,7 @@ export class SimEngine {
     }
     const p: SimParticle = {
       id: this.nextId++,
+      name: req.name,
       x: req.x, y: req.y, z: req.z,
       vx: req.vx, vy: req.vy, vz: req.vz,
       stop: req.vx === 0 && req.vy === 0 && req.vz === 0,
