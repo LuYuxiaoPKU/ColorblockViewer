@@ -1,0 +1,412 @@
+// 命令执行 → 粒子生成（1:1 复刻 ClientNetworkHandler.normal/conditional/parameter
+// + ParticleUtil.spawnParticle + TickParticleTask）。
+//
+// 错误语义（spawnParticle 的 try/catch）：单个粒子的生成期 RuntimeException
+// （如速度表达式解析失败）→ 该粒子不生成、错误记入 result.errors，继续下一个
+// （Java：catch → addChatMessage → return null）。命令级错误（表达式解析）由
+// 调用方捕获，见 engine.runCommand。
+//
+// struct 生命周期（决定跨调用残留，忠实复刻）：
+//  - normal/parameter 每个粒子的速度表达式：spawnParticle 内**每粒子** ExpressionUtil.parse
+//    → 每个粒子一个全新 exe 实例（struct 初始默认值，无上一粒子残留）；
+//  - conditional/parameter 主表达式：一次命令一个实例，循环内不清零；
+//  - tick*parameter：TickParticleTask 持有一个实例，跨 tick 的多次 run 不清零。
+
+import type { CompiledBlock } from '../engine';
+import { ParticleStruct } from '../engine/struct';
+import type { ParticleCommand } from '../command/types';
+import {
+  computeSpawnStep,
+  fillConditionalPoint,
+  fillGroupChangeParam,
+  fillGroupRelative,
+  fillParameterPoint,
+} from './structFill';
+import type { SimRandom } from './rng';
+import type { GroupIndex } from './groups';
+import type { SimResult, SimParticle, TickGenerator } from './types';
+
+/** 坐标求值：rel（~/^）→ 玩家位置 + v */
+export function resolveVec3(
+  v: { x: { v: number; rel: boolean }; y: { v: number; rel: boolean }; z: { v: number; rel: boolean } },
+  playerPos: { x: number; y: number; z: number },
+): { x: number; y: number; z: number } {
+  const add = (c: { v: number; rel: boolean }, base: number) => (c.rel ? base + c.v : c.v);
+  return { x: add(v.x, playerPos.x), y: add(v.y, playerPos.y), z: add(v.z, playerPos.z) };
+}
+
+/** spawnParticle 的入参（对应 Java 18 参签名；exe/exeStruct 可选 =
+ *  预解析好的速度表达式实例，缺省由 spawnOne 在 try 内解析） */
+export interface SpawnRequest {
+  x: number; y: number; z: number;
+  cx: number; cy: number; cz: number;
+  r: number; g: number; b: number; a: number;
+  vx: number; vy: number; vz: number;
+  age: number;
+  speedExpression: string | null;
+  speedStep: number;
+  group: string | null;
+  exe?: CompiledBlock | null;
+  exeStruct?: ParticleStruct | null;
+}
+
+/** 命令执行上下文：engine 注入的生成回调与结果收集 */
+export interface SpawnSink {
+  /** 创建粒子（= ParticleUtil.spawnParticle 主体）；池满 → dropped++，不抛 */
+  spawn(req: SpawnRequest): void;
+  /** 注册 tick 生成器（本 tick 立即执行一次由 engine 负责） */
+  addGenerator(g: TickGenerator): void;
+  result: SimResult;
+  playerPos: { x: number; y: number; z: number };
+  /** 组索引（spawnParticle 内 GroupUtil.add） */
+  groups: GroupIndex;
+  /** normal 高斯偏移的共享 PRNG（Java 侧静态共享 RANDOM） */
+  rand: SimRandom;
+}
+
+/** 单个粒子的生成（= ParticleUtil.spawnParticle 的 try/catch 包裹）。
+ *  速度表达式解析在 try 内：失败 → 记 errors、不生成（Java：return null），
+ *  不中断同命令后续粒子。 */
+function spawnOne(sink: SpawnSink, req: SpawnRequest): boolean {
+  let exe = req.exe ?? null;
+  let exeStruct = req.exeStruct ?? null;
+  if (exe === null && req.speedExpression != null) {
+    try {
+      exe = parseOptionalExpr(req.speedExpression);
+      if (exe !== null) {
+        exeStruct = new ParticleStruct(); // 每粒子全新实例（Java 每 ClassExpression 一个 struct）
+      }
+    } catch (err) {
+      sink.result.errors.push((err as Error).message);
+      return false;
+    }
+  }
+  sink.spawn({ ...req, exe, exeStruct });
+  return true;
+}
+
+// 避免循环 import：engine 提供 parse 注入（spawn 不直接依赖 engine/index，
+// 测试里可换 stub）
+let parseExprImpl: (src: string) => CompiledBlock = () => {
+  throw new Error('parse not wired');
+};
+export function wireParse(fn: (src: string) => CompiledBlock): void {
+  parseExprImpl = fn;
+}
+function parseExpr(src: string): CompiledBlock {
+  return parseExprImpl(src);
+}
+
+/** ExpressionUtil.parse 语义：null/''/'null' → null（不解析不抛），
+ *  其余走 parseExpr（真错误抛出 —— 调用方决定是否捕获）。 */
+function parseOptionalExpr(src: string | null): CompiledBlock | null {
+  if (src == null || src === '' || src === 'null') return null;
+  return parseExpr(src);
+}
+
+// ---------- 各命令入口（与 ClientNetworkHandler 各 handler 一一对应）----------
+
+/** normal：count 次高斯偏移（RANDOM 为共享静态，按 i 顺序逐次消费） */
+export function execNormal(cmd: ParticleCommand & { kind: 'normal' }, sink: SpawnSink): void {
+  const pos = resolveVec3(cmd.pos, sink.playerPos);
+  for (let i = 0; i < cmd.count; i++) {
+    const rx = sink.rand.nextGaussian() * cmd.range.x;
+    const ry = sink.rand.nextGaussian() * cmd.range.y;
+    const rz = sink.rand.nextGaussian() * cmd.range.z;
+    spawnOne(sink, {
+      x: pos.x + rx, y: pos.y + ry, z: pos.z + rz,
+      cx: pos.x, cy: pos.y, cz: pos.z,
+      r: cmd.color.r, g: cmd.color.g, b: cmd.color.b, a: cmd.color.a,
+      vx: cmd.speed.x, vy: cmd.speed.y, vz: cmd.speed.z,
+      age: cmd.age, speedExpression: cmd.speedExpression, speedStep: cmd.speedStep,
+      group: cmd.group, exe: null, exeStruct: null,
+    });
+  }
+}
+
+/** conditional：三重扫描（浮点递增，含两端；exe!=null 时 invoke!=0 才生成）。
+ *  主表达式 struct 一次命令一个，跨扫描点不清零。 */
+export function execConditional(cmd: ParticleCommand & { kind: 'conditional' }, sink: SpawnSink): void {
+  const pos = resolveVec3(cmd.pos, sink.playerPos);
+  const exe = parseOptionalExpr(cmd.expression); // "null"/空 → null（无条件生成）；真错误抛给调用方
+  const struct = new ParticleStruct();
+  for (let cx = -cmd.range.x; cx <= cmd.range.x; cx += cmd.step) {
+    for (let cy = -cmd.range.y; cy <= cmd.range.y; cy += cmd.step) {
+      for (let cz = -cmd.range.z; cz <= cmd.range.z; cz += cmd.step) {
+        if (exe != null) {
+          fillConditionalPoint(struct, cx, cy, cz);
+          if (exe.run(struct) === 0) continue;
+        }
+        spawnOne(sink, {
+          x: pos.x + cx, y: pos.y + cy, z: pos.z + cz,
+          cx: pos.x, cy: pos.y, cz: pos.z,
+          r: cmd.color.r, g: cmd.color.g, b: cmd.color.b, a: cmd.color.a,
+          vx: cmd.speed.x, vy: cmd.speed.y, vz: cmd.speed.z,
+          age: cmd.age, speedExpression: cmd.speedExpression, speedStep: cmd.speedStep,
+          group: cmd.group,
+        });
+      }
+    }
+  }
+}
+
+/** parameter 家族（8 变体）。
+ *  - 非 tick：命令内同步 for 循环（struct 一次命令一个，不清零）；
+ *  - tick：建 TickGenerator 立即 run 一次，之后每 tick 末排队（engine 负责）。
+ *  - rgba 变体：cmd.color 为 null → 颜色/速度取 data；非 rgba → 命令值。 */
+export function execParameter(cmd: ParticleCommand & { kind: 'parameter' }, sink: SpawnSink): void {
+  const pos = resolveVec3(cmd.pos, sink.playerPos);
+  // ClientNetworkHandler.parameter：parse 在 tick 判断**之前**，null 直接 return
+  const exe = parseOptionalExpr(cmd.expression);
+  if (exe == null) return;
+  if (cmd.tick) {
+    const g: TickGenerator = {
+      x: pos.x, y: pos.y, z: pos.z,
+      color: cmd.color,
+      cmdVel: cmd.color === null ? null : { vx: cmd.speed.x, vy: cmd.speed.y, vz: cmd.speed.z },
+      begin: cmd.begin, end: cmd.end, step: cmd.step, cpt: cmd.cpt,
+      age: cmd.age, speedExpression: cmd.speedExpression, speedStep: cmd.speedStep,
+      group: cmd.group, polar: cmd.polar,
+      exe, struct: new ParticleStruct(), t: cmd.begin,
+    };
+    sink.addGenerator(g); // engine：立即 run 一次 + 注册
+  } else {
+    const struct = new ParticleStruct();
+    for (let t = cmd.begin; t <= cmd.end; t += cmd.step) {
+      fillParameterPoint(struct, t);
+      exe.run(struct);
+      const step = computeSpawnStepLike(struct, cmd.polar, cmd.color, cmd.speed);
+      spawnOne(sink, {
+        x: pos.x + step.dx, y: pos.y + step.dy, z: pos.z + step.dz,
+        cx: pos.x, cy: pos.y, cz: pos.z,
+        r: step.color.r, g: step.color.g, b: step.color.b, a: step.color.a,
+        vx: step.vel.vx, vy: step.vel.vy, vz: step.vel.vz,
+        age: cmd.age, speedExpression: cmd.speedExpression, speedStep: cmd.speedStep,
+        group: cmd.group,
+      });
+    }
+  }
+}
+
+/** 非 tick parameter 的单步（与 TickGenerator 共用同一套 polar/rgba 语义） */
+function computeSpawnStepLike(
+  s: ParticleStruct,
+  polar: boolean,
+  color: { r: number; g: number; b: number; a: number } | null,
+  speed: { x: number; y: number; z: number },
+): {
+  dx: number; dy: number; dz: number;
+  color: { r: number; g: number; b: number; a: number };
+  vel: { vx: number; vy: number; vz: number };
+} {
+  let dx: number;
+  let dy: number;
+  let dz: number;
+  if (polar) {
+    dx = s.dis * Math.cos(s.s2) * Math.cos(s.s1);
+    dy = s.dis * Math.sin(s.s2);
+    dz = s.dis * Math.cos(s.s2) * Math.sin(s.s1);
+  } else {
+    dx = s.x;
+    dy = s.y;
+    dz = s.z;
+  }
+  if (color === null) {
+    // rgba 变体：颜色取 data；速度一律命令速度（非 tick 分支 Java 原文如此）
+    return {
+      dx, dy, dz,
+      color: { r: s.cr, g: s.cg, b: s.cb, a: s.alpha },
+      vel: { vx: speed.x, vy: speed.y, vz: speed.z },
+    };
+  }
+  return {
+    dx, dy, dz,
+    color,
+    vel: { vx: speed.x, vy: speed.y, vz: speed.z },
+  };
+}
+
+/** TickGenerator 单步（= TickParticleTask.run 的一轮循环体；由 engine 驱动）。
+ *  返回本 tick 是否还有 t <= end（→ 需要排队到下一 tick 初）。 */
+export function runGeneratorStep(g: TickGenerator, sink: SpawnSink): boolean {
+  const data = g.struct;
+  for (let i = 0; i < g.cpt && g.t <= g.end; g.t += g.step) {
+    fillParameterPoint(data, g.t);
+    g.exe.run(data);
+    const step = computeSpawnStep(g);
+    const color = step.color as { r: number; g: number; b: number; a: number };
+    const vel = step.vel as { vx: number; vy: number; vz: number };
+    spawnOne(sink, {
+      x: g.x + step.dx, y: g.y + step.dy, z: g.z + step.dz,
+      cx: g.x, cy: g.y, cz: g.z,
+      r: color.r, g: color.g, b: color.b, a: color.a,
+      vx: vel.vx, vy: vel.vy, vz: vel.vz,
+      age: g.age, speedExpression: g.speedExpression, speedStep: g.speedStep,
+      group: g.group,
+    });
+    i++;
+  }
+  return g.t <= g.end;
+}
+
+// ---------- group 操作 ----------
+
+/** group remove：对每个 `|` 组每个活粒子填相对坐标(+age)，invoke!=0 才移除。
+ *  注意 Java：exe 解析在每个组名内进行（组数>1 时多次 parse，预览用同一 struct 近似）。
+ *  返回实际移除数（测试用）。 */
+export function execGroupRemove(
+  cmd: Extract<ParticleCommand, { kind: 'group'; sub: 'remove' }>,
+  sink: SpawnSink,
+  engine: GroupEngineView,
+): number {
+  const ref = cmd.pos === null ? sink.playerPos : resolveVec3(cmd.pos, sink.playerPos);
+  let removed = 0;
+  for (const name of cmd.group.split('|')) {
+    // Java：exe 解析在**每个组名**内（组数>1 时重复 parse；预览缓存下等价）
+    const exe = cmd.expression != null ? parseOptionalExpr(cmd.expression) : null;
+    const struct = exe !== null ? new ParticleStruct() : null;
+    for (const id of sink.groups.membersOf(name)) {
+      const p = engine.get(id);
+      if (!p || !p.alive) continue;
+      if (exe != null && struct != null) {
+        fillGroupRelative(struct, p.x, p.y, p.z, ref.x, ref.y, ref.z, p.age);
+        if (exe.run(struct) !== 0) {
+          engine.kill(id); // remove()：alive=false（组内死 id 下方 prune 清理）
+          removed++;
+        }
+      } else {
+        engine.kill(id);
+        removed++;
+      }
+    }
+    // Java：particles.removeIf(!isAlive)（每组各清一次）
+    engine.prune(name);
+  }
+  return removed;
+}
+
+/** group change：条件过滤（cexe do-while）后按 type 修改。
+ *  case 0 parameter：主表达式改位置/颜色/速度/中心；
+ *  case 1 speedexpression：换 exe（**不重置 moveT**，逐字复刻）。
+ *
+ *  ⚠️ Java 原文的 do-while 结构（逐字复刻，含其边角行为）：
+ *    do {
+ *      if (!hasNext) return;              // 迭代器耗尽 → 整条命令终止
+ *      particle = next();
+ *      if (!particle.isAlive()) continue; // continue → 直接跳到 while 条件！
+ *      if (cexe == null) break;
+ *      填充 data;
+ *    } while (cexe.invoke() == 0);        // 0 → 取下一个粒子；1 → 选中
+ *    switch(type) { …对 particle 应用… }  // 选中的可能是**死粒子**（见下）
+ *  由此产生的忠实行为：
+ *  - 死粒子 + cexe==null → continue 跳到 `cexe.invoke()` → **NPE**（游戏内崩溃，
+ *    预览记录错误并终止本命令）；
+ *  - 死粒子 + cexe!=null → 用**上一次填充的残留 data** 调 invoke：0 → 继续取
+ *    下一个；1 → 选中死粒子并应用修改（对死粒子无可见效果，但不报错）。 */
+export function execGroupChange(
+  cmd: Extract<ParticleCommand, { kind: 'group'; sub: 'change' }>,
+  sink: SpawnSink,
+  engine: GroupEngineView,
+): void {
+  const ref = cmd.pos === null ? sink.playerPos : resolveVec3(cmd.pos, sink.playerPos);
+  // Java：两表达式都在循环前 parse（"null"/空 → null，不抛）；真错误抛给调用方
+  const exe = parseOptionalExpr(cmd.expression);
+  const cexe = parseOptionalExpr(cmd.conditionalExpression);
+  const cStruct = cexe !== null ? new ParticleStruct() : null;
+  const pStruct = new ParticleStruct();
+
+  const ids = sink.groups.get(cmd.group); // Java：GroupUtil.get(group).iterator()
+  let i = 0;
+
+  while (true) {
+    // ---- do-while：取下一个「选中」粒子 ----
+    // selected=null 且 deadSelected=true → 死粒子被残留 data 选中（switch 无可见效果，跳过）
+    let selected: SimParticle | null = null;
+    let deadSelected = false;
+    let exhausted = false;
+    let npe = false;
+    for (;;) {
+      // do 体
+      if (i >= ids.length) {
+        exhausted = true;
+        break;
+      }
+      const pid = ids[i++];
+      const p = engine.get(pid);
+      if (!p || !p.alive) {
+        // Java continue → 跳到 while 条件 cexe.invoke()
+        if (cexe === null) {
+          npe = true;
+          break;
+        }
+        if (cexe.run(cStruct as ParticleStruct) !== 0) {
+          deadSelected = true; // 残留 data 判定为真 → 选中死粒子
+          break;
+        }
+        continue; // 条件为 0 → 下一轮 do
+      }
+      if (cexe === null) {
+        selected = p;
+        break;
+      }
+      fillGroupRelative(cStruct as ParticleStruct, p.x, p.y, p.z, ref.x, ref.y, ref.z, -1);
+      if (cexe.run(cStruct as ParticleStruct) !== 0) {
+        selected = p;
+        break;
+      }
+      // 条件为 0 → 继续 do（取下一个粒子）
+    }
+    if (exhausted) return; // Java：!hasNext → return
+    if (npe) {
+      throw new Error(
+        'java.lang.NullPointerException: Cannot invoke "com.noone.particleex.util.IExecutable.invoke()" because "cexe" is null',
+      );
+    }
+    if (deadSelected) {
+      // Java：switch 对死粒子对象应用（move/setCenter/setRenderColor/setExe…）——
+      // 对活粒子集合无任何可见效果，直接回到外层取下一个
+      continue;
+    }
+    const p = selected as SimParticle;
+
+    // ---- switch(type) ----
+    if (cmd.type === 'parameter') {
+      if (exe === null) continue; // Java：break（仅本粒子跳过，外层继续）
+      fillGroupChangeParam(pStruct, p, ref.x, ref.y, ref.z);
+      const prevx = pStruct.vx;
+      const prevy = pStruct.vy;
+      const prevz = pStruct.vz;
+      exe.run(pStruct);
+      // move(data.x - (x - ref)) ≡ 摆到 ref + data.x
+      p.x = ref.x + pStruct.x;
+      p.y = ref.y + pStruct.y;
+      p.z = ref.z + pStruct.z;
+      p.cx = pStruct.cx;
+      p.cy = pStruct.cy;
+      p.cz = pStruct.cz;
+      p.r = pStruct.cr;
+      p.g = pStruct.cg;
+      p.b = pStruct.cb;
+      p.a = pStruct.alpha;
+      if (pStruct.vx !== prevx || pStruct.vy !== prevy || pStruct.vz !== prevz) {
+        p.stop = pStruct.vx === 0 && pStruct.vy === 0 && pStruct.vz === 0;
+      }
+      p.vx = pStruct.vx;
+      p.vy = pStruct.vy;
+      p.vz = pStruct.vz;
+    } else {
+      // case 1：换速度表达式；新 exe 实例 = 全新 struct（无残留），moveT 保持不动
+      p.exe = exe;
+      p.exeStruct = exe !== null ? new ParticleStruct() : null;
+    }
+  }
+}
+
+/** spawn.ts 需要的 engine 窄接口（避免循环依赖） */
+export interface GroupEngineView {
+  get(id: number): SimParticle | undefined;
+  /** remove()：alive=false（组内死 id 由 prune 惰性清理，与 Java removeIf 一致） */
+  kill(id: number): void;
+  /** group remove 的 removeIf(!isAlive) */
+  prune(name: string): void;
+}
