@@ -339,6 +339,18 @@ export class SimEngine {
     this.groups.clear();
   }
 
+  /** 运行期更新设置（M5 SettingsDrawer）：playerPos/默认寿命/粒子上限即时生效；
+   *  seed 变化 → 重建 PRNG（等价于从同种子重新开始消费） */
+  updateConfig(patch: Partial<SimConfig>): void {
+    if (patch.playerPos) this.config.playerPos = { ...patch.playerPos };
+    if (patch.defaultLifetime !== undefined) this.config.defaultLifetime = patch.defaultLifetime;
+    if (patch.maxParticles !== undefined) this.config.maxParticles = patch.maxParticles;
+    if (patch.seed !== undefined) {
+      this.config.seed = patch.seed;
+      this.rand = new SimRandom(patch.seed);
+    }
+  }
+
   /** reset：回放用（粒子/组/生成器/tick 计数/PRNG 全重置） */
   reset(): void {
     this.pool = [];
