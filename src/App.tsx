@@ -1,37 +1,33 @@
-// M4 预览骨架：命令粘贴 + 播放（墙钟累加器）+ HUD。M5 会替换左栏为完整
-// 表单/双向同步/设置，右栏 HUD 保留。热路径（引擎/Three/播放状态）全在 ref，
-// React state 只承担低频显示（tick 数 10Hz 节流）。
+// 应用入口（M5）：左侧 CommandPane（粘贴框/表单双向同步/设置/toast），
+// 右侧 Viewport（Three 画布/播放条/HUD）。
+//
+// 热路径（计划 §九）：引擎与 Three 对象在 ref；播放状态以 store 为 UI 镜像，
+// rAF 循环读 ref（playing/speed 变化时重启 effect）。React state 只承担
+// 低频显示（HUD 10Hz 轮询）。
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { SimEngine } from './sim/engine';
-import type { SimConfig } from './sim/types';
-import { parseCommands } from './command/parser';
 import { SimViewport } from './render/sync';
+import { useAppState, setHud, pushToast, getState, clearToasts } from './store/appState';
+import { CommandPane } from './ui/CommandPane';
+import { Viewport } from './ui/Viewport';
 
 const TICK_MS = 50; // 20 TPS
-const SPEEDS = [1, 2, 4, 8];
-
-function defaultConfig(): SimConfig {
-  return { playerPos: { x: 0, y: 0, z: 0 }, defaultLifetime: 20, maxParticles: 20000, seed: 1 };
-}
 
 export default function App() {
-  const [input, setInput] = useState(
-    'particleex normal flame 0 1 0 1 0.5 0.2 1 0 0 0 0.4 0.4 0 600 20\nparticleex parameter flame 0 0.5 0 1 0.9 0.8 1 0 0 0 0 12.56 "x,y,z=4*cos(t*0.2),0,4*sin(t*0.2)" 0.25 40\n',
-  );
-  const [hud, setHud] = useState({ tick: 0, count: 0, dropped: 0 });
-  const [errors, setErrors] = useState<string[]>([]);
-  const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1);
+  const { playing, speed, sim } = useAppState();
 
   const engineRef = useRef<SimEngine | null>(null);
   const viewportRef = useRef<SimViewport | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const playRef = useRef({ running: false, speed: 1, acc: 0, last: 0 });
+  const playRef = useRef({ acc: 0, last: 0 });
+  const lastErrLen = useRef(0);
 
-  if (engineRef.current === null) engineRef.current = new SimEngine(defaultConfig());
+  if (engineRef.current === null) {
+    engineRef.current = new SimEngine({ ...getState().sim });
+  }
 
-  // 挂载：viewport + 渲染循环 + 墙钟累加器
+  // 挂载：viewport + 渲染循环 + resize
   useEffect(() => {
     if (!containerRef.current) return;
     const vp = new SimViewport(containerRef.current, engineRef.current!.config.maxParticles);
@@ -46,22 +42,25 @@ export default function App() {
     };
   }, []);
 
-  // 播放循环（requestAnimationFrame 内累加墙钟；逻辑 20Hz 与渲染 60Hz 解耦）
+  // 设置变更 → 应用到引擎（playerPos/寿命/上限即时；seed → 重建 PRNG）
   useEffect(() => {
-    playRef.current.running = playing;
-    playRef.current.speed = speed;
+    engineRef.current!.updateConfig(sim);
+  }, [sim]);
+
+  // 播放循环（墙钟累加器；逻辑 20Hz 与渲染 60Hz 解耦）
+  useEffect(() => {
     if (!playing) return;
+    const st = playRef.current;
+    st.acc = 0;
+    st.last = 0;
     let raf = 0;
     const loop = (now: number) => {
-      const st = playRef.current;
-      const e = engineRef.current!;
-      const vp = viewportRef.current;
       if (st.last > 0) {
-        st.acc = Math.min(st.acc + (now - st.last) * st.speed, TICK_MS * 4); // cap 防死亡螺旋
+        st.acc = Math.min(st.acc + (now - st.last) * speed, TICK_MS * 4); // cap 防死亡螺旋
         while (st.acc >= TICK_MS) {
-          e.tickOnce();
+          engineRef.current!.tickOnce();
           st.acc -= TICK_MS;
-          if (vp) vp.update(e);
+          viewportRef.current?.update(engineRef.current!);
         }
       }
       st.last = now;
@@ -74,13 +73,17 @@ export default function App() {
     };
   }, [playing, speed]);
 
-  // HUD 10Hz 节流
+  // HUD / tickErrors 10Hz 轮询（热路径不经过 React state）
   useEffect(() => {
     const id = window.setInterval(() => {
       const e = engineRef.current!;
-      if (!e) return;
       setHud({ tick: e.tick, count: e.aliveCount, dropped: e.dropped });
-      setErrors([...e.tickErrors.slice(-5)]);
+      if (e.tickErrors.length > lastErrLen.current) {
+        for (let i = lastErrLen.current; i < e.tickErrors.length; i++) {
+          pushToast('tick ' + e.tick + ': ' + e.tickErrors[i]);
+        }
+        lastErrLen.current = e.tickErrors.length;
+      }
     }, 100);
     return () => window.clearInterval(id);
   }, []);
@@ -91,31 +94,33 @@ export default function App() {
     setHud({ tick: e.tick, count: e.aliveCount, dropped: e.dropped });
   };
 
-  const runInput = () => {
+  // 「执行」：按当前 commands 逐条 runCommand（命令级错误 toast，后续行继续）
+  const run = () => {
     const e = engineRef.current!;
-    const collected: string[] = [];
-    try {
-      for (const cmd of parseCommands(input)) {
+    for (const cmd of getState().commands) {
+      try {
         const r = e.runCommand(cmd);
-        for (const err of r.errors) collected.push(err);
+        for (const err of r.errors) pushToast(err);
+        if (r.dropped > 0) pushToast(`粒子上限：丢弃 ${r.dropped} 个`);
+      } catch (err) {
+        pushToast((err as Error).message);
       }
-    } catch (err) {
-      collected.push((err as Error).message);
     }
-    setErrors(collected.slice(-5));
     refresh();
   };
 
+  // 「单步」：手动 tickOnce（暂停时可用）
   const step = () => {
-    if (playRef.current.running) return;
+    if (playing) return;
     engineRef.current!.tickOnce();
     refresh();
   };
 
+  // 「回放重置」：引擎全重置（粒子/组/生成器/tick/PRNG）+ 清 toast
   const reset = () => {
-    setPlaying(false);
     engineRef.current!.reset();
-    setErrors([]);
+    lastErrLen.current = 0;
+    clearToasts();
     refresh();
   };
 
@@ -123,42 +128,12 @@ export default function App() {
     <div className="app-layout">
       <aside className="pane">
         <h1>ColorBlockViewer</h1>
-        <p className="muted">AnotherColorBlock 粒子效果预览（M4 骨架；M5 实现完整表单）</p>
-        <label className="field-label">命令（多行，每行一条）</label>
-        <textarea
-          className="cmd-input"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          rows={8}
-          spellCheck={false}
-        />
-        <div className="btn-row">
-          <button className="primary" onClick={runInput}>执行</button>
-          <button onClick={() => setPlaying((p) => !p)}>{playing ? '⏸ 暂停' : '▶ 播放'}</button>
-          <button onClick={step} disabled={playing}>单步</button>
-          <button onClick={reset}>↺ 重置</button>
-        </div>
-        <div className="btn-row">
-          {SPEEDS.map((s) => (
-            <button key={s} className={speed === s ? 'active' : ''} onClick={() => setSpeed(s)}>
-              {s}×
-            </button>
-          ))}
-        </div>
-        {errors.length > 0 && (
-          <div className="errors">
-            {errors.map((m, i) => (
-              <div key={i}>{m}</div>
-            ))}
-          </div>
-        )}
+        <p className="muted">
+          AnotherColorBlock 粒子效果预览（简化：所有粒子类型按匀速直线运动；默认寿命为近似值）
+        </p>
+        <CommandPane onRun={run} />
       </aside>
-      <main className="viewport">
-        <div className="viewport-canvas" ref={containerRef} />
-        <div className="hud">
-          tick {hud.tick} · 粒子 {hud.count} · 丢弃 {hud.dropped}
-        </div>
-      </main>
+      <Viewport containerRef={containerRef} onStep={step} onReset={reset} />
     </div>
   );
 }
