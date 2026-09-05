@@ -1,0 +1,53 @@
+name: CI & Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npx tsc --noEmit
+      - run: npm run build
+      - name: 断言资源路径带 base 前缀
+        run: |
+          bad=$(grep -oE '(src|href)="[^"]*"' dist/index.html | grep -E '(src|href)="/' | grep -vE '(src|href)="/ColorblockViewer/' || true)
+          if [ -n "$bad" ]; then
+            echo "发现未带 base 前缀的资源路径："
+            echo "$bad"
+            exit 1
+          fi
+          echo "index.html 资源路径均以 /ColorblockViewer/ 开头 ✓"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
