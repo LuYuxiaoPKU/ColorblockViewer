@@ -416,6 +416,21 @@ describe('组操作', () => {
     e.runCommand(C('particleex group change parameter g "cr=0" "null" 0 0 0'));
     expect(snap(e).every((p) => p.r === 0)).toBe(true);
   });
+
+  it('group change do-while 复刻：死粒子 + 无 cexe → NPE（命令中止）', () => {
+    const e = eng();
+    // 1 个短命粒子入组 g，2 tick 后死（组里滞留死 id —— Java 列表不惰性清理）
+    e.runCommand(C(normal(1, '2 "null" 1 g')));
+    e.tickOnce();
+    e.tickOnce(); // age=2 = lifetime → 死
+    expect(e.aliveCount).toBe(0);
+    // do 体取到死粒子 → continue → while 条件 cexe.invoke()，cexe==null（"null" 字面量）→ NPE
+    expect(() =>
+      e.runCommand(C('particleex group change parameter g "cr=0" "null" 0 0 0')),
+    ).toThrow(
+      'java.lang.NullPointerException: Cannot invoke "com.noone.particleex.util.IExecutable.invoke()" because "cexe" is null',
+    );
+  });
 });
 
 // ---------- clearparticle / 上限 / 错误 ----------
