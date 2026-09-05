@@ -17,6 +17,8 @@ export interface SimConfig {
 
 export interface SimParticle {
   id: number;
+  /** 粒子类型名（粒子名参数原样；渲染层按它微调 size/alpha/色相） */
+  name: string;
   x: number; y: number; z: number;
   /** 原生速度（恒定，除非 group change parameter 显式修改） */
   vx: number; vy: number; vz: number;
@@ -42,6 +44,7 @@ export interface SimParticle {
 
 /** tick*parameter 的分 tick 生成器（复刻 TickParticleTask；t 跨 tick 持续递增） */
 export interface TickGenerator {
+  name: string;
   x: number; y: number; z: number;
   color: { r: number; g: number; b: number; a: number } | null; // null = rgba 变体（用 data 颜色）
   cmdVel: { vx: number; vy: number; vz: number } | null; // null = rgba 变体（用 data 速度）

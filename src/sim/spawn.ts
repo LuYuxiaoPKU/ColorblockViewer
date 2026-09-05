@@ -38,6 +38,7 @@ export function resolveVec3(
 /** spawnParticle 的入参（对应 Java 18 参签名；exe/exeStruct 可选 =
  *  预解析好的速度表达式实例，缺省由 spawnOne 在 try 内解析） */
 export interface SpawnRequest {
+  name: string;
   x: number; y: number; z: number;
   cx: number; cy: number; cz: number;
   r: number; g: number; b: number; a: number;
@@ -114,6 +115,7 @@ export function execNormal(cmd: ParticleCommand & { kind: 'normal' }, sink: Spaw
     const ry = sink.rand.nextGaussian() * cmd.range.y;
     const rz = sink.rand.nextGaussian() * cmd.range.z;
     spawnOne(sink, {
+      name: cmd.name,
       x: pos.x + rx, y: pos.y + ry, z: pos.z + rz,
       cx: pos.x, cy: pos.y, cz: pos.z,
       r: cmd.color.r, g: cmd.color.g, b: cmd.color.b, a: cmd.color.a,
@@ -138,6 +140,7 @@ export function execConditional(cmd: ParticleCommand & { kind: 'conditional' }, 
           if (exe.run(struct) === 0) continue;
         }
         spawnOne(sink, {
+          name: cmd.name,
           x: pos.x + cx, y: pos.y + cy, z: pos.z + cz,
           cx: pos.x, cy: pos.y, cz: pos.z,
           r: cmd.color.r, g: cmd.color.g, b: cmd.color.b, a: cmd.color.a,
@@ -161,6 +164,7 @@ export function execParameter(cmd: ParticleCommand & { kind: 'parameter' }, sink
   if (exe == null) return;
   if (cmd.tick) {
     const g: TickGenerator = {
+      name: cmd.name,
       x: pos.x, y: pos.y, z: pos.z,
       color: cmd.color,
       cmdVel: cmd.color === null ? null : { vx: cmd.speed.x, vy: cmd.speed.y, vz: cmd.speed.z },
@@ -177,6 +181,7 @@ export function execParameter(cmd: ParticleCommand & { kind: 'parameter' }, sink
       exe.run(struct);
       const step = computeSpawnStepLike(struct, cmd.polar, cmd.color, cmd.speed);
       spawnOne(sink, {
+        name: cmd.name,
         x: pos.x + step.dx, y: pos.y + step.dy, z: pos.z + step.dz,
         cx: pos.x, cy: pos.y, cz: pos.z,
         r: step.color.r, g: step.color.g, b: step.color.b, a: step.color.a,
@@ -237,6 +242,7 @@ export function runGeneratorStep(g: TickGenerator, sink: SpawnSink): boolean {
     const color = step.color as { r: number; g: number; b: number; a: number };
     const vel = step.vel as { vx: number; vy: number; vz: number };
     spawnOne(sink, {
+      name: g.name,
       x: g.x + step.dx, y: g.y + step.dy, z: g.z + step.dz,
       cx: g.x, cy: g.y, cz: g.z,
       r: color.r, g: color.g, b: color.b, a: color.a,
