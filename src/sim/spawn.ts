@@ -255,6 +255,59 @@ export function runGeneratorStep(g: TickGenerator, sink: SpawnSink): boolean {
   return g.t <= g.end;
 }
 
+// ---------- 原版 /particle（MC 26.2 客户端语义，非 mod 语义）----------
+
+/** 原版 /particle：复刻 ClientPacketListener.handleParticleEvent 的客户端
+ *  生成语义（服务端命令 → 粒子包 → 客户端渲染，预览直接执行客户端侧）：
+ *  - count == 0：单粒子，**精确**生成在 pos（无偏移），速度 = speed × delta
+ *    各轴（确定值，非随机）；
+ *  - count > 0：循环 count 次，每粒子先取 3 个 nextGaussian()×delta（位置偏移，
+ *    delta = 各轴高斯**标准差**，非方向/半径），再取 3 个 nextGaussian()×speed
+ *    （速度，同为各轴高斯标准差）——逐字对应字节码调用顺序；
+ *  - 高斯消费走 sink.rand（与 normal 共享同一 PRNG，序列可复现）；
+ *  - 颜色白（原版 SimpleParticleType 粒子按帧表贴图自带颜色，命令无颜色槽）；
+ *  - 寿命：原版按类型 SpriteSet/自定义 duration，预览无逐类型数据 → 统一
+ *    age=0 走 defaultLifetime（已知近似，README 已注明）；
+ *  - normal 字面量只改游戏内 alwaysShow（是否无视粒子数量设置强制显示），
+ *    预览无数量限制语义 → 无额外效果（仅影响回显文本）。 */
+export function execVanilla(cmd: ParticleCommand & { kind: 'vanilla' }, sink: SpawnSink): void {
+  const base = cmd.pos === null ? sink.playerPos : resolveVec3(cmd.pos, sink.playerPos);
+  const delta = cmd.delta ?? { x: 0, y: 0, z: 0 };
+  const speed = cmd.speed ?? 0;
+  const count = cmd.count ?? 0;
+  if (count === 0) {
+    // 单粒子：精确位置 + 确定速度 speed×delta
+    spawnOne(sink, {
+      name: cmd.name,
+      x: base.x, y: base.y, z: base.z,
+      cx: base.x, cy: base.y, cz: base.z,
+      r: 1, g: 1, b: 1, a: 1,
+      vx: speed * delta.x, vy: speed * delta.y, vz: speed * delta.z,
+      age: 0, speedExpression: null, speedStep: 1.0,
+      group: null, exe: null, exeStruct: null,
+    });
+    return;
+  }
+  for (let i = 0; i < count; i++) {
+    // 每粒子 6 次 nextGaussian：位置偏移 x/y/z、速度 x/y/z（字节码顺序）
+    const ox = sink.rand.nextGaussian() * delta.x;
+    const oy = sink.rand.nextGaussian() * delta.y;
+    const oz = sink.rand.nextGaussian() * delta.z;
+    const vx = sink.rand.nextGaussian() * speed;
+    const vy = sink.rand.nextGaussian() * speed;
+    const vz = sink.rand.nextGaussian() * speed;
+    spawnOne(sink, {
+      name: cmd.name,
+      x: base.x + ox, y: base.y + oy, z: base.z + oz,
+      cx: base.x, cy: base.y, cz: base.z,
+      r: 1, g: 1, b: 1, a: 1,
+      vx, vy, vz,
+      age: 0, speedExpression: null, speedStep: 1.0,
+      group: null, exe: null, exeStruct: null,
+    });
+  }
+}
+
 // ---------- group 操作 ----------
 
 /** group remove：对每个 `|` 组每个活粒子填相对坐标(+age)，invoke!=0 才移除。

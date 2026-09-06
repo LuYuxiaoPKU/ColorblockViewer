@@ -13,6 +13,7 @@ import {
 import {
   DEFAULT_NORMAL,
   DEFAULT_CONDITIONAL,
+  DEFAULT_VANILLA,
   makeParameter,
   DEFAULT_GROUP_CHANGE,
   DEFAULT_GROUP_REMOVE,
@@ -27,6 +28,7 @@ import { StatusToast } from './StatusToast';
 const TABS: { label: string; make: () => ParticleCommand }[] = [
   { label: 'normal', make: () => structuredClone(DEFAULT_NORMAL) },
   { label: 'conditional', make: () => structuredClone(DEFAULT_CONDITIONAL) },
+  { label: 'particle（原版）', make: () => structuredClone(DEFAULT_VANILLA) },
   { label: 'group change', make: () => structuredClone(DEFAULT_GROUP_CHANGE) },
   { label: 'group remove', make: () => structuredClone(DEFAULT_GROUP_REMOVE) },
   { label: 'clear', make: () => ({ ...DEFAULT_CLEAR }) },

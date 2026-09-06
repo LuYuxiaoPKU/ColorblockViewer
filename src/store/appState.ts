@@ -16,7 +16,15 @@
 import { useSyncExternalStore } from 'react';
 import { parseCommands } from '../command/parser';
 import { serializeAll } from '../command/serialize';
-import type { ParticleCommand, NormalCmd, ConditionalCmd, ParameterCmd, GroupCmd, ClearCmd } from '../command/types';
+import type {
+  ParticleCommand,
+  NormalCmd,
+  ConditionalCmd,
+  ParameterCmd,
+  GroupCmd,
+  ClearCmd,
+  VanillaCmd,
+} from '../command/types';
 import type { SimConfig } from '../sim/types';
 
 export interface AppState {
@@ -109,6 +117,18 @@ export const DEFAULT_GROUP_REMOVE: GroupCmd = {
 };
 
 export const DEFAULT_CLEAR: ClearCmd = { kind: 'clearparticle' };
+
+// 原版 /particle：name 必填；pos/delta/speed/count 为命令树槽位默认
+// （null = 未给：pos→玩家位置、delta→0、speed→0、count→0 = 单粒子）
+export const DEFAULT_VANILLA: VanillaCmd = {
+  kind: 'vanilla',
+  name: 'flame',
+  pos: null,
+  delta: null,
+  speed: null,
+  count: null,
+  normal: false,
+};
 
 // parameter 变体名 ↔ (polar, tick, rgba)
 const PARAM_NAMES: Record<string, [boolean, boolean, boolean]> = {

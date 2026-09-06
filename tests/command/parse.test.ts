@@ -212,15 +212,98 @@ describe('serialize round-trip', () => {
     'particleex group change parameter g "vy=0.1"',
     'particleex group change speedexpression g "vx=0.2" "age>100" 0 5 0',
     'particleex clearparticle',
+    'particle flame',
+    'particle dust ~ ~1 ~-2',
+    'particle dust{Red:1f,Green:0f,Blue:0f,Size:1f} 1 2 3 0.1 0.2 0.3 0 5',
+    'particle flame 1 2 3 0 0 0 0.5 42',
+    'particle flame ~ ~ ~ 0 0 0 0.5 42 normal',
   ];
   for (const src of cases) {
     it(`round-trip: ${src.slice(0, 60)}`, () => {
       const c1 = P(src);
       const text = serialize(c1);
       const c2 = P(text);
+      if (c1.kind === 'vanilla') {
+        // 原版槽位链：null 槽 = 命令树默认；规范文本用显式默认值补齐链后
+        // 再解析 → 默认值显式化（pos null → ~ ~ ~ 等），断言不动点 +
+        // 规范文本稳定（语义等价，非逐字段相等）
+        expect(serialize(c2)).toBe(text);
+        expect(P(text)).toEqual(c2);
+        return;
+      }
       expect(c2).toEqual(c1);
       // 再一轮保证规范形式稳定
       expect(serialize(c2)).toBe(text);
     });
   }
+
+  it('vanilla 缺槽补齐：pos 有而 delta 空 → 规范文本补 delta 默认 0 0 0', () => {
+    // 解析产物无缺口（链连续）；缺口只能来自 UI（设了 speed 未设 delta）
+    const c1 = P('particle flame 1 2 3') as Extract<ParticleCommand, { kind: 'vanilla' }>;
+    expect(c1.delta).toBeNull();
+    const c2 = { ...c1, speed: 0.5, count: 42 };
+    const text = serialize(c2);
+    expect(text).toBe('particle flame 1 2 3 0 0 0 0.5 42');
+    const c3 = P(text) as Extract<ParticleCommand, { kind: 'vanilla' }>;
+    expect(c3.delta).toEqual({ x: 0, y: 0, z: 0 });
+    expect(c3.speed).toBe(0.5);
+    expect(c3.count).toBe(42);
+  });
+});
+
+describe('原版 /particle（MC 26.2）', () => {
+  const V = (s: string) => P(s) as Extract<ParticleCommand, { kind: 'vanilla' }>;
+
+  it('仅 name：其余槽全 null（命令树默认）', () => {
+    const c = V('particle flame');
+    expect(c).toEqual({ kind: 'vanilla', name: 'flame', pos: null, delta: null, speed: null, count: null, normal: false });
+  });
+
+  it('/particle 前缀 + minecraft: 命名空间', () => {
+    const c = V('/particle minecraft:heart');
+    expect(c.name).toBe('minecraft:heart');
+  });
+
+  it('全槽位：pos 支持 ~，delta 绝对值，speed/count/normal', () => {
+    const c = V('particle smoke ~ ~1.5 ~-2 0.5 0.5 0.5 0.3 42 normal');
+    expect(c.pos).toEqual({ x: { v: 0, rel: true }, y: { v: 1.5, rel: true }, z: { v: -2, rel: true } });
+    expect(c.delta).toEqual({ x: 0.5, y: 0.5, z: 0.5 });
+    expect(c.speed).toBe(0.3);
+    expect(c.count).toBe(42);
+    expect(c.normal).toBe(true);
+  });
+
+  it('type{NBT}：剥离 NBT 保留类型名（含命名空间前缀）', () => {
+    expect(V('particle dust{Red:1f,Green:0f,Blue:0f,Size:1f}').name).toBe('dust');
+    expect(V('particle minecraft:block{BlockState:BlockState}').name).toBe('minecraft:block');
+  });
+
+  it('delta 不接受 ~（命令树 vec3(0) 绝对坐标）', () => {
+    expect(() => V('particle flame 0 0 0 ~ 0 0')).toThrow(/delta/);
+  });
+
+  it('speed 必须 ≥ 0', () => {
+    expect(() => V('particle flame 0 0 0 0 0 0 -1 5')).toThrow(/speed 超出范围/);
+  });
+
+  it('count 必须 ≥ 0', () => {
+    expect(() => V('particle flame 0 0 0 0 0 0 0.5 -1')).toThrow(/count 超出范围/);
+  });
+
+  it('force / viewers 槽位拒绝（预览无多人分发）', () => {
+    expect(() => V('particle flame 0 0 0 0 0 0 0.5 5 force @a')).toThrow(/预览不支持 force/);
+    expect(() => V('particle flame 0 0 0 0 0 0 0.5 5 normal viewers @a')).toThrow(/预览不支持 viewers/);
+  });
+
+  it('未知尾部 token 落入 pos 槽 → 缺参数报错', () => {
+    expect(() => V('particle flame frobnicate')).toThrow(/缺少参数 pos/);
+  });
+
+  it('particleex particle … 按未知子命令报错（防误吞）', () => {
+    expect(() => P('particleex particle flame')).toThrow(/未知子命令/);
+  });
+
+  it('name 空（裸 {NBT}）报错', () => {
+    expect(() => V('particle {Red:1f}')).toThrow(/粒子名不能为空/);
+  });
 });

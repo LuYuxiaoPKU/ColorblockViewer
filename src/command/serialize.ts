@@ -10,6 +10,7 @@ import type {
   ConditionalCmd,
   ParameterCmd,
   GroupCmd,
+  VanillaCmd,
   Coord,
 } from './types';
 
@@ -25,6 +26,11 @@ function fmtCoord(c: Coord): string {
 
 function fmtPos(p: { x: Coord; y: Coord; z: Coord }): string {
   return `${fmtCoord(p.x)} ${fmtCoord(p.y)} ${fmtCoord(p.z)}`;
+}
+
+// 纯数值三元组（vanilla 的 delta，命令树 vec3(0) 绝对值）
+function fmtPlain3(p: { x: number; y: number; z: number }): string {
+  return `${fmtNum(p.x)} ${fmtNum(p.y)} ${fmtNum(p.z)}`;
 }
 
 // 文本字段：含空白/引号 → 加引号（内部 " → ""）；其余原样
@@ -66,12 +72,39 @@ function group(c: GroupCmd): string {
   return `particleex group change ${c.type} ${fmtStr(c.group)} ${fmtStr(c.expression)} ${fmtStr(c.conditionalExpression)}${c.pos ? ' ' + fmtPos(c.pos) : ''}`;
 }
 
+// 原版 /particle：槽位链前缀封闭——null 槽位（命令树默认值）不写，
+// 后面的非 null 槽位前必须补齐前面的 null 槽位（写成命令树默认值），
+// 保证往返后结构一致（round-trip 约定）。
+function vanilla(c: VanillaCmd): string {
+  // 槽位默认值（命令树缺省）
+  const defPos = { x: { v: 0, rel: true }, y: { v: 0, rel: true }, z: { v: 0, rel: true } };
+  const parts = ['particle', fmtStr(c.name)];
+  // pos
+  if (c.pos !== null) parts.push(fmtPos(c.pos));
+  else if (c.delta !== null || c.speed !== null || c.count !== null || c.normal) parts.push(fmtPos(defPos));
+  // delta
+  if (c.delta !== null) parts.push(fmtPlain3(c.delta));
+  else if (c.speed !== null || c.count !== null || c.normal) {
+    parts.push(fmtPlain3({ x: 0, y: 0, z: 0 }));
+  }
+  // speed
+  if (c.speed !== null) parts.push(fmtNum(c.speed));
+  else if (c.count !== null || c.normal) parts.push('0');
+  // count
+  if (c.count !== null) parts.push(String(c.count));
+  else if (c.normal) parts.push('0');
+  // normal
+  if (c.normal) parts.push('normal');
+  return parts.join(' ');
+}
+
 export function serialize(cmd: ParticleCommand): string {
   switch (cmd.kind) {
     case 'normal': return normal(cmd);
     case 'conditional': return conditional(cmd);
     case 'parameter': return parameter(cmd);
     case 'group': return group(cmd);
+    case 'vanilla': return vanilla(cmd);
     case 'clearparticle': return 'particleex clearparticle';
   }
 }

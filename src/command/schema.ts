@@ -17,6 +17,14 @@ export const USAGE: Record<string, string> = {
   clearparticle: 'particleex clearparticle',
 };
 
+// 原版 /particle（MC 26.2）：与 particleex 子命令分开——USAGE 的键会进
+// 「未知子命令。可用：…」报错列表（particleex 的子命令名），原版命令无
+// particleex 前缀，不混入。槽位链（name 必填，其余依次可选）按
+// ParticleCommand.register() 命令树逐字核对；[force] [normal] [viewers]
+// 槽位预览不支持（见 parser.parseVanilla）。
+export const USAGE_VANILLA =
+  'particle <粒子名> [pos x y z] [delta x y z] [speed] [count] [normal]';
+
 export const SUBCOMMANDS = [
   'normal',
   'conditional',

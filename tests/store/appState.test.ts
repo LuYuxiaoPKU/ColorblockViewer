@@ -16,6 +16,7 @@ import {
   DEFAULT_NORMAL,
   DEFAULT_PARAMETER,
   DEFAULT_GROUP_REMOVE,
+  DEFAULT_VANILLA,
 } from '../../src/store/appState';
 import { parseCommands } from '../../src/command/parser';
 import { serialize } from '../../src/command/serialize';
@@ -55,6 +56,11 @@ describe('表单 → 文本（serialize 派生）', () => {
     expect(getState().input).toContain('particleex tickpolarparameter');
     setCommand(0, makeParameter('rgbaparameter'));
     expect(getState().input).toContain('particleex rgbaparameter');
+  });
+
+  it('vanilla 命令 → 文本为原版形式（无 particleex 前缀）', () => {
+    setCommand(0, { ...structuredClone(DEFAULT_VANILLA), name: 'smoke' });
+    expect(getState().input).toBe('particle smoke');
   });
 });
 
@@ -133,6 +139,7 @@ describe('round-trip：表单默认值 → serialize → parse → 结构等价'
     { label: 'parameter', c: structuredClone(DEFAULT_PARAMETER) },
     { label: 'rgbatickpolarparameter', c: makeParameter('rgbatickpolarparameter') },
     { label: 'group remove', c: structuredClone(DEFAULT_GROUP_REMOVE) },
+    { label: 'vanilla', c: structuredClone(DEFAULT_VANILLA) },
   ];
   for (const { label, c } of cases) {
     it(label, () => {

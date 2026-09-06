@@ -19,6 +19,7 @@ import {
   execNormal,
   execConditional,
   execParameter,
+  execVanilla,
   execGroupRemove,
   execGroupChange,
   runGeneratorStep,
@@ -119,6 +120,9 @@ export class SimEngine {
         break;
       case 'parameter':
         execParameter(cmd, sink);
+        break;
+      case 'vanilla':
+        execVanilla(cmd, sink);
         break;
       case 'group':
         if (cmd.sub === 'remove') {

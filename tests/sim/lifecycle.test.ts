@@ -528,6 +528,81 @@ describe('clearparticle / 上限 / 错误', () => {
   });
 });
 
+// ---------- 原版 /particle（MC 26.2 客户端语义）----------
+
+describe('原版 /particle 生成', () => {
+  it('仅 name：单粒子在玩家位置、静止、白、默认寿命', () => {
+    const e = eng({ playerPos: { x: 1, y: 2, z: 3 } });
+    e.runCommand(C('particle flame'));
+    expect(e.aliveCount).toBe(1);
+    const p = snap(e)[0];
+    expect([p.x, p.y, p.z]).toEqual([1, 2, 3]);
+    expect([p.cx, p.cy, p.cz]).toEqual([1, 2, 3]);
+    expect([p.vx, p.vy, p.vz]).toEqual([0, 0, 0]);
+    expect([p.r, p.g, p.b, p.a]).toEqual([1, 1, 1, 1]);
+    expect(p.stop).toBe(true);
+    // 寿命走 defaultLifetime=20
+    for (let i = 0; i < 20; i++) e.tickOnce();
+    expect(e.aliveCount).toBe(0);
+  });
+
+  it('count=0 显式：单粒子精确位置，速度 = speed×delta（确定值）', () => {
+    const e = eng();
+    e.runCommand(C('particle flame 10 20 30 0.5 1 0.5 0.5 0'));
+    const p = snap(e)[0];
+    expect([p.x, p.y, p.z]).toEqual([10, 20, 30]);
+    expect(p.vx).toBeCloseTo(0.25, 10);
+    expect(p.vy).toBeCloseTo(0.5, 10);
+    expect(p.vz).toBeCloseTo(0.25, 10);
+    expect(p.stop).toBe(false);
+    e.tickOnce();
+    const p2 = snap(e)[0];
+    expect(p2.x).toBeCloseTo(10.25, 10);
+    expect(p2.y).toBeCloseTo(20.5, 10);
+    expect(p2.z).toBeCloseTo(30.25, 10);
+  });
+
+  it('count>0：每粒子 6 次 nextGaussian（位置偏移 x/y/z + 速度 x/y/z），seed 固定可复现', () => {
+    const e1 = eng({ seed: 7 });
+    e1.runCommand(C('particle flame 0 0 0 1 0 0 0.1 3'));
+    const e2 = eng({ seed: 7 });
+    e2.runCommand(C('particle flame 0 0 0 1 0 0 0.1 3'));
+    expect(e1.aliveCount).toBe(3);
+    const a = e1.snapshot().map((p) => [p.x, p.y, p.z, p.vx, p.vy, p.vz]);
+    const b = e2.snapshot().map((p) => [p.x, p.y, p.z, p.vx, p.vy, p.vz]);
+    expect(a).toEqual(b);
+    // delta=(1,0,0)：只有 x 偏移；speed=0.1：速度分量 |v| 量级 ~0.1
+    // 首粒子参考值（SimRandom seed=7 前 6 次 nextGaussian 手工核算）
+    expect(a[0][0]).toBeCloseTo(0.8452060657, 8);
+    expect(a[0][3]).toBeCloseTo(0.0751859431, 8);
+    expect(a.every(([, y, z]) => y === 0 && z === 0)).toBe(true);
+  });
+
+  it('pos 支持 ~：按玩家位置求值，中心 = 玩家位置', () => {
+    const e = eng({ playerPos: { x: 5, y: 0, z: 0 } });
+    e.runCommand(C('particle smoke ~ ~ ~ 0 0 0 0 0'));
+    const p = snap(e)[0];
+    expect([p.cx, p.cy, p.cz]).toEqual([5, 0, 0]);
+    expect([p.x, p.y, p.z]).toEqual([5, 0, 0]);
+  });
+
+  it('speed=0：速度全 0 → stop=true 静止（delta 仅偏移位置）', () => {
+    const e = eng({ seed: 3 });
+    e.runCommand(C('particle flame 0 0 0 1 1 1 0 5'));
+    expect(snap(e).every((p) => p.stop)).toBe(true);
+  });
+
+  it('PRNG 共享：vanilla 与 normal 共用同一序列（同 seed 顺序执行可复现）', () => {
+    const e = eng({ seed: 11 });
+    e.runCommand(C('particle flame 0 0 0 1 0 0 0.1 2')); // 消耗 12 次 nextGaussian
+    e.runCommand(C(normal(2, '0', { range: '1 0 0' }))); // 接着消耗 2 次
+    const e2 = eng({ seed: 11 });
+    e2.runCommand(C('particle flame 0 0 0 1 0 0 0.1 2'));
+    e2.runCommand(C(normal(2, '0', { range: '1 0 0' })));
+    expect(e.snapshot().map((p) => [p.x, p.vx])).toEqual(e2.snapshot().map((p) => [p.x, p.vx]));
+  });
+});
+
 // ---------- 播放自动停止判据 ----------
 
 describe('hasLiveWork / queuedGenerators（播放自动停止判据）', () => {
