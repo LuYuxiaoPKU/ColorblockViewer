@@ -19,10 +19,11 @@ import {
   parameterVariantName,
   makeParameter,
   DEFAULT_GROUP_REMOVE,
+  useAppState,
 } from '../store/appState';
 import { ExprField } from './ExprField';
 import { NumField, Vec3Field, Vec3PlainField, RgbaField, TextField } from './fields';
-import { VANILLA_PARTICLE_TYPES } from '../render/particleTypes';
+import { particleVersionData } from '../render/points';
 
 // 粒子名建议（渲染层 TWEAKS 覆盖的类型；MC 的 ParticleArgument 允许任意注册名，
 // 输入框不强制枚举）
@@ -166,17 +167,19 @@ function ClearForm() {
   return <p className="muted">clearparticle 无参数：移除全部粒子与组。</p>;
 }
 
-// 原版 /particle（MC 26.2）：name 必填；pos/delta/speed/count 槽位可独立清除
-// （清空 → null = 命令树默认）；NBT 载荷（type{...}）不解析、按类型名近似渲染；
-// force/viewers 槽位解析层拒绝（无多人分发）。
+// 原版 /particle（按 sim.mcVersion 分区的注册表）：name 必填；pos/delta/speed/count
+// 槽位可独立清除（清空 → null = 命令树默认）；NBT 载荷（type{...}）不解析、按类型名
+// 近似渲染；force/viewers 槽位解析层拒绝（无多人分发）。
 function VanillaForm({ cmd, i }: { cmd: VanillaCmd; i: number }) {
+  const { sim } = useAppState();
   const up = (p: Partial<VanillaCmd>) => setCommand(i, { ...cmd, ...p });
+  const typeList = particleVersionData(sim.mcVersion)?.types ?? [];
   return (
     <>
       <TextField
-        label="粒子类型名（26.2 注册表，支持 type{NBT}）"
+        label={`粒子类型名（${sim.mcVersion} 注册表，支持 type{NBT}）`}
         value={cmd.name}
-        list={VANILLA_PARTICLE_TYPES}
+        list={typeList}
         placeholder="flame / dust{Red:1f,Green:0f,Blue:0f,Size:1f}"
         onChange={(v) => up({ name: v })}
       />

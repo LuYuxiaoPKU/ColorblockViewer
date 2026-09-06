@@ -162,7 +162,7 @@ function defaultState(): AppState {
   return {
     commands,
     input: serializeAll(commands),
-    sim: { playerPos: { x: 0, y: 0, z: 0 }, defaultLifetime: 20, maxParticles: 20000, seed: 1 },
+    sim: { playerPos: { x: 0, y: 0, z: 0 }, defaultLifetime: 20, maxParticles: 20000, seed: 1, mcVersion: '26.2' },
     playing: false,
     speed: 1,
     hud: { tick: 0, count: 0, dropped: 0 },

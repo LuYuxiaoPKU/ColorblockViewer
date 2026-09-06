@@ -7,6 +7,7 @@ import {
   BASE_SIZE,
   createPointsLayer,
   FRAME_MS,
+  setPointsLayerAtlasKey,
   shiftHue,
   syncToPoints,
   textureFor,
@@ -102,6 +103,40 @@ describe('syncToPoints 帧 UV', () => {
     syncToPoints(layer, [mkPart({ name: 'block' })]);
     expect(layer.uv[0]).toBe(0);
     expect(layer.uv[1]).toBe(0);
+  });
+});
+
+describe('atlasKey 版本分区', () => {
+  it('帧表/UV 按版本取：两版本共有类型各自命中各自图集', () => {
+    const layer262 = createPointsLayer(2, '26.2');
+    const layer121 = createPointsLayer(2, '1.21.11');
+    const n1 = syncToPoints(layer262, [mkPart({ name: 'end_rod' })], 1, 1, 0, '26.2');
+    const n2 = syncToPoints(layer121, [mkPart({ name: 'end_rod' })], 1, 1, 0, '1.21.11');
+    expect(n1).toBe(1);
+    expect(n2).toBe(1);
+    // 两版本图集格布局不同（帧集合不同）→ UV 各自落在各自图集内（v > 0 = 有帧格）
+    expect(layer262.uv[1]).toBeGreaterThan(0);
+    expect(layer121.uv[1]).toBeGreaterThan(0);
+    layer262.dispose();
+    layer121.dispose();
+  });
+
+  it('setPointsLayerAtlasKey：复位图集状态并推进 epoch（在途旧加载判废）', () => {
+    const layer = createPointsLayer(2, '26.2');
+    const e0 = layer._atlasEpoch;
+    setPointsLayerAtlasKey(layer, '1.21.11');
+    expect(layer._atlasEpoch).toBe(e0 + 1);
+    // 切换后 uHasAtlas 归零（加载完成前圆点回退）
+    expect(layer.uniforms.uHasAtlas.value).toBe(0);
+    expect(layer.atlasLoaded).toBe(false);
+    // headless 下加载立即 resolve null → applyAtlas 不置位，保持圆点
+    return new Promise<void>((resolve) => {
+      setTimeout(() => {
+        expect(layer.uniforms.uHasAtlas.value).toBe(0);
+        layer.dispose();
+        resolve();
+      }, 20);
+    });
   });
 });
 

@@ -39,6 +39,19 @@ export function SettingsDrawer() {
             <span className="field-row-label">随机种子（变化即重置高斯序列）</span>
             <NumField label="seed" value={sim.seed} integer onChange={(v) => setSim({ seed: v })} />
           </div>
+          <div className="field-row">
+            <span className="field-row-label">
+              游戏版本 <em className="muted">（原版 /particle 的粒子贴图与类型表按它分区）</em>
+            </span>
+            <select
+              value={sim.mcVersion}
+              onChange={(e) => setSim({ mcVersion: e.target.value })}
+              aria-label="游戏版本"
+            >
+              <option value="26.2">26.2</option>
+              <option value="1.21.11">1.21.11</option>
+            </select>
+          </div>
         </div>
       ) : null}
     </div>

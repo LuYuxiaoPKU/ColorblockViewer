@@ -178,7 +178,10 @@ export function TextField({
   placeholder?: string;
   list?: string[];
 }) {
-  const id = 'dl-' + label.replace(/\s+/g, '-');
+  // id 只保留字母数字/-/_（label 里的（）{}|. 等 CSS 选择器特殊字符会破坏
+  // `input.list` 的 #id 解析——真实浏览器走 getElementById 无碍，但 happy-dom 用
+  // querySelector('#'+id)，非 ASCII 安全字符必须剔除）
+  const id = 'dl-' + label.replace(/[^\p{L}\p{N}_-]/gu, '-');
   return (
     <label className="numfield textfield">
       <span className="numfield-label">{label}</span>

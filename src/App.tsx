@@ -30,7 +30,7 @@ export default function App() {
   // 挂载：viewport + 渲染循环 + resize
   useEffect(() => {
     if (!containerRef.current) return;
-    const vp = new SimViewport(containerRef.current, engineRef.current!.config.maxParticles);
+    const vp = new SimViewport(containerRef.current, engineRef.current!.config.maxParticles, engineRef.current!.config.mcVersion);
     viewportRef.current = vp;
     vp.setPointScale(vp.size, 50); // fov 与 scene.ts 相机一致；首帧前设定像素换算
     vp.start();
@@ -47,6 +47,11 @@ export default function App() {
   useEffect(() => {
     engineRef.current!.updateConfig(sim);
   }, [sim]);
+
+  // 游戏版本变更 → 换粒子图集（贴图/帧表按版本分区；加载完成前圆点回退）
+  useEffect(() => {
+    viewportRef.current?.setAtlasKey(sim.mcVersion);
+  }, [sim.mcVersion]);
 
   // 播放循环（墙钟累加器；逻辑 20Hz 与渲染 60Hz 解耦）
   useEffect(() => {
