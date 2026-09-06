@@ -364,6 +364,8 @@ export class SimEngine {
       this.config.seed = patch.seed;
       this.rand = new SimRandom(patch.seed);
     }
+    // mcVersion 不参与引擎语义（贴图/类型表在渲染层与表单按它分区），只保持 config 一致
+    if (patch.mcVersion !== undefined) this.config.mcVersion = patch.mcVersion;
   }
 
   /** reset：回放用（粒子/组/生成器/tick 计数/PRNG 全重置） */

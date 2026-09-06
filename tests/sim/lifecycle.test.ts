@@ -18,6 +18,7 @@ function cfg(over: Partial<SimConfig> = {}): SimConfig {
     defaultLifetime: 20,
     maxParticles: 20000,
     seed: 1,
+    mcVersion: '26.2',
     ...over,
   };
 }

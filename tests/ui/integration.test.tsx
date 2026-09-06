@@ -7,8 +7,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import App from '../../src/App';
-import { getState, setCommand, removeCommand, DEFAULT_VANILLA } from '../../src/store/appState';
+import { getState, setCommand, removeCommand, setSim, DEFAULT_VANILLA } from '../../src/store/appState';
 import { serializeAll } from '../../src/command/serialize';
+import { PARTICLE_DATA } from '../../src/render/particleData';
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -30,6 +31,7 @@ vi.mock('../../src/render/sync', () => ({
     setSizeMul() {}
     setAlphaMul() {}
     setPointScale() {}
+    setAtlasKey() {}
   },
 }));
 
@@ -181,6 +183,36 @@ describe('M5 全流程', () => {
     // 空槽位 → 「+ 添加」按钮
     expect(button('+ 添加 pos')).toBeTruthy();
     expect(button('+ 添加 delta')).toBeTruthy();
+  });
+
+  it('vanilla 表单：游戏版本切换 → 粒子名下拉与标签按版本分区', () => {
+    act(() => {
+      setCommand(0, { ...structuredClone(DEFAULT_VANILLA), name: 'smoke' });
+    });
+    const findNameInput = () =>
+      [...container.querySelectorAll('input')].find(
+        (i) => i.closest('label')?.querySelector('.numfield-label')?.textContent?.startsWith('粒子类型名'),
+      ) as HTMLInputElement;
+    // 默认 26.2
+    let dl = document.getElementById(findNameInput().getAttribute('list')!);
+    let opts = [...(dl?.querySelectorAll('option') ?? [])].map((o) => o.getAttribute('value'));
+    expect(container.textContent).toContain('粒子类型名（26.2 注册表，支持 type{NBT}）');
+    expect(opts).toContain('ambient_entity_effect');
+    // 切到 1.21.11：下拉换成 1.21.11 注册表（26.2 独有类型消失）
+    act(() => setSim({ mcVersion: '1.21.11' }));
+    dl = document.getElementById(findNameInput().getAttribute('list')!);
+    opts = [...(dl?.querySelectorAll('option') ?? [])].map((o) => o.getAttribute('value'));
+    expect(container.textContent).toContain('粒子类型名（1.21.11 注册表，支持 type{NBT}）');
+    expect(opts.length).toBe(PARTICLE_DATA['1.21.11'].types.length);
+    expect(opts).toContain('end_rod');
+    // 26.2 独有类型在 1.21.11 下拉里消失（注册表随版本增长）
+    const onlyIn262 = PARTICLE_DATA['26.2'].types.filter(
+      (t) => !PARTICLE_DATA['1.21.11'].types.includes(t),
+    );
+    expect(onlyIn262.length).toBeGreaterThan(0);
+    expect(opts).not.toContain(onlyIn262[0]);
+    // 切回 26.2（后续用例基线）
+    act(() => setSim({ mcVersion: '26.2' }));
   });
 
   it('执行 → 引擎生成粒子 → HUD 显示数量', () => {

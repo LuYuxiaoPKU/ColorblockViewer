@@ -3,16 +3,17 @@
 //  - 一个 BufferGeometry 预分配 maxParticles 顶点（position 3N / color 4N / size N / uv N）；
 //  - 每 tick 全量重写前缀 + setDrawRange(0, aliveCount)（粒子每 tick 都动，
 //    增量收益低；N=20000 上传 <1ms）；
-//  - 贴图：MC 26.2 粒子贴图（scripts/gen-particle-assets.mjs 从官方客户端 jar 提取，
-//    帧表见 ./particleTextures）。有帧表的类型 → 帧动画（1/20 s/帧，相位取引擎 tick）
-//    采样图集 + 命令色乘法着色；无帧表类型（block/dust/item 等按方块纹理实时渲染的、
+//  - 贴图：MC 客户端粒子贴图（scripts/gen-particle-assets.mjs 从官方客户端 jar 提取，
+//    按版本分区的帧表见 ./particleData）。有帧表的类型 → 帧动画（1/20 s/帧，相位取引擎
+//    tick）采样图集 + 命令色乘法着色；无帧表类型（block/dust/item 等按方块纹理实时渲染的、
 //    未知名）→ 回退软发光圆点，按类型微调 size/alpha/色相。
-//  - 图集异步加载（首帧前可能未就绪 → 先圆点后贴图，不阻塞渲染）。
+//  - 图集按 atlasKey（游戏版本，如 '1.21.11' / '26.2'）分区加载；切换 key 时旧纹理
+//    dispose、缓存失效重载。异步加载（首帧前可能未就绪 → 先圆点后贴图，不阻塞渲染）。
 // 本模块可 headless 构造（BufferGeometry/ShaderMaterial 不依赖 WebGL 上下文；
 // 无 document 时图集加载 resolve null → 全圆点），sync 逻辑有单测覆盖。
 
 import * as THREE from 'three';
-import { PARTICLE_TEXTURES } from './particleTextures';
+import { PARTICLE_DATA, type ParticleVersionData } from './particleData';
 
 /** 基础点尺寸（**世界块单位**）：默认粒子 ≈ 0.1 block（MC 小粒子的典型观感）。
  *  像素换算在顶点着色器里做透视除法，换算常数 uScale = 视口物理高度·0.5 /
@@ -57,9 +58,15 @@ export function tweakFor(name: string): TypeTweak {
   return TWEAKS[normName(name)] ?? DEFAULT_TWEAK;
 }
 
-/** 粒子类型 → 帧贴图文件列表（MC 客户端 data-driven 表；未收录 → null 走圆点）。 */
-export function textureFor(name: string): string[] | null {
-  return PARTICLE_TEXTURES[normName(name)] ?? null;
+/** 粒子类型 → 帧贴图文件列表（MC 客户端 data-driven 表；未收录 → null 走圆点）。
+ *  version = 游戏版本（atlasKey）；缺省 '26.2'。 */
+export function textureFor(name: string, version = '26.2'): string[] | null {
+  return PARTICLE_DATA[version]?.frames[normName(name)] ?? null;
+}
+
+/** 游戏版本 → 粒子数据（类型全集/帧表）；未知版本 → undefined（上层用默认 '26.2'）。 */
+export function particleVersionData(version: string): ParticleVersionData | undefined {
+  return PARTICLE_DATA[version];
 }
 
 /** 色相旋转（度）。s=0 的灰白色系不受影响。 */
@@ -106,29 +113,34 @@ interface AtlasMeta {
   rows: number;
 }
 
-let metaCache: AtlasMeta | null = null;
+let metaCache: { key: string; meta: AtlasMeta } | null = null;
 
-/** 图集布局（同步可知，不依赖图片加载）：帧文件去重后按出现顺序编号。 */
-function atlasMeta(): AtlasMeta {
-  if (metaCache) return metaCache;
+/** 图集布局（同步可知，不依赖图片加载）：帧文件去重后按出现顺序编号。
+ *  按 atlasKey（游戏版本）分区；key 变化时重建。 */
+function atlasMeta(key: string): AtlasMeta {
+  if (metaCache && metaCache.key === key) return metaCache.meta;
   const frameX = new Map<string, number>();
-  for (const frames of Object.values(PARTICLE_TEXTURES)) {
-    for (const f of frames) if (!frameX.has(f)) frameX.set(f, frameX.size);
+  const frames = PARTICLE_DATA[key]?.frames;
+  if (frames) {
+    for (const fs of Object.values(frames)) {
+      for (const f of fs) if (!frameX.has(f)) frameX.set(f, frameX.size);
+    }
   }
-  metaCache = { frameX, rows: Math.max(1, Math.ceil(frameX.size / ATLAS_COLS)) };
-  return metaCache;
+  metaCache = { key, meta: { frameX, rows: Math.max(1, Math.ceil(frameX.size / ATLAS_COLS)) } };
+  return metaCache.meta;
 }
 
-let texPromise: Promise<THREE.Texture | null> | null = null;
+let texPromise: { key: string; p: Promise<THREE.Texture | null> } | null = null;
 
-/** 加载帧图集：去重帧 → Image 解码 → CanvasTexture（Nearest，不生成 mipmap）。
- *  headless（无 document/Image）或加载失败 → resolve null（着色器走圆点分支）。 */
-function loadAtlasTexture(): Promise<THREE.Texture | null> {
-  if (!texPromise) {
-    texPromise = (async () => {
+/** 加载帧图集（atlasKey 分区）：去重帧 → Image 解码 → CanvasTexture（Nearest，不生成 mipmap）。
+ *  headless（无 document/Image）或加载失败 → resolve null（着色器走圆点分支）。
+ *  切换 key 时旧 Promise/纹理失效重载。 */
+function loadAtlasTexture(key: string): Promise<THREE.Texture | null> {
+  if (!texPromise || texPromise.key !== key) {
+    const p = (async () => {
       try {
         if (typeof document === 'undefined' || typeof Image === 'undefined') return null;
-        const { frameX, rows } = atlasMeta();
+        const { frameX, rows } = atlasMeta(key);
         const files: string[] = [...frameX.keys()];
         const cv = document.createElement('canvas');
         cv.width = ATLAS_COLS * TILE;
@@ -138,7 +150,7 @@ function loadAtlasTexture(): Promise<THREE.Texture | null> {
         let drew = 0;
         for (let i = 0; i < files.length; i++) {
           const img = new Image();
-          img.src = `${import.meta.env.BASE_URL}particles/${files[i]}.png`;
+          img.src = `${import.meta.env.BASE_URL}particles/${key}/${files[i]}.png`;
           await new Promise<void>((resolve) => {
             img.onload = () => resolve();
             img.onerror = () => resolve(); // 缺帧跳过（映射已校验过，正常不触发）
@@ -168,13 +180,14 @@ function loadAtlasTexture(): Promise<THREE.Texture | null> {
         return null;
       }
     })();
+    texPromise = { key, p };
   }
-  return texPromise;
+  return texPromise.p;
 }
 
 /** 帧 → 图集 UV 左上角（u = 列左缘；v = 行顶缘，flipY 下文 1 在图顶）。 */
-function frameUV(frame: string): [number, number] {
-  const { frameX, rows } = atlasMeta();
+function frameUV(frame: string, key: string): [number, number] {
+  const { frameX, rows } = atlasMeta(key);
   const col = frameX.get(frame) ?? 0;
   const row = Math.floor(col / ATLAS_COLS);
   return [(col % ATLAS_COLS) / ATLAS_COLS, 1 - row / rows];
@@ -250,13 +263,17 @@ export interface PointsLayer {
   };
   /** 图集加载完成回调（SimViewport 在 update 时检查并重发 needsUpdate） */
   atlasLoaded: boolean;
-  /** 图集加载完成后调用（置 uAtlas/uHasAtlas）。异步加载只触发一次。 */
+  /** 图集 epoch：setPointsLayerAtlasKey 自增 → 在途旧 key 加载的迟到结果判废 */
+  _atlasEpoch: number;
+  /** 图集加载完成后调用（置 uAtlas/uHasAtlas；atlasLoaded 门禁保证同 key 只应用一次）。
+   *  正常路径由内部 .then 带 epoch 判废后调用；测试可直接注入。 */
   applyAtlas(tex: THREE.Texture | null): void;
   dispose(): void;
 }
 
-/** 预分配 max 顶点的点云层。图集异步加载，加载完成后由 applyAtlas 置位。 */
-export function createPointsLayer(max: number): PointsLayer {
+/** 预分配 max 顶点的点云层。atlasKey（游戏版本）决定加载哪套图集；
+ *  图集异步加载，加载完成后由 applyAtlas 置位。 */
+export function createPointsLayer(max: number, atlasKey = '26.2'): PointsLayer {
   const geo = new THREE.BufferGeometry();
   const pos = new Float32Array(max * 3);
   const color = new Float32Array(max * 4);
@@ -269,7 +286,7 @@ export function createPointsLayer(max: number): PointsLayer {
   // 无界包围球：粒子可能飞到很远，避免被视锥剔除
   geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1e6);
 
-  const { rows } = atlasMeta();
+  const { rows } = atlasMeta(atlasKey);
   const uniforms: PointsLayer['uniforms'] = {
     uSizeMul: { value: 1 },
     uAlphaMul: { value: 1 },
@@ -297,22 +314,48 @@ export function createPointsLayer(max: number): PointsLayer {
     uv,
     uniforms,
     atlasLoaded: false,
+    _atlasEpoch: 0,
     applyAtlas(tex: THREE.Texture | null) {
-      if (layer.atlasLoaded) return;
-      layer.atlasLoaded = true;
+      if (layer.atlasLoaded) return; // 同 key 只应用一次；切 key 走 SimViewport.setAtlasKey
       if (!tex) return; // 加载失败 → 保持圆点回退
       uniforms.uAtlas.value = tex;
       uniforms.uHasAtlas.value = 1;
       tex.needsUpdate = true;
+      layer.atlasLoaded = true;
     },
     dispose: () => {
       geo.dispose();
       mat.dispose();
+      const t = uniforms.uAtlas.value;
+      if (t) t.dispose();
     },
   };
-  // 异步加载图集（headless/加载失败 → null，保持圆点）
-  void loadAtlasTexture().then((tex) => layer.applyAtlas(tex));
+  // 异步加载图集（headless/加载失败 → null，保持圆点）。
+  // epoch 判废：切换版本（setPointsLayerAtlasKey 自增 _atlasEpoch）后旧 key 的迟到结果丢弃。
+  void loadAtlasTexture(atlasKey).then((tex) => {
+    if (layer._atlasEpoch !== 0) return;
+    layer.applyAtlas(tex);
+  });
   return layer;
+}
+
+/** 切换图集（游戏版本）：旧纹理 dispose、atlasLoaded 复位、重载新 key 图集。
+ *  加载完成前 uHasAtlas=0 → 圆点回退，加载完成后由 applyAtlas 重新置位。
+ *  epoch 自增使任何在途旧加载的迟到结果判废。 */
+export function setPointsLayerAtlasKey(layer: PointsLayer, atlasKey: string): void {
+  const e = ++layer._atlasEpoch;
+  const old = layer.uniforms.uAtlas.value;
+  if (old) old.dispose();
+  layer.uniforms.uAtlas.value = null;
+  layer.uniforms.uHasAtlas.value = 0;
+  layer.atlasLoaded = false;
+  const { rows } = atlasMeta(atlasKey);
+  layer.uniforms.uCell.value = new THREE.Vector2(1 / ATLAS_COLS, 1 / rows);
+  void loadAtlasTexture(atlasKey).then((tex) => {
+    if (layer._atlasEpoch !== e) return; // 又被切走 → 判废
+    if (layer.atlasLoaded) return; // 已被更新一轮覆盖
+    layer.applyAtlas(tex);
+  });
 }
 
 // ---------- 快照 → 缓冲 ----------
@@ -339,6 +382,7 @@ export function syncToPoints(
   sizeMul = 1,
   alphaMul = 1,
   frameTimeMs = 0,
+  atlasKey = '26.2',
 ): number {
   const max = layer.pos.length / 3;
   const n = Math.min(parts.length, max);
@@ -359,10 +403,10 @@ export function syncToPoints(
     size[i] = BASE_SIZE * tw.size * sizeMul;
     // 帧 UV：有帧表的类型按帧序取当前帧格左上角；无 → (0,0)
     // （着色器走圆点分支时忽略；图集未加载时 uHasAtlas=0 同样忽略）
-    const frames = textureFor(p.name);
+    const frames = textureFor(p.name, atlasKey);
     if (frames && frames.length > 0) {
       const frame = frames[Math.floor(frameTimeMs / FRAME_MS) % frames.length];
-      const [u, v] = frameUV(frame);
+      const [u, v] = frameUV(frame, atlasKey);
       uv[i * 2] = u;
       uv[i * 2 + 1] = v;
     } else {

@@ -3,7 +3,7 @@
 
 import * as THREE from 'three';
 import { createScene, type SceneBundle } from './scene';
-import { createPointsLayer, syncToPoints, FRAME_MS, type PointsLayer } from './points';
+import { createPointsLayer, setPointsLayerAtlasKey, syncToPoints, FRAME_MS, type PointsLayer } from './points';
 
 /** 渲染层读的最小引擎视图（解耦 render ↔ sim：SimEngine 结构子集）。
  *  tick 用于帧动画相位（1/20 s/帧，与 MC 客户端 SpriteSet 节奏一致）。 */
@@ -21,6 +21,8 @@ export class SimViewport {
   private layer: PointsLayer;
   private raf = 0;
   private running = false;
+  /** 当前图集 key（游戏版本）：帧 UV 采样 + 贴图加载都按它分区 */
+  private atlasKey = '26.2';
 
   sizeMul = 1;
   alphaMul = 1;
@@ -33,10 +35,18 @@ export class SimViewport {
     return this.scene.camera.fov;
   }
 
-  constructor(container: HTMLElement, maxParticles: number) {
+  constructor(container: HTMLElement, maxParticles: number, atlasKey = '26.2') {
     this.scene = createScene(container);
-    this.layer = createPointsLayer(maxParticles);
+    this.atlasKey = atlasKey;
+    this.layer = createPointsLayer(maxParticles, atlasKey);
     this.scene.scene.add(this.layer.points);
+  }
+
+  /** 切换游戏版本 → 换图集（旧纹理 dispose，加载完成前圆点回退）。 */
+  setAtlasKey(key: string): void {
+    if (key === this.atlasKey) return;
+    this.atlasKey = key;
+    setPointsLayerAtlasKey(this.layer, key);
   }
 
   /** tick/命令后调用：全量重写缓冲 + drawRange。返回可见粒子数。
@@ -48,6 +58,7 @@ export class SimViewport {
       this.sizeMul,
       this.alphaMul,
       source.tick * FRAME_MS,
+      this.atlasKey,
     );
     const geo = this.layer.points.geometry;
     (geo.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
