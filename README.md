@@ -57,7 +57,7 @@
 ```bash
 npm install
 npm run dev        # 开发服务器
-npm test           # Vitest（623 tests：引擎 golden / 命令解析 / 仿真生命周期 / 渲染 / UI 集成）
+npm test           # Vitest（624 tests：引擎 golden / 命令解析 / 仿真生命周期 / 渲染 / UI 集成）
 npm run build      # tsc --noEmit + vite build（base /ColorblockViewer/）
 npm run preview    # 本地预览构建产物
 npm run assets     # 重新提取粒子贴图，参数为 MC 版本：npm run assets "26.2"（或 "1.21.11"）

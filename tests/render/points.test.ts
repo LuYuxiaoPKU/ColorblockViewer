@@ -57,6 +57,10 @@ describe('tweakFor 类型微调', () => {
     expect(tweakFor('FLAME')).toEqual(tweakFor('flame'));
     expect(tweakFor('minecraft:Flame')).toEqual(tweakFor('flame'));
   });
+
+  it('end_rod 尺寸放大（glitter 帧 8×8 仅 4–14 可见像素，默认尺寸屏上 ~4px 不可见）', () => {
+    expect(tweakFor('end_rod').size).toBeGreaterThan(1);
+  });
 });
 
 describe('textureFor 帧表查询', () => {

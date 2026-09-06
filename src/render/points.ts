@@ -38,7 +38,8 @@ const TWEAKS: Record<string, TypeTweak> = {
   dandelion: { size: 0.7, alpha: 0.9, hue: 0 },
   sparkle: { size: 0.6, alpha: 1.0, hue: 0 },
   heart: { size: 1.4, alpha: 1.0, hue: 30 },
-  end_rod: { size: 0.5, alpha: 1.0, hue: 0 },
+  end_rod: { size: 2.2, alpha: 1.0, hue: 0 }, // 原版 glitter 帧 8×8 仅 4–14 个可见像素
+  // （首帧全透明），0.05 block 默认尺寸下屏上 ~4px 几乎不可见 → 放大展示
   snowflake: { size: 0.8, alpha: 0.9, hue: 0 },
   portal: { size: 0.9, alpha: 0.7, hue: 0 },
   crit: { size: 0.5, alpha: 1.0, hue: 0 },
