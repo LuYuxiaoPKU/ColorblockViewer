@@ -87,6 +87,27 @@ describe('引号', () => {
     const c = P('particleex conditional smoke 0 0 0 1 1 1 1 0 0 0 1 0 1 "a ""b"" c"') as Extract<ParticleCommand, { kind: 'conditional' }>;
     expect(c.expression).toBe('a "b" c');
   });
+  it("单引号定界（brigadier 新版，MC 26.2）：剥引号、'' 转义", () => {
+    const c = P("particleex conditional smoke 0 0 0 1 1 1 1 0 0 0 1 0 1 'a ''b'' c'") as Extract<ParticleCommand, { kind: 'conditional' }>;
+    expect(c.expression).toBe("a 'b' c");
+  });
+  it('未闭合单引号报错', () => {
+    expect(() => P("particleex conditional smoke 0 0 0 1 1 1 1 0 0 0 1 0 1 'x>1")).toThrow(/unterminated/);
+  });
+  it('游戏内单引号命令（用户报告 26.2 可运行）：polarparameter 全槽位', () => {
+    const c = P("/particleex polarparameter minecraft:end_rod ~ ~2 ~ 1 0.95 0.89 1 0 0 0 -10 10 'dis=1;s1=2*t;s2=0' 0.1 20 'i=0.1;(vx,vy,vz)=((i)*cos(s1),0,(i)*sin(s1))' 1 null") as ParameterCmd;
+    expect(c.polar).toBe(true);
+    expect(c.name).toBe('minecraft:end_rod');
+    expect(c.pos.y).toEqual({ v: 2, rel: true });
+    expect(c.begin).toBe(-10);
+    expect(c.end).toBe(10);
+    expect(c.expression).toBe('dis=1;s1=2*t;s2=0');
+    expect(c.step).toBe(0.1);
+    expect(c.age).toBe(20);
+    expect(c.speedExpression).toBe('i=0.1;(vx,vy,vz)=((i)*cos(s1),0,(i)*sin(s1))');
+    expect(c.speedStep).toBe(1);
+    expect(c.group).toBeNull();
+  });
   it('未闭合引号报错', () => {
     expect(() => P('particleex conditional smoke 0 0 0 1 1 1 1 0 0 0 1 0 1 "x>1')).toThrow(/unterminated/);
   });

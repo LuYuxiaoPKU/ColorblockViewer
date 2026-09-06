@@ -17,12 +17,19 @@ vi.mock('../../src/render/sync', () => ({
     update(): number {
       return 0;
     }
+    get size(): number {
+      return 900;
+    }
+    get fov(): number {
+      return 50;
+    }
     start() {}
     stop() {}
     resize() {}
     dispose() {}
     setSizeMul() {}
     setAlphaMul() {}
+    setPointScale() {}
   },
 }));
 

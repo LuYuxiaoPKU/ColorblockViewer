@@ -1,4 +1,4 @@
-// M4 渲染层 headless 单测：缓冲映射 / 类型微调 / 色相旋转 / drawRange。
+// M4 渲染层 headless 单测：缓冲映射 / 类型微调 / 色相旋转 / drawRange / 帧 UV。
 // BufferGeometry 不依赖 WebGL 上下文，可直接构造。
 
 import { describe, expect, it } from 'vitest';
@@ -6,8 +6,10 @@ import * as THREE from 'three';
 import {
   BASE_SIZE,
   createPointsLayer,
+  FRAME_MS,
   shiftHue,
   syncToPoints,
+  textureFor,
   tweakFor,
   type RenderParticle,
 } from '../../src/render/points';
@@ -28,9 +30,9 @@ describe('syncToPoints 缓冲映射', () => {
     expect(layer.color[1]).toBe(0.5);
     expect(layer.color[2]).toBe(0.25);
     expect(layer.color[3]).toBeCloseTo(0.36, 6); // 0.8*0.9*0.5，float32 存储有 ulp 偏差
-    // smoke：size 1.3 → BASE*1.3*2
-    expect(layer.size[0]).toBeCloseTo(BASE_SIZE * 1 * 2, 10);
-    expect(layer.size[1]).toBeCloseTo(BASE_SIZE * 1.3 * 2, 10);
+    // smoke：size 1.3 → BASE*1.3*2（float32 存储有 ulp 偏差，6 位精度足够）
+    expect(layer.size[0]).toBeCloseTo(BASE_SIZE * 1 * 2, 6);
+    expect(layer.size[1]).toBeCloseTo(BASE_SIZE * 1.3 * 2, 6);
   });
 
   it('空快照 → 0（drawRange 清零）', () => {
@@ -53,6 +55,53 @@ describe('tweakFor 类型微调', () => {
   it('大小写不敏感 + minecraft: 前缀', () => {
     expect(tweakFor('FLAME')).toEqual(tweakFor('flame'));
     expect(tweakFor('minecraft:Flame')).toEqual(tweakFor('flame'));
+  });
+});
+
+describe('textureFor 帧表查询', () => {
+  it('已知类型 → 帧列表（end_rod = glitter 帧、smoke = generic 帧）', () => {
+    expect(textureFor('end_rod')).toEqual([
+      'glitter_7', 'glitter_6', 'glitter_5', 'glitter_4', 'glitter_3', 'glitter_2', 'glitter_1', 'glitter_0',
+    ]);
+    expect(textureFor('smoke')?.[0]).toBe('generic_7');
+    expect(textureFor('smoke')?.length).toBe(8);
+  });
+
+  it('大小写不敏感 + minecraft: 前缀；未知类型 → null（圆点回退）', () => {
+    expect(textureFor('SMOKE')).toEqual(textureFor('smoke'));
+    expect(textureFor('minecraft:Smoke')).toEqual(textureFor('smoke'));
+    expect(textureFor('not_a_real_particle')).toBeNull();
+    expect(textureFor('block')).toBeNull(); // 无 JSON 的硬编码类型（方块纹理）→ 圆点
+  });
+});
+
+describe('syncToPoints 帧 UV', () => {
+  it('有帧表类型按帧序写入图集格 UV；无帧表 → (0,0)', () => {
+    const layer = createPointsLayer(4);
+    // end_rod 帧 glitter_7..0（8 帧）；相位 t*50ms → 帧号 t % 8
+    const n = syncToPoints(layer, [mkPart({ name: 'end_rod' }), mkPart({ name: 'block' })], 1, 1, 3 * FRAME_MS);
+    expect(n).toBe(2);
+    // 帧格 UV 落在图集内：u ∈ [0, 1]（最右列格 u=1 合法），v ∈ (0, 1]（行顶缘）
+    expect(layer.uv[0]).toBeGreaterThanOrEqual(0);
+    expect(layer.uv[0]).toBeLessThanOrEqual(1);
+    expect(layer.uv[1]).toBeGreaterThan(0);
+    expect(layer.uv[1]).toBeLessThanOrEqual(1);
+    // 相位推进 → 帧切换（UV 变化）
+    const u3 = layer.uv[0];
+    const v3 = layer.uv[1];
+    syncToPoints(layer, [mkPart({ name: 'end_rod' })], 1, 1, 4 * FRAME_MS);
+    expect(layer.uv[0] === u3 && layer.uv[1] === v3).toBe(false);
+    // 帧序回绕：8 帧后回到第 0 帧 UV
+    syncToPoints(layer, [mkPart({ name: 'end_rod' })], 1, 1, 8 * FRAME_MS);
+    const uWrap = layer.uv[0];
+    const vWrap = layer.uv[1];
+    syncToPoints(layer, [mkPart({ name: 'end_rod' })], 1, 1, 0);
+    expect(layer.uv[0]).toBe(uWrap);
+    expect(layer.uv[1]).toBe(vWrap);
+    // 无帧表类型（block 无 JSON → 圆点回退）→ (0,0)
+    syncToPoints(layer, [mkPart({ name: 'block' })]);
+    expect(layer.uv[0]).toBe(0);
+    expect(layer.uv[1]).toBe(0);
   });
 });
 
@@ -83,9 +132,12 @@ describe('createPointsLayer 几何', () => {
     expect(layer.pos.length).toBe(9);
     expect(layer.color.length).toBe(12);
     expect(layer.size.length).toBe(3);
+    expect(layer.uv.length).toBe(6);
     const geo = layer.points.geometry;
     expect(geo.getAttribute('position').itemSize).toBe(3);
     expect(geo.getAttribute('color').itemSize).toBe(4);
+    expect(geo.getAttribute('size').itemSize).toBe(1);
+    expect(geo.getAttribute('uv').itemSize).toBe(2);
     // 默认 drawRange 未启用（count=Infinity）；调用方按 syncToPoints 返回值 setDrawRange
     expect(geo.drawRange.count).toBe(Infinity);
     geo.setDrawRange(0, 2);
@@ -94,6 +146,9 @@ describe('createPointsLayer 几何', () => {
     expect(mat.blending).toBe(THREE.AdditiveBlending);
     expect(mat.depthWrite).toBe(false);
     expect(mat.transparent).toBe(true);
+    // 图集未加载（headless）→ 圆点分支
+    expect(layer.uniforms.uHasAtlas.value).toBe(0);
+    expect(layer.uniforms.uCell.value.x).toBeCloseTo(1 / 12, 6);
     layer.dispose();
   });
 });

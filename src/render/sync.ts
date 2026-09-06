@@ -3,10 +3,12 @@
 
 import * as THREE from 'three';
 import { createScene, type SceneBundle } from './scene';
-import { createPointsLayer, syncToPoints, type PointsLayer } from './points';
+import { createPointsLayer, syncToPoints, FRAME_MS, type PointsLayer } from './points';
 
-/** 渲染层读的最小引擎视图（解耦 render ↔ sim：SimEngine 结构子集） */
+/** 渲染层读的最小引擎视图（解耦 render ↔ sim：SimEngine 结构子集）。
+ *  tick 用于帧动画相位（1/20 s/帧，与 MC 客户端 SpriteSet 节奏一致）。 */
 export interface SnapshotSource {
+  tick: number;
   snapshot(): {
     x: number; y: number; z: number;
     r: number; g: number; b: number; a: number;
@@ -23,19 +25,35 @@ export class SimViewport {
   sizeMul = 1;
   alphaMul = 1;
 
+  /** 画布物理像素尺寸与相机 fov（点尺寸换算用，App 启动/resize 时读取） */
+  get size(): number {
+    return this.scene.renderer.domElement.clientHeight;
+  }
+  get fov(): number {
+    return this.scene.camera.fov;
+  }
+
   constructor(container: HTMLElement, maxParticles: number) {
     this.scene = createScene(container);
     this.layer = createPointsLayer(maxParticles);
     this.scene.scene.add(this.layer.points);
   }
 
-  /** tick/命令后调用：全量重写缓冲 + drawRange。返回可见粒子数。 */
+  /** tick/命令后调用：全量重写缓冲 + drawRange。返回可见粒子数。
+   *  帧相位取引擎 tick（1/20 s/帧）；图集异步加载完成前自动走圆点回退。 */
   update(source: SnapshotSource): number {
-    const n = syncToPoints(this.layer, source.snapshot(), this.sizeMul, this.alphaMul);
+    const n = syncToPoints(
+      this.layer,
+      source.snapshot(),
+      this.sizeMul,
+      this.alphaMul,
+      source.tick * FRAME_MS,
+    );
     const geo = this.layer.points.geometry;
     (geo.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
     (geo.getAttribute('color') as THREE.BufferAttribute).needsUpdate = true;
     (geo.getAttribute('size') as THREE.BufferAttribute).needsUpdate = true;
+    (geo.getAttribute('uv') as THREE.BufferAttribute).needsUpdate = true;
     geo.setDrawRange(0, n);
     return n;
   }
@@ -50,8 +68,17 @@ export class SimViewport {
     this.layer.uniforms.uAlphaMul.value = v;
   }
 
+  /** 点尺寸世界块→像素换算常数：uScale = 视口物理高·0.5 / tan(fov/2)。
+   *  构造后立即调用一次（首帧渲染前生效），之后每次 resize 重算。 */
+  setPointScale(heightPx: number, fovDeg: number): void {
+    this.layer.uniforms.uScale.value =
+      (heightPx * 0.5 * Math.min(window.devicePixelRatio, 2)) /
+      Math.tan((fovDeg * 0.5 * Math.PI) / 180);
+  }
+
   resize(): void {
     this.scene.resize();
+    this.setPointScale(this.scene.renderer.domElement.clientHeight, this.scene.camera.fov);
   }
 
   /** 渲染循环（轨道相机阻尼需要连续渲染；tick 由外部墙钟累加器驱动）。 */
