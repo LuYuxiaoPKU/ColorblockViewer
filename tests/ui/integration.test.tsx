@@ -153,6 +153,26 @@ describe('M5 全流程', () => {
     expect(hud?.textContent).toContain('粒子 37');
   });
 
+  it('粘贴未点「应用」直接点「执行」→ 新粘贴命令生效（而非旧 commands）', () => {
+    // 回归：执行按钮曾在未应用文本时直接跑旧真源 → 粘贴的命令「不生效」
+    setValue(ta(), 'particle flame 0 2 0 0.5 0.5 0.5 0.3 37\n');
+    expect(getState().commands[0]?.kind).toBe('normal'); // 尚未应用
+    click(button('执行'));
+    expect(ta().value).toBe(serializeAll(getState().commands)); // 执行后文本对齐真源
+    const hud = container.querySelector('.hud');
+    expect(hud?.textContent).toContain('粒子 37'); // 而非默认 normal 的 100
+  });
+
+  it('用户报告的完整命令：polarparameter 螺旋，粘贴后直接执行 → 201 粒子', () => {
+    // begin=-10 end=10 step=0.1 → 201 个 t 值；y=2 半径 ~1 的圆环（end_rod 贴图）
+    setValue(ta(), 'particleex polarparameter minecraft:end_rod ~ ~2 ~ 1 0.95 0.89 1 0 0 0 -10 10 dis=1;s1=2*t;s2=0 0.1 20 i=0.1;(vx,vy,vz)=((i)*cos(s1),0,(i)*sin(s1)) 1 null\n');
+    click(button('执行'));
+    expect(getState().commands.length).toBe(1);
+    expect(getState().commands[0]?.kind).toBe('parameter');
+    const hud = container.querySelector('.hud');
+    expect(hud?.textContent).toContain('粒子 201');
+  });
+
   it('粘贴原版命令（~ 相对坐标）→ 真源结构正确', () => {
     setValue(ta(), 'particle heart ~ ~1 ~\n');
     click(button('应用'));

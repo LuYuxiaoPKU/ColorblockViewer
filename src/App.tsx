@@ -8,7 +8,7 @@
 import { useEffect, useRef } from 'react';
 import { SimEngine } from './sim/engine';
 import { SimViewport } from './render/sync';
-import { useAppState, setHud, pushToast, getState, clearToasts, setPlaying } from './store/appState';
+import { useAppState, setHud, pushToast, getState, clearToasts, setPlaying, applyInputText } from './store/appState';
 import { CommandPane } from './ui/CommandPane';
 import { Viewport } from './ui/Viewport';
 
@@ -113,8 +113,12 @@ export default function App() {
     setHud({ tick: e.tick, count: e.aliveCount, dropped: e.dropped });
   };
 
-  // 「执行」：按当前 commands 逐条 runCommand（命令级错误 toast，后续行继续）
+  // 「执行」：先把文本框内容应用进真源（粘贴未应用的新行也能直接跑，
+  // 否则 run 的是旧 commands、新粘贴的命令不生效），再逐条 runCommand
+  // （命令级错误 toast，后续行继续）
   const run = () => {
+    const applyErr = applyInputText();
+    if (applyErr) pushToast(applyErr);
     const e = engineRef.current!;
     for (const cmd of getState().commands) {
       try {
