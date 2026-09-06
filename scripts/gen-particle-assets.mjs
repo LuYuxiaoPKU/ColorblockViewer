@@ -1,5 +1,7 @@
 // 构建期脚本：从 Mojang 官方镜像（piston-meta）拉取 Minecraft 26.2 客户端 jar，
-// 提取粒子贴图，铺平进 public/particles/，并生成 src/render/particleTextures.ts。
+// 提取粒子贴图，铺平进 public/particles/，并生成：
+//   - src/render/particleTextures.ts（类型 → 帧贴图表）
+//   - src/render/particleTypes.ts（内置粒子类型全集，UI 表单下拉建议）
 //
 // 为什么需要它（贴图从哪来）：
 //  - 26.2 起粒子贴图随客户端 jar 发行（client.jar 内 assets/minecraft/textures/particle/，
@@ -9,6 +11,8 @@
 //    硬编码 SpriteSet（block/dust/item 等按方块纹理实时取，本脚本不覆盖，渲染层回退软圆点）。
 //  - 因此本脚本同时读取「贴图」与「JSON 类型表」，产物是 **类型名 → 帧文件列表** 的完整映射，
 //    与 MC 客户端加载语义一致（同纹理列表、同帧序）。
+//  - 类型全集 = JSON 类型 ∪ 字节码硬编码类型（HARDCODED_TYPES，net/minecraft/core/
+//    particles/ParticleTypes 的 register() 调用逐字核对，125 个中 14 个无 JSON）。
 //
 // 用法：
 //  - 本地/CI 构建前：npm run assets
@@ -32,7 +36,29 @@ const CLIENT_SHA1 = '2dc72797acbc1b63fc16a11c4ac393605f453754';
 const MANIFEST_URL = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json';
 const OUT_DIR = 'public/particles';
 const OUT_TS = 'src/render/particleTextures.ts';
+const OUT_TYPES_TS = 'src/render/particleTypes.ts';
 const TMP_DIR = join(dirname(fileURLToPath(import.meta.url)), '.mc_extract');
+
+/** 26.2 客户端字节码硬编码的粒子类型（net/minecraft/core/particles/ParticleTypes 的
+ *  register() 调用逐字核对；其中无 assets/minecraft/particles/*.json 的 14 个列于此，
+ *  与 JSON 类型求并得「类型全集」。这些类型按方块纹理/实时参数渲染，无固定帧贴图，
+ *  渲染层回退软圆点）。升级 MC 版本时须重新核对 ParticleTypes.class 并更新本表。 */
+const HARDCODED_TYPES = [
+  'block',
+  'block_crumble',
+  'block_marker',
+  'dust_pillar',
+  'elder_guardian',
+  'explosion_emitter',
+  'geyser',
+  'gust_emitter_large',
+  'gust_emitter_small',
+  'item',
+  'item_cobweb',
+  'item_slime',
+  'item_snowball',
+  'noxious_gas_cloud',
+];
 
 /** 本地 MC 安装里 26.2 client.jar 的默认位置 */
 function defaultLocalJar() {
@@ -83,6 +109,12 @@ async function main() {
   const root = join(dirname(fileURLToPath(import.meta.url)), '..');
   const outDir = join(root, OUT_DIR);
   const outTs = join(root, OUT_TS);
+  const outTypesTs = join(root, OUT_TYPES_TS);
+
+  // HARDCODED_TYPES 合法性（升级 MC 后若忘记重新核对，这里拦一下格式错误）
+  for (const t of HARDCODED_TYPES) {
+    if (!/^[a-z][a-z0-9_]*$/.test(t)) throw new Error(`HARDCODED_TYPES 含非法标识符：${t}`);
+  }
 
   // 1. 定位 client.jar：MC_JAR 环境变量 > 命令行参数 > 本地 MC 安装 > 官方镜像下载
   let jarPath = process.env.MC_JAR ?? process.argv[2] ?? '';
@@ -171,6 +203,22 @@ ${rows.join('\n')}
 `;
   writeFileSync(outTs, header);
   console.log(`[assets] 生成 ${OUT_TS}（${map.size} 类型）`);
+
+  // 8. 生成类型全集（JSON ∪ 字节码硬编码）→ UI 表单粒子名下拉建议。
+  //    HARDCODED_TYPES 中无 JSON 的 14 个（block/dust/item 等）只出现在全集、
+  //    不出现在帧表（渲染层回退软圆点）；ambient_entity_effect 反之（有 JSON、
+  //    无内置 register——推测为内置 mod 包注册，随 jar 发行、游戏内可注册）。
+  const allTypes = [...new Set([...map.keys(), ...HARDCODED_TYPES])].sort((a, b) => a.localeCompare(b));
+  const typesRows = allTypes.map((t) => `  ${JSON.stringify(t)},`).join('\n');
+  writeFileSync(outTypesTs, `// 由 scripts/gen-particle-assets.mjs 生成（Minecraft ${VERSION} 客户端，sha1 ${CLIENT_SHA1.slice(0, 8)}…）。
+// 内置粒子类型全集 = JSON data-driven 类型 ∪ 字节码硬编码类型（ParticleTypes 的
+// register() 调用逐字核对）：UI 表单粒子名下拉建议。
+// 类型名 → 帧贴图映射见 ./particleTextures（未收录类型渲染层回退软圆点）。
+export const VANILLA_PARTICLE_TYPES: string[] = [
+${typesRows}
+];
+`);
+  console.log(`[assets] 生成 ${outTypesTs}（${allTypes.length} 类型）`);
 
   rmSync(TMP_DIR, { recursive: true, force: true });
 }

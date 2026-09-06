@@ -1,12 +1,18 @@
 # ColorBlockViewer
 
-纯前端静态网站：预览 Minecraft Fabric 模组 **AnotherColorBlock** 的 `/particleex` 粒子效果。
-粘贴命令（或使用结构化表单），浏览器内 3D 渲染粒子生成与逐 tick 动画。
+纯前端静态网站：预览 Minecraft Fabric 模组 **AnotherColorBlock** 的 `/particleex`
+粒子效果，以及**原版** `/particle` 命令（MC 26.2）。粘贴命令（或使用结构化表单），
+浏览器内 3D 渲染粒子生成与逐 tick 动画。
 
 ## 功能
 
-- **10 种粒子命令**：`normal` / `conditional` / `parameter` 家族 8 变体（polar/tick/rgba）
+- **10 种模组命令**：`normal` / `conditional` / `parameter` 家族 8 变体（polar/tick/rgba）
   + `group remove|change` + `clearparticle`
+- **原版 `/particle`**（MC 26.2，`ParticleCommand` 命令树逐字核对）：
+  `particle <粒子名> [pos] [delta] [speed] [count] [normal]`，粒子名支持 26.2 全部
+  126 个注册类型（表单下拉建议）与 `type{NBT}` 复杂类型（NBT 载荷按类型名近似渲染）；
+  客户端语义复刻：`delta`/`speed` 为各轴**高斯标准差**（位置/速度随机），`count=0`
+  为单粒子精确生成
 - **双向同步**：表单 ↔ 命令文本，结构化数组为唯一真源（粘贴自动填表，改表自动更新文本）
 - **表达式实时校验**：`ExprField` 防抖编译检查，英文原文 + 中文提示 + 语法高亮
 - **1:1 语义复刻**：表达式引擎（Int32 除法/取模/常量折叠/矩阵/函数重载）与粒子生命周期
@@ -21,18 +27,22 @@
 - **贴图近似**：粒子贴图取自 Minecraft 26.2 官方客户端（构建脚本
   `npm run assets` 从 Mojang 官方镜像提取，帧表与 MC data-driven 粒子定义一致），
   帧动画 1/20 s/帧、颜色按命令值乘法着色、统一加色混合；`block`/`dust`/`item`
-  等按方块纹理实时渲染的类型与未知名 → 回退软发光圆点（按类型微调 size/alpha/色相）
+  等按方块纹理实时渲染的类型与未知名 → 回退软发光圆点（按类型微调 size/alpha/色相）。
+  原版命令的 `type{NBT}`（如 `dust{Red:1f,…}`）不解析 NBT 载荷，按类型名近似
+  （dust 用其帧表而非 NBT 指定颜色）
+- **原版命令的寿命**：原版按粒子类型各有 duration，预览统一走「默认寿命」近似值
+- **原版命令的 force/viewers**：观察者/分发参数与预览无关 → 解析层明确报错
 - **匀速直线运动**：无重力/阻力/类型专属运动（smoke 上升等不做）
 - **默认寿命近似**：`age=0` 时用单一可配置值（MC 中因粒子类型而异）
-- **随机序列不一致**：`normal` 高斯偏移用固定种子 PRNG，保证同一次预览可复现，
-  不逐粒子对齐游戏内 Java `Random` 序列
+- **随机序列不一致**：`normal` 高斯偏移与原版 `/particle` 的 delta/speed 用固定种子
+  PRNG，保证同一次预览可复现，不逐粒子对齐游戏内 Java `Random` 序列
 
 ## 本地开发
 
 ```bash
 npm install
 npm run dev        # 开发服务器
-npm test           # Vitest（585 tests：引擎 golden / 命令解析 / 仿真生命周期 / 渲染 / UI 集成）
+npm test           # Vitest（613 tests：引擎 golden / 命令解析 / 仿真生命周期 / 渲染 / UI 集成）
 npm run build      # tsc --noEmit + vite build（base /ColorblockViewer/）
 npm run preview    # 本地预览构建产物
 npm run assets     # 重新提取 MC 26.2 粒子贴图（本地 MC 安装 > 官方镜像；产物已入库，日常构建无需）

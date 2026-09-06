@@ -13,8 +13,16 @@
 
 import { tokenize, CommandParseError } from './tokens';
 import { parseVec3, parsePlain3, parseRGBA, isNum } from './coords';
-import { USAGE } from './schema';
-import type { ParticleCommand, NormalCmd, ConditionalCmd, ParameterCmd, GroupCmd, ClearCmd } from './types';
+import { USAGE, USAGE_VANILLA } from './schema';
+import type {
+  ParticleCommand,
+  NormalCmd,
+  ConditionalCmd,
+  ParameterCmd,
+  GroupCmd,
+  ClearCmd,
+  VanillaCmd,
+} from './types';
 
 const INT_MAX = 2147483647;
 const DBL_MAX = Number.MAX_VALUE;
@@ -189,15 +197,71 @@ function parseGroup(toks: string[]): GroupCmd {
   return { kind: 'group', sub: 'change', type: typeTok, group, expression, conditionalExpression, pos };
 }
 
+/** 原版 /particle（MC 26.2，ParticleCommand.register 命令树）：
+ *  <name> [pos] [delta] [speed] [count] [normal]。
+ *  槽位链前缀封闭；pos 支持 ~（vec3()），delta 不支持 ~（vec3(0)）。
+ *  name 支持 type{NBT}（NBT 载荷不解析，剥 `{` 之后保留类型名 —— 渲染层按
+ *  类型名取帧表；dust/block/item 等 NBT 决定外观的类型按类型名近似）。
+ *  尾部 force / viewers 槽位预览无意义（无多人分发、无观察者概念）→ 拒绝并
+ *  提示改用 normal；未知尾部 → 参数过多。 */
+function parseVanilla(toks: string[]): VanillaCmd {
+  const c = new Cur(toks, USAGE_VANILLA);
+  const rawName = c.tok('name');
+  // type{NBT}：剥 NBT 载荷（类型名不含 `{`；未闭合 `{` 同样截断，游戏内该
+  // 命令会因 NBT 解析失败报错，预览按类型名近似展示）
+  const name = rawName.replace(/\{.*$/, '');
+  if (name === '') {
+    throw new CommandParseError(`粒子名不能为空：${rawName}。用法：${USAGE_VANILLA}`);
+  }
+  let pos: VanillaCmd['pos'] = null;
+  let delta: VanillaCmd['delta'] = null;
+  let speed: number | null = null;
+  let count: number | null = null;
+  if (!c.eof()) pos = parseVec3([c.tok('pos'), c.tok('pos'), c.tok('pos')], '位置');
+  // delta 命令树是 vec3(0)：**绝对坐标**，~ 会报 relative 错误 → parsePlain3
+  if (!c.eof()) delta = parsePlain3([c.tok('delta'), c.tok('delta'), c.tok('delta')], 'delta');
+  if (!c.eof()) speed = c.dbl('speed', 0, DBL_MAX);
+  if (!c.eof()) count = c.int('count', 0, INT_MAX);
+  let normal = false;
+  // 命令树尾部：[force viewers <p>] | [normal] [viewers <p>]。预览无多人分发/
+  // 观察者概念 → force / viewers 一律拒绝；normal 仅影响游戏内粒子数量限制显示，
+  // 预览无此限制 → 记录 normal=true（只影响回显文本），其后若跟 viewers 同样拒绝。
+  while (!c.eof()) {
+    const tail = c.tok('');
+    if (tail === 'normal') {
+      normal = true;
+      continue; // normal 后可能还有 viewers
+    }
+    if (tail === 'force') {
+      throw new CommandParseError(`预览不支持 force（观察者/分发参数与预览无关）。用法：${USAGE_VANILLA}`);
+    }
+    if (tail === 'viewers') {
+      throw new CommandParseError(`预览不支持 viewers（观察者/分发参数与预览无关）。用法：${USAGE_VANILLA}`);
+    }
+    // 其余 token 视为多余（游戏内会报语法错；预览按「参数过多」提示）
+    throw new CommandParseError(
+      `参数过多（从 "${tail}" 开始）。用法：${USAGE_VANILLA}`,
+    );
+  }
+  return { kind: 'vanilla', name, pos, delta, speed, count, normal };
+}
+
 // 单行命令（可选前缀 /particleex）→ 结构；不识别 → CommandParseError
 export function parseCommand(line: string): ParticleCommand {
   let text = line.trim();
   if (text.startsWith('/')) text = text.slice(1);
   const toks = tokenize(text);
   if (toks.length === 0) throw new CommandParseError('空命令');
-  if (toks[0] === 'particleex') toks.shift();
+  let hadParticleex = false;
+  if (toks[0] === 'particleex') {
+    hadParticleex = true;
+    toks.shift();
+  }
   if (toks.length === 0) throw new CommandParseError('缺少子命令。可用：' + Object.keys(USAGE).join(' / '));
   const head = toks[0];
+  // 原版 /particle（MC 26.2）：无 particleex 前缀（`particleex particle …`
+  // 按未知子命令报错，防止误吞）
+  if (head === 'particle' && !hadParticleex) return parseVanilla(toks.slice(1));
   if (head === 'group') {
     if (toks.length < 2) throw new CommandParseError(`缺少 group 子命令（remove/change）。用法：${USAGE['group remove']}`);
     return parseGroup(toks.slice(1));

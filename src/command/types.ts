@@ -91,4 +91,25 @@ export interface ClearCmd {
   kind: 'clearparticle';
 }
 
-export type ParticleCommand = NormalCmd | ConditionalCmd | ParameterCmd | GroupCmd | ClearCmd;
+/** 原版 /particle（MC 26.2，net.minecraft.server.commands.ParticleCommand 逐字核对）：
+ *  /particle <name> [pos] [delta] [speed] [count] [force] [normal]
+ *  - 槽位链前缀封闭（name 必填，其余依次可选）；
+ *  - name 支持 type 与 type{NBT}（dust/block/item 等复杂类型）；NBT 载荷预览不解析，
+ *    类型名保留（渲染层按类型名取帧表）；
+ *  - pos 支持 ~（命令树 vec3()）；delta 为绝对值（命令树 vec3(0)，各轴高斯标准差）；
+ *  - 客户端语义（ClientPacketListener.handleParticleEvent）：delta = 各轴高斯标准差，
+ *    speed = 各轴速度高斯标准差（均随机，非方向/大小向量）；count=0 = 单粒子；
+ *  - force / viewers <玩家> 槽位预览无意义（无多人分发）→ 解析层拒绝。 */
+export interface VanillaCmd {
+  kind: 'vanilla';
+  name: string; // 粒子类型名（可选 minecraft: 前缀；type{NBT} 的 NBT 已剥离）
+  pos: Vec3 | null; // null = 命令树默认（执行者位置；预览 = 玩家位置）
+  delta: Vec3Plain | null; // null = 命令树默认 Vec3.ZERO（绝对值，各轴高斯标准差）
+  speed: number | null; // float ≥ 0，null = 命令树默认 0（各轴速度高斯标准差）
+  count: number | null; // int ≥ 0，null = 命令树默认 0（= 单粒子）
+  /** 尾部 normal 字面量（命令树 [normal] [viewers]，viewers 预览不支持；
+   *  无该字面量时客户端走「force」分支，预览等价 —— 见 execVanilla 注释） */
+  normal: boolean;
+}
+
+export type ParticleCommand = NormalCmd | ConditionalCmd | ParameterCmd | GroupCmd | ClearCmd | VanillaCmd;

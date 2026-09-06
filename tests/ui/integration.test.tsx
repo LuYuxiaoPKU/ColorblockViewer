@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import App from '../../src/App';
-import { getState, setCommand, removeCommand } from '../../src/store/appState';
+import { getState, setCommand, removeCommand, DEFAULT_VANILLA } from '../../src/store/appState';
 import { serializeAll } from '../../src/command/serialize';
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
@@ -137,6 +137,50 @@ describe('M5 全流程', () => {
     click(button('应用'));
     expect(getState().commands).toEqual(before);
     expect(container.textContent).toMatch(/用法/);
+  });
+
+  it('粘贴原版 /particle → 解析成功 + 文本对齐 + 执行后 HUD 有粒子', () => {
+    setValue(ta(), 'particle flame 0 2 0 0.5 0.5 0.5 0.3 37\n');
+    click(button('应用'));
+    const cmds = getState().commands;
+    expect(cmds.length).toBe(1);
+    expect(cmds[0].kind).toBe('vanilla');
+    expect(ta().value).toBe(serializeAll(cmds));
+    click(button('执行'));
+    const hud = container.querySelector('.hud');
+    expect(hud?.textContent).toContain('粒子 37');
+  });
+
+  it('粘贴原版命令（~ 相对坐标）→ 真源结构正确', () => {
+    setValue(ta(), 'particle heart ~ ~1 ~\n');
+    click(button('应用'));
+    expect(getState().commands[0].kind).toBe('vanilla');
+    const c = getState().commands[0];
+    if (c.kind !== 'vanilla') return;
+    expect(c.name).toBe('heart');
+    expect(c.pos).toEqual({ x: { v: 0, rel: true }, y: { v: 1, rel: true }, z: { v: 0, rel: true } });
+  });
+
+  it('vanilla 表单渲染：粒子名下拉 + 槽位添加按钮', () => {
+    act(() => {
+      setCommand(0, { ...structuredClone(DEFAULT_VANILLA), name: 'smoke' });
+    });
+    // 标题
+    expect(container.textContent).toContain('particle（原版）');
+    // 类型名下拉（datalist 含 26.2 注册表类型）
+    const nameInput = [...container.querySelectorAll('input')].find(
+      (i) => i.closest('label')?.querySelector('.numfield-label')?.textContent?.startsWith('粒子类型名'),
+    ) as HTMLInputElement | undefined;
+    expect(nameInput).toBeTruthy();
+    expect(nameInput!.value).toBe('smoke');
+    const dl = document.getElementById(nameInput!.getAttribute('list')!);
+    const opts = [...(dl?.querySelectorAll('option') ?? [])].map((o) => o.getAttribute('value'));
+    expect(opts).toContain('end_rod');
+    expect(opts).toContain('ambient_entity_effect');
+    expect(opts.length).toBeGreaterThanOrEqual(120);
+    // 空槽位 → 「+ 添加」按钮
+    expect(button('+ 添加 pos')).toBeTruthy();
+    expect(button('+ 添加 delta')).toBeTruthy();
   });
 
   it('执行 → 引擎生成粒子 → HUD 显示数量', () => {

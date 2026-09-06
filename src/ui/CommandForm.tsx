@@ -9,12 +9,20 @@ import type {
   ParameterCmd,
   GroupCmd,
   ClearCmd,
+  VanillaCmd,
   Vec3,
 } from '../command/types';
-import { setCommand, insertCommandAfter, removeCommand } from '../store/appState';
+import {
+  setCommand,
+  insertCommandAfter,
+  removeCommand,
+  parameterVariantName,
+  makeParameter,
+  DEFAULT_GROUP_REMOVE,
+} from '../store/appState';
 import { ExprField } from './ExprField';
 import { NumField, Vec3Field, Vec3PlainField, RgbaField, TextField } from './fields';
-import { parameterVariantName, makeParameter, DEFAULT_GROUP_REMOVE } from '../store/appState';
+import { VANILLA_PARTICLE_TYPES } from '../render/particleTypes';
 
 // 粒子名建议（渲染层 TWEAKS 覆盖的类型；MC 的 ParticleArgument 允许任意注册名，
 // 输入框不强制枚举）
@@ -158,6 +166,84 @@ function ClearForm() {
   return <p className="muted">clearparticle 无参数：移除全部粒子与组。</p>;
 }
 
+// 原版 /particle（MC 26.2）：name 必填；pos/delta/speed/count 槽位可独立清除
+// （清空 → null = 命令树默认）；NBT 载荷（type{...}）不解析、按类型名近似渲染；
+// force/viewers 槽位解析层拒绝（无多人分发）。
+function VanillaForm({ cmd, i }: { cmd: VanillaCmd; i: number }) {
+  const up = (p: Partial<VanillaCmd>) => setCommand(i, { ...cmd, ...p });
+  return (
+    <>
+      <TextField
+        label="粒子类型名（26.2 注册表，支持 type{NBT}）"
+        value={cmd.name}
+        list={VANILLA_PARTICLE_TYPES}
+        placeholder="flame / dust{Red:1f,Green:0f,Blue:0f,Size:1f}"
+        onChange={(v) => up({ name: v })}
+      />
+      {cmd.pos ? (
+        <Vec3Field
+          label="pos（~ = 玩家位置；空 = 玩家位置）"
+          pos={cmd.pos}
+          onChange={(pos: Vec3) => up({ pos })}
+        />
+      ) : (
+        <button className="small" onClick={() => up({ pos: { x: { v: 0, rel: true }, y: { v: 0, rel: true }, z: { v: 0, rel: true } } })}>
+          + 添加 pos（默认 ~ ~ ~）
+        </button>
+      )}
+      {cmd.delta ? (
+        <Vec3PlainField
+          label="delta（各轴随机偏移标准差）"
+          vec={cmd.delta}
+          onChange={(delta) => up({ delta })}
+        />
+      ) : (
+        <button className="small" onClick={() => up({ delta: { x: 0, y: 0, z: 0 } })}>
+          + 添加 delta（默认 0 0 0）
+        </button>
+      )}
+      <div className="field-row">
+        <span className="field-row-label">speed（随机速度标准差 ≥0）</span>
+        {cmd.speed !== null ? (
+          <>
+            <NumField label="值" value={cmd.speed} min={0} onChange={(v) => up({ speed: v })} />
+            <button className="small" onClick={() => up({ speed: null })} title="清除（回到命令树默认 0）">
+              ✕
+            </button>
+          </>
+        ) : (
+          <button className="small" onClick={() => up({ speed: 0 })}>
+            + 设置（默认 0）
+          </button>
+        )}
+      </div>
+      <div className="field-row">
+        <span className="field-row-label">count（0 = 单粒子）</span>
+        {cmd.count !== null ? (
+          <>
+            <NumField label="值" value={cmd.count} min={0} integer onChange={(v) => up({ count: v })} />
+            <button className="small" onClick={() => up({ count: null })} title="清除（回到命令树默认 0）">
+              ✕
+            </button>
+          </>
+        ) : (
+          <button className="small" onClick={() => up({ count: 0 })}>
+            + 设置（默认 0）
+          </button>
+        )}
+      </div>
+      <label className="numfield">
+        <span className="numfield-label">normal（强制显示，无视粒子数量设置）</span>
+        <input
+          type="checkbox"
+          checked={cmd.normal}
+          onChange={(e) => up({ normal: e.target.checked })}
+        />
+      </label>
+    </>
+  );
+}
+
 export function CommandForm({ cmd, i }: { cmd: ParticleCommand; i: number }) {
   const [open, setOpen] = useState(true);
   const title =
@@ -165,6 +251,7 @@ export function CommandForm({ cmd, i }: { cmd: ParticleCommand; i: number }) {
     : cmd.kind === 'conditional' ? 'conditional'
     : cmd.kind === 'parameter' ? parameterVariantName(cmd as ParameterCmd)
     : cmd.kind === 'group' ? 'group ' + cmd.sub
+    : cmd.kind === 'vanilla' ? 'particle（原版）'
     : 'clearparticle';
 
   return (
@@ -199,6 +286,7 @@ export function CommandForm({ cmd, i }: { cmd: ParticleCommand; i: number }) {
           {cmd.kind === 'conditional' && <ConditionalForm cmd={cmd} i={i} />}
           {cmd.kind === 'parameter' && <ParameterForm cmd={cmd} i={i} />}
           {cmd.kind === 'group' && <GroupForm cmd={cmd} i={i} />}
+          {cmd.kind === 'vanilla' && <VanillaForm cmd={cmd} i={i} />}
           {cmd.kind === 'clearparticle' && <ClearForm />}
         </div>
       ) : null}
