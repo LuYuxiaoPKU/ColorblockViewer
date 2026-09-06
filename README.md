@@ -32,9 +32,10 @@
 ```bash
 npm install
 npm run dev        # 开发服务器
-npm test           # Vitest（573 tests：引擎 golden / 命令解析 / 仿真生命周期 / 渲染 / UI 集成）
+npm test           # Vitest（585 tests：引擎 golden / 命令解析 / 仿真生命周期 / 渲染 / UI 集成）
 npm run build      # tsc --noEmit + vite build（base /ColorblockViewer/）
 npm run preview    # 本地预览构建产物
+npm run assets     # 重新提取 MC 26.2 粒子贴图（本地 MC 安装 > 官方镜像；产物已入库，日常构建无需）
 ```
 
 ## 部署
