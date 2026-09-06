@@ -8,7 +8,7 @@
 import { useEffect, useRef } from 'react';
 import { SimEngine } from './sim/engine';
 import { SimViewport } from './render/sync';
-import { useAppState, setHud, pushToast, getState, clearToasts } from './store/appState';
+import { useAppState, setHud, pushToast, getState, clearToasts, setPlaying } from './store/appState';
 import { CommandPane } from './ui/CommandPane';
 import { Viewport } from './ui/Viewport';
 
@@ -32,6 +32,7 @@ export default function App() {
     if (!containerRef.current) return;
     const vp = new SimViewport(containerRef.current, engineRef.current!.config.maxParticles);
     viewportRef.current = vp;
+    vp.setPointScale(vp.size, 50); // fov 与 scene.ts 相机一致；首帧前设定像素换算
     vp.start();
     const onResize = () => vp.resize();
     window.addEventListener('resize', onResize);
@@ -57,10 +58,23 @@ export default function App() {
     const loop = (now: number) => {
       if (st.last > 0) {
         st.acc = Math.min(st.acc + (now - st.last) * speed, TICK_MS * 4); // cap 防死亡螺旋
+        let didTick = false;
         while (st.acc >= TICK_MS) {
           engineRef.current!.tickOnce();
           st.acc -= TICK_MS;
           viewportRef.current?.update(engineRef.current!);
+          didTick = true;
+        }
+        // 自动停止：tick 后无活工作（活粒子清零且无排队 tick 生成器）→ 暂停。
+        // age=-1 粒子 lifetime=INT_MAX，实际永不到期；生成器未跑完时不触发。
+        if (didTick) {
+          const e = engineRef.current!;
+          if (!e.hasLiveWork()) {
+            setHud({ tick: e.tick, count: e.aliveCount, dropped: e.dropped });
+            pushToast('已自动停止：粒子寿命全部结束');
+            setPlaying(false);
+            return; // 不再调度下一帧；playing 变化触发 effect cleanup
+          }
         }
       }
       st.last = now;

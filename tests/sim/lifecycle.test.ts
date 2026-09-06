@@ -268,6 +268,28 @@ describe('生成算法', () => {
     expect(snap(e).every((p) => p.x === 6 && p.y === 5 && p.z === 5)).toBe(true);
   });
 
+  it('游戏内单引号 polarparameter（用户报告 MC 26.2 可运行）：环形 + 圆周速度', () => {
+    const e = eng();
+    e.runCommand(C("/particleex polarparameter minecraft:end_rod ~ ~2 ~ 1 0.95 0.89 1 0 0 0 -10 10 'dis=1;s1=2*t;s2=0' 0.1 20 'i=0.1;(vx,vy,vz)=((i)*cos(s1),0,(i)*sin(s1))' 1 null"));
+    // t = -10..10 step 0.1（含端点；浮点步进与 Java for 循环一致 → 201 个）
+    expect(e.aliveCount).toBe(201);
+    // 极坐标 s1=2t,s2=0,dis=1 → (cos2t, 0, sin2t)，中心 = 玩家 + (0,2,0)
+    for (const p of snap(e)) {
+      expect(Math.hypot(p.x - 0, p.z - 0)).toBeCloseTo(1, 9);
+      expect(p.y).toBeCloseTo(2, 9);
+    }
+    // 圆周运动：速度 (i·cos s1, 0, i·sin s1) 中 s1 = 当前相对中心的极角 →
+    // 速度方向恒为**径向外**（unit(x,z) 方向），每 tick 半径 +0.1
+    e.tickOnce();
+    for (const p of snap(e)) {
+      expect(p.y).toBeCloseTo(2, 9);
+      expect(Math.hypot(p.x, p.z)).toBeCloseTo(1.1, 9);
+    }
+    // age=20 显式寿命：20 tick 后全部死亡
+    for (let i = 1; i < 20; i++) e.tickOnce();
+    expect(e.aliveCount).toBe(0);
+  });
+
   it('rgbaparameter：颜色来自表达式 cr/cg/cb（无颜色参数）', () => {
     const e = eng();
     // <名> <pos> <vel> begin end 表达式 [step] [age]
@@ -503,5 +525,52 @@ describe('clearparticle / 上限 / 错误', () => {
     const p = snap(e)[0];
     expect(p.cx).toBe(10);
     expect(p.x).toBe(10);
+  });
+});
+
+// ---------- 播放自动停止判据 ----------
+
+describe('hasLiveWork / queuedGenerators（播放自动停止判据）', () => {
+  it('空引擎 → 无活工作', () => {
+    const e = eng();
+    expect(e.queuedGenerators).toBe(0);
+    expect(e.hasLiveWork()).toBe(false);
+  });
+
+  it('有活粒子 → 有活工作；寿命耗尽后消失', () => {
+    const e = eng();
+    e.runCommand(C(normal(1, '5')));
+    expect(e.hasLiveWork()).toBe(true);
+    for (let i = 0; i < 5; i++) e.tickOnce();
+    expect(e.hasLiveWork()).toBe(false);
+  });
+
+  it('age=-1 粒子 → 始终有活工作（自动停止不触发）', () => {
+    const e = eng();
+    e.runCommand(C(normal(1, '-1')));
+    for (let i = 0; i < 100; i++) e.tickOnce();
+    expect(e.hasLiveWork()).toBe(true);
+  });
+
+  it('tickparameter 生成器：跑完前一直有活工作，跑完且粒子死尽才消失', () => {
+    const e = eng();
+    // t=0..3 step1 cpt=2 → 立即 2 个 + 排队 2 个；age=2 短命
+    e.runCommand(C('particleex tickparameter flame 0 0 0 1 1 1 1 0 0 0 0 3 "x,y,z=t,0,0" 1 2 2'));
+    expect(e.queuedGenerators).toBe(1);
+    expect(e.hasLiveWork()).toBe(true);
+    e.tickOnce(); // t=2,3 → 生成器耗尽；4 粒子 age=1
+    expect(e.queuedGenerators).toBe(0);
+    expect(e.hasLiveWork()).toBe(true); // 还有活粒子
+    e.tickOnce(); // age=2 → 全死
+    expect(e.hasLiveWork()).toBe(false);
+  });
+
+  it('生成器排队中即使粒子全死 → 仍有活工作', () => {
+    const e = eng();
+    // age=-1 之外用 age=0 默认寿命 20；改为短命 age=1：先死一批，生成器继续
+    e.runCommand(C('particleex tickparameter flame 0 0 0 1 1 1 1 0 0 0 0 5 "x,y,z=t,0,0" 1 2 1'));
+    e.tickOnce(); // 首批死亡 + 生成器继续
+    expect(e.queuedGenerators).toBe(1);
+    expect(e.hasLiveWork()).toBe(true);
   });
 });

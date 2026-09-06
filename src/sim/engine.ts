@@ -69,6 +69,17 @@ export class SimEngine {
     return n;
   }
 
+  /** 排队的 tick 生成器数（播放自动停止判据用：生成器未完成时场景仍会演进） */
+  get queuedGenerators(): number {
+    return this.generators.length;
+  }
+
+  /** 是否还有会演进的活工作：活粒子（age/lifetime 推进）或排队生成器
+   *  （继续吐粒子）。age=-1 粒子 lifetime=INT_MAX，实际永不到期。 */
+  hasLiveWork(): boolean {
+    return this.aliveCount > 0 || this.generators.length > 0;
+  }
+
   /** 按 id 查粒子（组操作用；含 pending，不含已压实的死粒子） */
   get(id: number): SimParticle | undefined {
     for (let i = 0; i < this.count; i++) {
