@@ -21,6 +21,7 @@ function cfg(over: Partial<SimConfig> = {}): SimConfig {
     mcVersion: '26.2',
     gridSize: 10,
     gridVisible: true,
+    nativeKinematics: false,
     ...over,
   };
 }
@@ -606,7 +607,106 @@ describe('原版 /particle 生成', () => {
   });
 });
 
-// ---------- 播放自动停止判据 ----------
+// ---------- 原版运动学（nativeKinematics，1.21.1 反编译核对）----------
+
+describe('原版运动学（end_rod：摩擦 0.91/tick + 重力 -5e-4/tick²）', () => {
+  // pos(0 0 0) color(1 1 1 1) vel(0 1 0) range(0 0 0) count=1 age=<参数>
+  const er = (age: string) =>
+    `particleex normal minecraft:end_rod 0 0 0 1 1 1 1 0 1 0 0 0 0 1 ${age}`;
+  // 池中可能有其他测试遗留的粒子 → 按类型名取本用例的 end_rod
+  const rod = (e: SimEngine) => e.snapshot().find((p) => p.name === 'minecraft:end_rod')!;
+
+  it('age=0：寿命 = 60+nextInt(12)（vanillaRand = SimRandom(seed+1)），可复现', () => {
+    // JDK21 ProbeInt：seed=2 nextInt(12) 首个值 = 4 → lifetime = 64
+    const e1 = eng({ seed: 1, nativeKinematics: true });
+    e1.runCommand(C(er('0')));
+    expect(snap(e1)[0].lifetime).toBe(64);
+    const e2 = eng({ seed: 1, nativeKinematics: true });
+    e2.runCommand(C(er('0')));
+    expect(snap(e2)[0].lifetime).toBe(snap(e1)[0].lifetime);
+  });
+
+  it('age=0 多粒子：逐个消费 vanillaRand（序列确定）', () => {
+    const e = eng({ seed: 1, nativeKinematics: true });
+    e.runCommand(C('particleex normal minecraft:end_rod 0 0 0 1 1 1 1 0 0 0 0 0 0 3 0'));
+    const lt = snap(e).map((p) => p.lifetime);
+    expect(lt).toEqual([64, 60, 68]); // seed=2 nextInt(12)×3 → 4 0 8
+  });
+
+  it('显式 age>0 优先：nativeKinematics 开启也不套用随机寿命', () => {
+    const e = eng({ nativeKinematics: true });
+    e.runCommand(C(er('20')));
+    expect(rod(e).lifetime).toBe(20);
+  });
+
+  it('关闭（默认）：end_rod 也走匀速直线（无摩擦/重力）', () => {
+    const e = eng(); // nativeKinematics: false
+    e.runCommand(C(er('100')));
+    // snapshot 返回活引用（对象同一性）→ 先取数值副本再 tick，否则 p0.y 随 tick 变
+    const y0 = rod(e).y;
+    e.tickOnce();
+    expect(rod(e).y).toBeCloseTo(y0 + 1, 10);
+    e.tickOnce();
+    expect(rod(e).y).toBeCloseTo(y0 + 2, 10);
+  });
+
+  it('开启：每 tick 重力先于位移、摩擦后于位移（Particle.tick 逐字顺序）', () => {
+    const e = eng({ nativeKinematics: true });
+    e.runCommand(C(er('100')));
+    const p0 = rod(e);
+    expect(p0.vy).toBeCloseTo(1, 10);
+    const y0 = p0.y;
+    // tick1：vy = 1 - 0.0005 → y += vy → vy *= 0.91
+    e.tickOnce();
+    let p = rod(e);
+    expect(p.y).toBeCloseTo(y0 + 0.9995, 12);
+    expect(p.vy).toBeCloseTo(0.9995 * 0.91, 12);
+    // tick2：vy += 重力 → 位移 → 摩擦
+    e.tickOnce();
+    p = rod(e);
+    expect(p.y).toBeCloseTo(y0 + 0.9995 + (0.9995 * 0.91 - 0.0005), 12);
+    expect(p.vy).toBeCloseTo((0.9995 * 0.91 - 0.0005) * 0.91, 12);
+  });
+
+  it('速度表达式路径回滚原生位移 → 不受摩擦/重力影响（用户实况命令语义）', () => {
+    // 用户真实命令等价：vel 0 0 0（stop=true）+ 表达式 vy=0.05 → 恒定 0.05/tick
+    const e = eng({ nativeKinematics: true });
+    e.runCommand(C('particleex normal minecraft:end_rod 0 0 0 1 0.95 0.89 1 0 0 0 0 0 0 1 0 "vy=0.05" 1.0'));
+    e.tickOnce();
+    expect(snap(e)[0].y).toBeCloseTo(0.05, 12);
+    e.tickOnce();
+    expect(snap(e)[0].y).toBeCloseTo(0.1, 12);
+  });
+
+  it('updateConfig 切开关即时生效：从下一 tick 起改变轨迹', () => {
+    const e = eng({ nativeKinematics: false });
+    e.runCommand(C(er('100')));
+    e.tickOnce(); // 匀速：y = 1，vy 仍 1
+    e.updateConfig({ nativeKinematics: true });
+    e.tickOnce(); // 开开后：vy = 1-0.0005 → y += → vy *= 0.91
+    const p = snap(e)[0];
+    expect(p.y).toBeCloseTo(1 + 0.9995, 12);
+    expect(p.vy).toBeCloseTo(0.9995 * 0.91, 12);
+  });
+});
+
+describe('原版 /particle 的 end_rod：随机寿命（vanilla=true 路径）', () => {
+  it('age=0 + nativeKinematics → lifetime = 60+nextInt(12)（同种子可复现）', () => {
+    const e1 = eng({ seed: 1, nativeKinematics: true });
+    e1.runCommand(C('particle end_rod 1 2 3'));
+    expect(snap(e1)[0].lifetime).toBe(64); // seed+1=2 → nextInt(12)=4
+    const e2 = eng({ seed: 1, nativeKinematics: true });
+    e2.runCommand(C('particle end_rod 1 2 3'));
+    expect(snap(e2)[0].lifetime).toBe(64);
+  });
+
+  it('nativeKinematics 关闭 → 走 defaultLifetime（预览近似）', () => {
+    const e = eng({ defaultLifetime: 20 });
+    e.runCommand(C('particle end_rod 1 2 3'));
+    expect(snap(e)[0].lifetime).toBe(20);
+    expect(snap(e)[0].vanilla).toBe(true);
+  });
+});
 
 describe('hasLiveWork / queuedGenerators（播放自动停止判据）', () => {
   it('空引擎 → 无活工作', () => {

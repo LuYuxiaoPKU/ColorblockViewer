@@ -3,16 +3,17 @@
 
 import * as THREE from 'three';
 import { createScene, type SceneBundle } from './scene';
-import { createPointsLayer, setPointsLayerAtlasKey, syncToPoints, FRAME_MS, type PointsLayer } from './points';
+import { createPointsLayer, setPointsLayerAtlasKey, syncToPoints, type PointsLayer } from './points';
 
-/** 渲染层读的最小引擎视图（解耦 render ↔ sim：SimEngine 结构子集）。
- *  tick 用于帧动画相位（1/20 s/帧，与 MC 客户端 SpriteSet 节奏一致）。 */
+/** 渲染层读的最小引擎视图（解耦 render ↔ sim：SimEngine 结构子集）。 */
 export interface SnapshotSource {
-  tick: number;
   snapshot(): {
     x: number; y: number; z: number;
     r: number; g: number; b: number; a: number;
     name: string;
+    age: number;
+    lifetime: number;
+    vanilla: boolean;
   }[];
 }
 
@@ -55,14 +56,14 @@ export class SimViewport {
   }
 
   /** tick/命令后调用：全量重写缓冲 + drawRange。返回可见粒子数。
-   *  帧相位取引擎 tick（1/20 s/帧）；图集异步加载完成前自动走圆点回退。 */
+   *  帧动画按粒子自身 age/lifetime（age-progress，原版语义）；
+   *  图集异步加载完成前自动走圆点回退。 */
   update(source: SnapshotSource): number {
     const n = syncToPoints(
       this.layer,
       source.snapshot(),
       this.sizeMul,
       this.alphaMul,
-      source.tick * FRAME_MS,
       this.atlasKey,
     );
     const geo = this.layer.points.geometry;

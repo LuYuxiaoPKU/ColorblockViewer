@@ -157,7 +157,7 @@ export default function App() {
       <aside className="pane">
         <h1>ColorBlockViewer</h1>
         <p className="muted">
-          AnotherColorBlock 粒子效果预览（简化：所有粒子类型按匀速直线运动；默认寿命为近似值）
+          AnotherColorBlock 粒子效果预览（默认启用原版运动学：end_rod 等类型的摩擦/重力/淡出/随机寿命按 1.21.1 反编译值，可在设置中关闭回退匀速直线）
         </p>
         <CommandPane onRun={run} />
       </aside>

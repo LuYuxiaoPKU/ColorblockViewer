@@ -44,4 +44,35 @@ describe('SimRandom（对拍 java.util.Random，JDK 21）', () => {
     }
     expect(new SimRandom(7).nextGaussian()).not.toBe(c.nextGaussian());
   });
+
+  it('nextInt(bound) 序列 bit-exact（JDK 21 ProbeInt，2026-09-08 实测）', () => {
+    expect(seq((r) => r.nextInt(12), 1, 8)).toEqual([9, 4, 7, 9, 2, 4, 2, 10]);
+    // bound=16 是 2 的幂 → 位提取分支（非取模）
+    expect(seq((r) => r.nextInt(16), 7, 6)).toEqual([11, 10, 11, 0, 5, 7]);
+    expect(seq((r) => r.nextInt(3), 42, 10)).toEqual([2, 0, 0, 2, 0, 1, 2, 2, 1, 2]);
+    expect(seq((r) => r.nextInt(1000), 42, 5)).toEqual([130, 763, 248, 884, 970]);
+  });
+
+  it('nextInt 值域 [0, bound)', () => {
+    const r = new SimRandom(3);
+    for (let i = 0; i < 200; i++) {
+      const v = r.nextInt(17);
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThan(17);
+      expect(Number.isInteger(v)).toBe(true);
+    }
+  });
+
+  it('nextInt 非法 bound → 抛错', () => {
+    const r = new SimRandom(3);
+    expect(() => r.nextInt(0)).toThrow();
+    expect(() => r.nextInt(-5)).toThrow();
+  });
 });
+
+function seq(f: (r: SimRandom) => number, seed: number, n: number): number[] {
+  const r = new SimRandom(seed);
+  const out: number[] = [];
+  for (let i = 0; i < n; i++) out.push(f(r));
+  return out;
+}

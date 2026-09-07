@@ -27,6 +27,7 @@ import {
   type SpawnSink,
 } from './spawn';
 import { fillFirstMove, fillPerTick } from './structFill';
+import { nativeSpecFor, nativeLifetimeFor } from './kinematics';
 import type { SimConfig, SimParticle, SimResult, TickGenerator } from './types';
 
 const INT_MAX = 2147483647;
@@ -37,6 +38,11 @@ export class SimEngine {
   /** normal 高斯偏移的共享 PRNG（Java 侧静态共享 RANDOM；跨命令持续消费；
    *  reset() 时重建同种子实例） */
   rand: SimRandom;
+  /** 原版粒子随机寿命专用 PRNG（Java：Particle 每个实例自带 new Random()，
+   *  与 mod 的静态 RANDOM 是不同序列）：「原版运动学」开启时 end_rod 的
+   *  maxAge = 60 + nextInt(12) 从这里消费。种子 = seed+1（与共享序列分离，
+   *  可复现）；reset/updateConfig(seed) 时同步重建。 */
+  vanillaRand: SimRandom;
 
   /** 粒子池：活粒子恒占 [0, count)；死亡 swap-remove 压实（对象移出数组，
    *  组索引里的死 id 滞留 —— 与 Java「组列表只在 group remove/clear 时清理」一致） */
@@ -58,6 +64,7 @@ export class SimEngine {
   constructor(config: SimConfig) {
     this.config = { ...config };
     this.rand = new SimRandom(config.seed);
+    this.vanillaRand = new SimRandom(config.seed + 1);
     wireParse(parse); // spawn.ts 的表达式入口 → 引擎（带缓存）
   }
 
@@ -156,6 +163,21 @@ export class SimEngine {
 
   // ---------- 生成 ----------
 
+  /** 寿命解析（模组调用顺序：构造器默认 → setLifetime(age>0?age:-1?INT_MAX)；
+   *  age=0 时不覆写 → 保持「构造器默认」。构造器默认 = 原版常量（「原版运动学」
+   *  开启且类型有 nativeLifetimeFor 表项时，如 end_rod 60+nextInt(12)；关闭 = 预览
+   *  近似 defaultLifetime），否则走预览默认寿命。 */
+  private resolveLifetime(cmdAge: number, name: string): number {
+    if (cmdAge > 0) return cmdAge;
+    if (cmdAge === -1) return INT_MAX;
+    // cmdAge == 0
+    if (this.config.nativeKinematics) {
+      const spec = nativeLifetimeFor(name, this.config.mcVersion);
+      if (spec) return spec.min + this.vanillaRand.nextInt(spec.extra);
+    }
+    return this.config.defaultLifetime;
+  }
+
   /** ParticleUtil.spawnParticle 主体（速度表达式解析失败 → errors + 不生成；
    *  null/空/"null" → 无 exe 不报错（ExpressionUtil.parse 返回 null）；
    *  池满 → dropped++。均不抛 —— Java try/catch 语义）。 */
@@ -184,11 +206,12 @@ export class SimEngine {
       stop: req.vx === 0 && req.vy === 0 && req.vz === 0,
       r: req.r, g: req.g, b: req.b, a: req.a,
       age: 0,
-      lifetime: req.age > 0 ? req.age : req.age === -1 ? INT_MAX : this.config.defaultLifetime,
+      lifetime: this.resolveLifetime(req.age, req.name),
       cx: req.cx, cy: req.cy, cz: req.cz,
       exe, speedStep: req.speedStep, moveT: 0,
       exeStruct,
       alive: true,
+      vanilla: req.vanilla === true,
     };
     this.groups.add(req.group, p.id); // null/"null"/空 在 GroupIndex.add 内跳过
     this.pending.push(p);
@@ -250,7 +273,10 @@ export class SimEngine {
     return { spawned: 0, dropped: 0, errors: this.tickErrors };
   }
 
-  /** §3.4：customTick（pre 记录 → 原生 tick → stop 回滚 → customMove） */
+  /** §3.4：customTick（pre 记录 → 原生 tick → stop 回滚 → customMove）。
+   *  原生 tick 内：age++/死亡判定 → 原版运动学（若开启且类型有表：
+   *  重力先于位移、摩擦后于位移 —— Particle.tick 的 velocityY 更新与
+   *  velocityMultiplier 顺序，见 sim/kinematics.ts）→ 位移。 */
   private animate(p: SimParticle): void {
     const preX = p.x;
     const preY = p.y;
@@ -263,9 +289,21 @@ export class SimEngine {
       return;
     }
     if (!p.stop) {
+      // 原版运动学（可选；关闭时 = 模组原生匀速直线，1:1 复刻）
+      const spec = this.config.nativeKinematics
+        ? nativeSpecFor(p.name, this.config.mcVersion)
+        : null;
+      if (spec) {
+        p.vy += spec.gravityY; // 重力：位移**之前**（Particle.tick 顺序）
+      }
       p.x += p.vx;
       p.y += p.vy;
       p.z += p.vz;
+      if (spec) {
+        p.vx *= spec.friction; // 摩擦：位移**之后**
+        p.vy *= spec.friction;
+        p.vz *= spec.friction;
+      }
     }
     if (p.stop) {
       p.x = preX;
@@ -363,9 +401,12 @@ export class SimEngine {
     if (patch.seed !== undefined) {
       this.config.seed = patch.seed;
       this.rand = new SimRandom(patch.seed);
+      this.vanillaRand = new SimRandom(patch.seed + 1);
     }
     // mcVersion 不参与引擎语义（贴图/类型表在渲染层与表单按它分区），只保持 config 一致
     if (patch.mcVersion !== undefined) this.config.mcVersion = patch.mcVersion;
+    // nativeKinematics 开关：有证据的类型（end_rod）套用原版摩擦/重力/随机寿命
+    if (patch.nativeKinematics !== undefined) this.config.nativeKinematics = patch.nativeKinematics;
   }
 
   /** reset：回放用（粒子/组/生成器/tick 计数/PRNG 全重置） */
@@ -379,6 +420,7 @@ export class SimEngine {
     this.tick = 0;
     this.dropped = 0;
     this.rand = new SimRandom(this.config.seed);
+    this.vanillaRand = new SimRandom(this.config.seed + 1);
     this.tickErrors.length = 0;
   }
 }

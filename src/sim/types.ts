@@ -20,6 +20,10 @@ export interface SimConfig {
   gridSize: number;
   /** 3D 网格线显示开关：纯渲染层设置 */
   gridVisible: boolean;
+  /** 「原版运动学」开关（设置面板）：开启后 sim/kinematics.ts 有证据的类型
+   *  （当前仅 end_rod）套用原版摩擦/重力 + 原版随机寿命；关闭 = 模组原生行为
+   *  （匀速直线 + 命令寿命/默认寿命）。 */
+  nativeKinematics: boolean;
 }
 
 export interface SimParticle {
@@ -35,6 +39,8 @@ export interface SimParticle {
   age: number;
   /** age == -1 → 永久（取 intMax） */
   lifetime: number;
+  /** 由原版 /particle 命令生成（渲染层：出生色恒为白，原版语义） */
+  vanilla: boolean;
   /** 命令位置 = 中心 */
   cx: number; cy: number; cz: number;
   /** 速度表达式（customMove 路径） */

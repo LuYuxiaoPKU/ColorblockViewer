@@ -32,6 +32,16 @@ export function SettingsDrawer() {
             <NumField label="tick" value={sim.defaultLifetime} min={1} integer onChange={(v) => setSim({ defaultLifetime: v })} />
           </div>
           <div className="field-row">
+            <label className="check-inline">
+              <input
+                type="checkbox"
+                checked={sim.nativeKinematics}
+                onChange={(e) => setSim({ nativeKinematics: e.target.checked })}
+              />
+              原版运动学 <em className="muted">（摩擦/重力/淡出/随机寿命，目前仅 end_rod 有反编译证据）</em>
+            </label>
+          </div>
+          <div className="field-row">
             <span className="field-row-label">粒子上限</span>
             <NumField label="max" value={sim.maxParticles} min={1} integer onChange={(v) => setSim({ maxParticles: v })} />
           </div>
