@@ -20,10 +20,9 @@ Minecraft 玩家调粒子效果的痛点：`/particle` 或模组的粒子命令�
 ### 1. AnotherColorBlock 模组的 `/particleex` 命令
 
 **AnotherColorBlock** 是一个 Minecraft Fabric 粒子效果模组：它用自定义
-`/particleex` 命令把"位置/颜色/速度随表达式逐 tick 变化"的粒子生成能力开放给
-玩家和地图制作者——例如极坐标运动（`x,y,z=4*cos(t*0.2),0,4*sin(t*0.2)` 的
-环形火焰）、颜色随时间渐变、条件触发生成、粒子分组批量修改。命令家族共
-13 个子命令：
+`/particleex` 命令生成位置/颜色/速度随表达式逐 tick 变化的粒子——例如极坐标
+运动（`x,y,z=4*cos(t*0.2),0,4*sin(t*0.2)` 的环形火焰）、颜色随时间渐变、
+条件触发生成、粒子分组批量修改。命令家族共 13 个子命令：
 
 - `normal` — 固定参数生成
 - `conditional` — 表达式条件触发生成
@@ -58,13 +57,29 @@ MC 版本的**全部注册类型**（1.21.11 → 116 种、26.2 → 126 种，�
 
 ## 领域位置
 
-Minecraft 粒子效果的可调试性长期是个空白点：原版 `/particle` 只能进游戏
-实测，社区资料基本是 Wiki 的参数表；模组（AnotherColorBlock 等）的粒子命令
-更是没有官方外的可视化工具，调参靠"改一行、回游戏、跑一遍、截图"循环。
-面向粒子的浏览器端实时预览站点（免安装、命令驱动、3D 逐 tick 动画）目前
-**没有公开的先例**——ColorBlockViewer 填补的是"粒子命令调试器"这一细分位：
-不做粒子编辑/导出（游戏内用模组/数据包即可完成），只做**免安装的实时预览与
-语义对齐**。与现有资源（Wiki 命令参考、NBT 查看器等）互补而非重叠。
+Minecraft 粒子效果的可调试性长期是个空白点：原版 `/particle` 只能进游戏实测，
+社区资料基本是 Wiki 的参数表；表达式驱动的模组粒子命令更是没有官方外的
+可视化工具，调参靠"改一行、回游戏、跑一遍、截图"循环。
+
+已有先例按形态分三类（检索核查于 2026-09-07）：
+
+- **游戏内预览/生成模组**：[ParticlePeek](https://modrinth.com/mod/particlepeek)
+  （Fabric，GUI 浏览粒子、实时预览并复制 `/particle` 命令，需进游戏）；
+  [ExParticle](https://modrinth.com/mod/exparticle)（NeoForge 1.21.1，
+  `/particlex` + 数学表达式 + `tick-parameter` 逐 tick 子命令，游戏内运行）
+- **浏览器内粒子编辑器**：[Snowstorm](https://jannisx11.github.io/snowstorm/)
+  （基岩版粒子 JSON/Molang 编辑器，双击 HTML 离线打开、实时 3D 预览，
+  但不接收 Java 版命令文本）
+- **参考文档**：Minecraft Wiki 的
+  [`/particle` 命令](https://zh.minecraft.wiki/w/命令/particle)、
+  [粒子清单](https://zh.minecraft.wiki/w/Java版粒子)、
+  [粒子数据格式](https://zh.minecraft.wiki/w/粒子数据格式)（命令用 SNBT）
+
+"网页 3D 粒子编辑"与"命令/表达式驱动粒子"两条路径各自都有先例，但截至检索日
+**未发现**同时满足「免安装网页 + 粘贴命令文本 + 3D 实时 + 逐 tick 动画」的
+公开项目。ColorBlockViewer 的定位正是把两者结合：命令解析、参数化表达式与
+逐 tick 3D 预览在浏览器内一次完成；不做粒子编辑/导出（游戏内用模组/数据包
+即可完成），与上述工具和 Wiki 参考互补而非重叠。
 
 ## 快速使用
 
