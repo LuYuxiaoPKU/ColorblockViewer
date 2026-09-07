@@ -60,4 +60,20 @@ export class SimRandom {
     this.haveNextNextGaussian = true;
     return v1 * multiplier;
   }
+
+  /** java.util.Random.nextInt(bound)（bound > 0；JDK 21 javap 逐行核对）：
+   *  bound 为 2 的幂 → next(31) >>> (31-log2(bound))；否则 next(31) % bound
+   *  （负结果补 bound）。本地 JDK 21 探针逐值验证（12/16/3/1000 等 bound）。
+   *  用于原版粒子的逐 tick 随机寿命（end_rod = 60 + nextInt(12)）。 */
+  nextInt(bound: number): number {
+    if (bound <= 0) throw new Error('bound must be positive');
+    if ((bound & (bound - 1)) === 0) {
+      const bits = Math.log2(bound);
+      return (this.next(31) >>> (31 - bits)) & (bound - 1);
+    }
+    let r = this.next(31);
+    r %= bound;
+    if (r < 0) r += bound;
+    return r;
+  }
 }

@@ -28,7 +28,7 @@ function resetStore(): void {
   setCommand(0, fresh);
   // 清掉其余命令（defaultState 有 2 条）
   while (getState().commands.length > 1) removeCommand(1);
-  setSim({ playerPos: { x: 0, y: 0, z: 0 }, defaultLifetime: 20, maxParticles: 20000, seed: 1, mcVersion: '26.2', gridSize: 10, gridVisible: true });
+  setSim({ playerPos: { x: 0, y: 0, z: 0 }, defaultLifetime: 20, maxParticles: 20000, seed: 1, mcVersion: '26.2', gridSize: 10, gridVisible: true, nativeKinematics: false });
 }
 
 beforeEach(resetStore);

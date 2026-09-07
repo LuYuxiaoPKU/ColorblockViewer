@@ -4,9 +4,16 @@
 //  - 每 tick 全量重写前缀 + setDrawRange(0, aliveCount)（粒子每 tick 都动，
 //    增量收益低；N=20000 上传 <1ms）；
 //  - 贴图：MC 客户端粒子贴图（scripts/gen-particle-assets.mjs 从官方客户端 jar 提取，
-//    按版本分区的帧表见 ./particleData）。有帧表的类型 → 帧动画（1/20 s/帧，相位取引擎
-//    tick）采样图集 + 命令色乘法着色；无帧表类型（block/dust/item 等按方块纹理实时渲染的、
-//    未知名）→ 回退软发光圆点，按类型微调 size/alpha/色相。
+//    按版本分区的帧表见 ./particleData）。多帧类型走**原版 age-progress 选帧**
+//    （帧号 = floor(age*(N-1)/lifetime)，随年龄线性推进、全寿命只播一遍；
+//    1.21.1 反编译 ParticleEngine.getSpriteForAge 逐字核对，见 docs/技术路线.md §10）：
+//    前 50% 寿命不透明，后 50% 线性淡出到 alpha=0.5（死亡瞬间即 0.5 而非 0，
+//    SimpleAnimatedParticle.tick 原文）；end_rod 类附加颜色向 #F2DEC9 插值
+//    （每 tick 靠拢 20%，EndRodParticle.setTargetColor；起点 = 出生渲染色，
+//    模组在出生时已把命令色写进原版 renderColor → 起点即命令色，预览直接
+//    对命令色做同一插值 = 逐字一致）。无帧表类型
+//    （block/dust/item 等按方块纹理实时渲染的、未知名）→ 回退软发光圆点，
+//    按类型微调 size/alpha/色相。
 //  - 图集按 atlasKey（游戏版本，如 '1.21.11' / '26.2'）分区加载；切换 key 时旧纹理
 //    dispose、缓存失效重载。异步加载（首帧前可能未就绪 → 先圆点后贴图，不阻塞渲染）。
 // 本模块可 headless 构造（BufferGeometry/ShaderMaterial 不依赖 WebGL 上下文；
@@ -102,8 +109,45 @@ export function shiftHue(r: number, g: number, b: number, deg: number): [number,
 
 // ---------- 贴图图集 ----------
 
-/** 帧动画速率（MC 客户端 SpriteSet 惯例 1/20 s/帧）。 */
-export const FRAME_MS = 50;
+// ---------- 原版帧动画行为（age-progress，见文件头） ----------
+
+/** 类型 → 帧动画附加行为（按版本分区）。帧列表由 PARTICLE_DATA 帧表提供
+ *  （textureFor）；**寿命进度选帧 + 后 50% 线性淡出对所有多帧类型（N>1）通用**
+ *  （1.21.1 反编译 AnimatedParticle.tick 逐字核对，非 end_rod 专属），无需在此
+ *  逐类型声明。这里只记录 end_rod 专属的颜色插值目标。证据边界：当前仅 end_rod
+ *  有 1.21.1 反编译的完整行为参数，其他多帧类型走通用选帧+淡出、不做颜色插值。 */
+export interface FrameSpec {
+  /** 颜色向 targetColor 每 tick 靠拢 20%：end_rod → 0xF2DEC9（rgb 242,222,201，
+   *  0–255 整数值；使用时除以 255 归一到 0..1 与渲染色同尺度）。
+   *  未列出类型不插值。 */
+  colorShift?: [number, number, number];
+}
+
+export const FRAME_SPECS: Record<string, Record<string, FrameSpec>> = {
+  '1.21.11': { end_rod: { colorShift: [242, 222, 201] } },
+  '26.2': { end_rod: { colorShift: [242, 222, 201] } },
+};
+
+export function frameSpecFor(name: string, version = '26.2'): FrameSpec | null {
+  return FRAME_SPECS[version]?.[normName(name)] ?? null;
+}
+
+/** 寿命进度选帧（AnimatedParticle.setSpriteForAge 逐字）：
+ *  frame = floor(age*(N-1)/lifetime)，全寿命只播一遍不循环。
+ *  活粒子 age ≤ lifetime-1 → 最大索引 = floor((lifetime-1)(N-1)/lifetime) ≤ N-2，
+ *  故末帧（index N-1，end_rod 的 glitter_0）实际不可见 —— 与原版一致。 */
+function ageFrame(age: number, lifetime: number, n: number): number {
+  if (n <= 1 || lifetime <= 0) return 0;
+  const idx = Math.floor((age * (n - 1)) / lifetime);
+  return idx < n ? idx : n - 1;
+}
+
+/** 后 50% 寿命线性淡出（AnimatedParticle.tick 逐字）：前 50% = 1，
+ *  之后 1 - (age-lifetime/2)/lifetime，死亡瞬间 = 0.5（非 0）。 */
+function ageFade(age: number, lifetime: number): number {
+  if (lifetime <= 0 || age <= lifetime / 2) return 1;
+  return 1 - (age - lifetime / 2) / lifetime;
+}
 /** 图集格尺寸（px）。粒子贴图多为 8/16px，个别 32px 的按原尺寸居中贴入（>TILE 的裁切）。 */
 const TILE = 32;
 const ATLAS_COLS = 12;
@@ -373,18 +417,24 @@ export interface RenderParticle {
   b: number;
   a: number;
   name: string;
+  /** 已存活 tick（age-progress 选帧/淡出用；原版按年龄推进而非全局相位） */
+  age: number;
+  /** 寿命（tick；age=-1 → intMax，淡出/选帧按它算） */
+  lifetime: number;
+  /** 是否由原版 /particle 命令生成（原版粒子出生色恒为白） */
+  vanilla: boolean;
 }
 
 /** 把快照前缀全量写入缓冲。返回写入数（= setDrawRange 的 count）。
  *  颜色经类型色相微调、alpha 乘类型系数后写入；size = BASE_SIZE * 类型倍数。
- *  frameTimeMs：帧动画相位（取引擎 tick × 50ms），决定当前帧号。
+ *  有帧表（多帧）的类型走原版 age-progress 动画：帧号按寿命进度、后半程线性
+ *  淡出（见 ageFrame/ageFade 注释）；end_rod 附加颜色向 #F2DEC9 插值。
  *  uv 始终写入（图集加载前也正确就位，加载完成首帧即有贴图）。 */
 export function syncToPoints(
   layer: Pick<PointsLayer, 'pos' | 'color' | 'size' | 'uv'>,
   parts: RenderParticle[],
   sizeMul = 1,
   alphaMul = 1,
-  frameTimeMs = 0,
   atlasKey = '26.2',
 ): number {
   const max = layer.pos.length / 3;
@@ -397,19 +447,48 @@ export function syncToPoints(
     pos[i3 + 1] = p.y;
     pos[i3 + 2] = p.z;
     const tw = tweakFor(p.name);
-    const [r, g, b] = shiftHue(p.r, p.g, p.b, tw.hue);
-    const i4 = i * 4;
-    color[i4] = r;
-    color[i4 + 1] = g;
-    color[i4 + 2] = b;
-    color[i4 + 3] = p.a * tw.alpha * alphaMul;
-    size[i] = BASE_SIZE * tw.size * sizeMul;
-    // 帧 UV：有帧表的类型按帧序取当前帧格左上角；无 → (0,0)
-    // （着色器走圆点分支时忽略；图集未加载时 uHasAtlas=0 同样忽略）
     const frames = textureFor(p.name, atlasKey);
+    const multi = frames !== null && frames.length > 1;
+    let r = p.r;
+    let g = p.g;
+    let b = p.b;
+    let alpha = p.a;
+    if (multi) {
+      // 原版 SimpleAnimatedParticle：初始色 = 出生渲染色（原版粒子恒白；
+      // 模组粒子出生时已把命令色写进 renderColor → 起点即命令色）
+      if (p.vanilla) {
+        r = 1;
+        g = 1;
+        b = 1;
+      }
+      // end_rod：每 tick 向 targetColor 靠拢 20%（= (0.8)^age 剩余量，逐 tick
+      // 递推的闭式解；1.21.1 反编译 EndRodParticle.setTargetColor(15916745)）
+      const spec = frameSpecFor(p.name, atlasKey);
+      if (spec?.colorShift) {
+        // colorShift 以 0–255 整数存储（对照 16 进制色值直观）→ 归一到 0..1
+        const tr = spec.colorShift[0] / 255;
+        const tg = spec.colorShift[1] / 255;
+        const tb = spec.colorShift[2] / 255;
+        const f = Math.pow(0.8, p.age);
+        r = tr + (r - tr) * f;
+        g = tg + (g - tg) * f;
+        b = tb + (b - tb) * f;
+      }
+      // 后半程线性淡出（死亡瞬间 alpha=0.5）
+      alpha *= ageFade(p.age, p.lifetime);
+    }
+    const [hr, hg, hb] = shiftHue(r, g, b, tw.hue);
+    const i4 = i * 4;
+    color[i4] = hr;
+    color[i4 + 1] = hg;
+    color[i4 + 2] = hb;
+    color[i4 + 3] = alpha * tw.alpha * alphaMul;
+    size[i] = BASE_SIZE * tw.size * sizeMul;
+    // 帧 UV：有帧表的类型取帧格左上角（多帧按寿命进度 ageFrame；单帧恒第 0 帧）；
+    // 无帧表 → (0,0)（着色器走圆点分支时忽略；图集未加载时 uHasAtlas=0 同样忽略）
     if (frames && frames.length > 0) {
-      const frame = frames[Math.floor(frameTimeMs / FRAME_MS) % frames.length];
-      const [u, v] = frameUV(frame, atlasKey);
+      const idx = multi ? ageFrame(p.age, p.lifetime, frames.length) : 0;
+      const [u, v] = frameUV(frames[idx], atlasKey);
       uv[i * 2] = u;
       uv[i * 2 + 1] = v;
     } else {

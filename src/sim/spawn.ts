@@ -49,6 +49,8 @@ export interface SpawnRequest {
   group: string | null;
   exe?: CompiledBlock | null;
   exeStruct?: ParticleStruct | null;
+  /** 原版 /particle 生成标记（渲染层出生色恒白；模组命令路径恒 false） */
+  vanilla?: boolean;
 }
 
 /** 命令执行上下文：engine 注入的生成回调与结果收集 */
@@ -285,6 +287,7 @@ export function execVanilla(cmd: ParticleCommand & { kind: 'vanilla' }, sink: Sp
       vx: speed * delta.x, vy: speed * delta.y, vz: speed * delta.z,
       age: 0, speedExpression: null, speedStep: 1.0,
       group: null, exe: null, exeStruct: null,
+      vanilla: true,
     });
     return;
   }
@@ -304,6 +307,7 @@ export function execVanilla(cmd: ParticleCommand & { kind: 'vanilla' }, sink: Sp
       vx, vy, vz,
       age: 0, speedExpression: null, speedStep: 1.0,
       group: null, exe: null, exeStruct: null,
+      vanilla: true,
     });
   }
 }
