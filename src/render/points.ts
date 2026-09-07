@@ -199,7 +199,9 @@ function frameUV(frame: string, key: string): [number, number] {
 const VERTEX = /* glsl */ `
 attribute vec4 color;
 attribute float size;
-attribute vec2 uv;
+// 注意：position / normal / uv 由 Three.js ShaderMaterial 前缀自动声明
+// （WebGL2 下为 in）；不要在此重复声明 uv，否则 redefinition 编译失败、
+// 顶点着色器不通过、粒子整层不渲染（线上曾因此黑屏）。
 uniform float uSizeMul;
 uniform float uScale;
 varying vec4 vColor;
