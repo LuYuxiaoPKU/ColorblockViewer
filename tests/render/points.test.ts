@@ -166,6 +166,22 @@ describe('shiftHue', () => {
 });
 
 describe('createPointsLayer 几何', () => {
+  it('顶点着色器不重声明 Three.js 前缀属性（position/normal/uv）', () => {
+    // ShaderMaterial（非 Raw）前缀自动声明 position/normal/uv（WebGL2 下 in）。
+    // 源码里再写 `attribute vec2 uv;` → "redefinition" 编译失败 → useProgram
+    // INVALID_OPERATION → 粒子整层不渲染（线上 2026-09-07 黑屏事故的根因，
+    // headless swiftshader 同样报此错；单测锁住源码，GL 编译靠 CI 构建+人眼）。
+    const layer = createPointsLayer(2);
+    const vs = (layer.points.material as THREE.ShaderMaterial).vertexShader;
+    expect(vs).not.toMatch(/\battribute\s+vec2\s+uv\s*;/);
+    expect(vs).not.toMatch(/\battribute\s+vec3\s+position\s*;/);
+    expect(vs).not.toMatch(/\battribute\s+vec3\s+normal\s*;/);
+    // 自定义属性（color/size）不受前缀声明，必须显式保留
+    expect(vs).toMatch(/\battribute\s+vec4\s+color\s*;/);
+    expect(vs).toMatch(/\battribute\s+float\s+size\s*;/);
+    layer.dispose();
+  });
+
   it('缓冲尺寸 + 属性 + drawRange 默认 0', () => {
     const layer = createPointsLayer(3);
     expect(layer.pos.length).toBe(9);
