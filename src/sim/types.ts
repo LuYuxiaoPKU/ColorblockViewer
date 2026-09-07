@@ -16,6 +16,10 @@ export interface SimConfig {
   /** 游戏版本（'1.21.11' | '26.2'）：原版粒子贴图/类型表按它分区。
    *  引擎语义不读它（粒子生成与版本无关），App 据此驱动渲染图集与表单类型表。 */
   mcVersion: string;
+  /** 3D 网格边长（block，1 block/格）：纯渲染层设置，引擎不读（mcVersion 先例） */
+  gridSize: number;
+  /** 3D 网格线显示开关：纯渲染层设置 */
+  gridVisible: boolean;
 }
 
 export interface SimParticle {

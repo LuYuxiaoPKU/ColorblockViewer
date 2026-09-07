@@ -52,6 +52,20 @@ export function SettingsDrawer() {
               <option value="1.21.11">1.21.11</option>
             </select>
           </div>
+          <div className="field-row">
+            <span className="field-row-label">
+              3D 网格 <em className="muted">（边长以 block 计，1 block/格）</em>
+            </span>
+            <NumField label="大小" value={sim.gridSize} min={2} max={100} integer onChange={(v) => setSim({ gridSize: v })} />
+            <label className="check-inline">
+              <input
+                type="checkbox"
+                checked={sim.gridVisible}
+                onChange={(e) => setSim({ gridVisible: e.target.checked })}
+              />
+              显示网格线
+            </label>
+          </div>
         </div>
       ) : null}
     </div>

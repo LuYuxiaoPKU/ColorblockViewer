@@ -19,6 +19,8 @@ function cfg(over: Partial<SimConfig> = {}): SimConfig {
     maxParticles: 20000,
     seed: 1,
     mcVersion: '26.2',
+    gridSize: 10,
+    gridVisible: true,
     ...over,
   };
 }

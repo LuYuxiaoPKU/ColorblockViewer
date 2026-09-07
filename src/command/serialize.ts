@@ -1,8 +1,11 @@
 // 命令序列化：结构化 ParticleCommand → 规范命令文本（表单→命令回显与复制）。
-// round-trip 约定：parse(serialize(c)) 与 c 语义等价（tests/command/roundtrip.test.ts）。
+// round-trip 约定：parse(serialize(c)) 与 c 语义等价（tests/command/parse.test.ts
+// 往返段）。
 // 策略：可选尾部参数（age/speedExpression/speedStep/group 等）一律显式写出（默认值也写），
 // 保证往返后对象字段完全一致；null 写作字面 `null`（与 MC 建议值一致，解析层
 // strOrNull 还原）。表达式/组名等文本字段含空白或引号时加引号（内部引号 `"` → `""`）。
+// 行首带 `/`：与游戏内输入一致（解析层剥除 `/` 前缀，parseCommands 支持），
+// 粘贴→应用回显后斜杠不丢，用户可直接复制回游戏。
 
 import type {
   ParticleCommand,
@@ -100,12 +103,12 @@ function vanilla(c: VanillaCmd): string {
 
 export function serialize(cmd: ParticleCommand): string {
   switch (cmd.kind) {
-    case 'normal': return normal(cmd);
-    case 'conditional': return conditional(cmd);
-    case 'parameter': return parameter(cmd);
-    case 'group': return group(cmd);
-    case 'vanilla': return vanilla(cmd);
-    case 'clearparticle': return 'particleex clearparticle';
+    case 'normal': return '/' + normal(cmd);
+    case 'conditional': return '/' + conditional(cmd);
+    case 'parameter': return '/' + parameter(cmd);
+    case 'group': return '/' + group(cmd);
+    case 'vanilla': return '/' + vanilla(cmd);
+    case 'clearparticle': return '/particleex clearparticle';
   }
 }
 
