@@ -9,31 +9,39 @@ import { createRoot, type Root } from 'react-dom/client';
 import App from '../../src/App';
 import { getState, setCommand, removeCommand, setSim, DEFAULT_VANILLA } from '../../src/store/appState';
 import { serializeAll } from '../../src/command/serialize';
+import { SimViewport } from '../../src/render/sync';
 import { PARTICLE_DATA } from '../../src/render/particleData';
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 
-vi.mock('../../src/render/sync', () => ({
-  SimViewport: class {
-    update(): number {
-      return 0;
-    }
-    get size(): number {
-      return 900;
-    }
-    get fov(): number {
-      return 50;
-    }
-    start() {}
-    stop() {}
-    resize() {}
-    dispose() {}
-    setSizeMul() {}
-    setAlphaMul() {}
-    setPointScale() {}
-    setAtlasKey() {}
-  },
-}));
+vi.mock('../../src/render/sync', () => {
+  const gridCalls: [number, boolean][] = [];
+  return {
+    SimViewport: class {
+      static gridCalls = gridCalls;
+      update(): number {
+        return 0;
+      }
+      get size(): number {
+        return 900;
+      }
+      get fov(): number {
+        return 50;
+      }
+      start() {}
+      stop() {}
+      resize() {}
+      dispose() {}
+      setSizeMul() {}
+      setAlphaMul() {}
+      setPointScale() {}
+      setAtlasKey() {}
+      setGrid(size: number, visible: boolean) {
+        gridCalls.push([size, visible]);
+      }
+    },
+  };
+});
 
 let container: HTMLDivElement;
 let root: Root;
@@ -163,6 +171,23 @@ describe('M5 全流程', () => {
     expect(hud?.textContent).toContain('粒子 37'); // 而非默认 normal 的 100
   });
 
+  it('用户真实指令（/ 前缀 + 单引号表达式）粘贴→应用→回显保留斜杠', () => {
+    const raw = "/particleex conditional minecraft:end_rod ~1 ~2 ~ 1 0.95 0.89 1 0 0 0 0.5 0.5 0.5 '(abs(y)==0.5&!(abs(z)<0.5))|(abs(x)==0.5&(!(abs(z)<0.5)|!(abs(y)<0.5)))' 0.1 20 'vy=0.05' 1.0 null\n";
+    setValue(ta(), raw);
+    click(button('应用'));
+    const c = getState().commands[0];
+    expect(c.kind).toBe('conditional');
+    if (c.kind !== 'conditional') return;
+    expect(c.name).toBe('minecraft:end_rod');
+    expect(c.pos.y).toEqual({ v: 2, rel: true });
+    expect(c.expression).toBe("(abs(y)==0.5&!(abs(z)<0.5))|(abs(x)==0.5&(!(abs(z)<0.5)|!(abs(y)<0.5)))");
+    expect(c.speedExpression).toBe('vy=0.05');
+    expect(c.group).toBeNull();
+    // 应用后 textarea 回写真源：斜杠保留（回归：曾「斜杠消失」）
+    expect(ta().value).toBe(serializeAll(getState().commands));
+    expect(ta().value.startsWith('/particleex conditional minecraft:end_rod')).toBe(true);
+  });
+
   it('用户报告的完整命令：polarparameter 螺旋，粘贴后直接执行 → 201 粒子', () => {
     // begin=-10 end=10 step=0.1 → 201 个 t 值；y=2 半径 ~1 的圆环（end_rod 贴图）
     setValue(ta(), 'particleex polarparameter minecraft:end_rod ~ ~2 ~ 1 0.95 0.89 1 0 0 0 -10 10 dis=1;s1=2*t;s2=0 0.1 20 i=0.1;(vx,vy,vz)=((i)*cos(s1),0,(i)*sin(s1)) 1 null\n');
@@ -240,6 +265,17 @@ describe('M5 全流程', () => {
     // 默认命令 count=100 → HUD 「粒子 100」
     const hud = container.querySelector('.hud');
     expect(hud?.textContent).toContain('粒子 100');
+  });
+
+  it('网格设置 → viewport.setGrid(size, visible) 随 sim 驱动', () => {
+    const Mock = SimViewport as unknown as { gridCalls: [number, boolean][] };
+    const before = Mock.gridCalls.length; // 挂载时已按默认 (10, true) 调过
+    act(() => setSim({ gridSize: 50 }));
+    act(() => setSim({ gridVisible: false }));
+    expect(Mock.gridCalls.slice(-2)).toEqual([[50, true], [50, false]]);
+    expect(before).toBeGreaterThanOrEqual(1);
+    // 恢复基线（后续用例不受影响）
+    act(() => setSim({ gridSize: 10, gridVisible: true }));
   });
 
   it('单步 → tick 推进', () => {

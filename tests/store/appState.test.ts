@@ -28,7 +28,7 @@ function resetStore(): void {
   setCommand(0, fresh);
   // 清掉其余命令（defaultState 有 2 条）
   while (getState().commands.length > 1) removeCommand(1);
-  setSim({ playerPos: { x: 0, y: 0, z: 0 }, defaultLifetime: 20, maxParticles: 20000, seed: 1, mcVersion: '26.2' });
+  setSim({ playerPos: { x: 0, y: 0, z: 0 }, defaultLifetime: 20, maxParticles: 20000, seed: 1, mcVersion: '26.2', gridSize: 10, gridVisible: true });
 }
 
 beforeEach(resetStore);
@@ -58,9 +58,9 @@ describe('表单 → 文本（serialize 派生）', () => {
     expect(getState().input).toContain('particleex rgbaparameter');
   });
 
-  it('vanilla 命令 → 文本为原版形式（无 particleex 前缀）', () => {
+  it('vanilla 命令 → 文本为原版形式（无 particleex 前缀，带 / 前缀）', () => {
     setCommand(0, { ...structuredClone(DEFAULT_VANILLA), name: 'smoke' });
-    expect(getState().input).toBe('particle smoke');
+    expect(getState().input).toBe('/particle smoke');
   });
 });
 

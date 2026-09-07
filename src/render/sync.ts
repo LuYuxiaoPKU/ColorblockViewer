@@ -49,6 +49,11 @@ export class SimViewport {
     setPointsLayerAtlasKey(this.layer, key);
   }
 
+  /** 网格大小（block，1 block/格）与显示开关（App 按 sim 设置驱动）。 */
+  setGrid(size: number, visible: boolean): void {
+    this.scene.setGrid(size, visible);
+  }
+
   /** tick/命令后调用：全量重写缓冲 + drawRange。返回可见粒子数。
    *  帧相位取引擎 tick（1/20 s/帧）；图集异步加载完成前自动走圆点回退。 */
   update(source: SnapshotSource): number {

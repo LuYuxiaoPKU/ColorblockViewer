@@ -53,6 +53,11 @@ export default function App() {
     viewportRef.current?.setAtlasKey(sim.mcVersion);
   }, [sim.mcVersion]);
 
+  // 网格设置变更 → 重建/显隐网格（纯渲染层，引擎不读）
+  useEffect(() => {
+    viewportRef.current?.setGrid(sim.gridSize, sim.gridVisible);
+  }, [sim.gridSize, sim.gridVisible]);
+
   // 播放循环（墙钟累加器；逻辑 20Hz 与渲染 60Hz 解耦）
   useEffect(() => {
     if (!playing) return;

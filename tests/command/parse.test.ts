@@ -108,6 +108,32 @@ describe('引号', () => {
     expect(c.speedStep).toBe(1);
     expect(c.group).toBeNull();
   });
+  it('用户真实指令逐字 e2e：/ 前缀 + 含空格单引号条件表达式 + 相对坐标 + 命名空间 + null 组', () => {
+    // 用户在游戏内可运行的 conditional 命令（2026-09-07 提供）。
+    // 语义注意：表达式里 x/y/z 是相对命令位置的扫描偏移（±range），非世界坐标。
+    const raw = "/particleex conditional minecraft:end_rod ~1 ~2 ~ 1 0.95 0.89 1 0 0 0 0.5 0.5 0.5 '(abs(y)==0.5&!(abs(z)<0.5))|(abs(x)==0.5&(!(abs(z)<0.5)|!(abs(y)<0.5)))' 0.1 20 'vy=0.05' 1.0 null";
+    const cmds = parseCommands(raw);
+    expect(cmds).toHaveLength(1);
+    const c = cmds[0] as Extract<ParticleCommand, { kind: 'conditional' }>;
+    expect(c.name).toBe('minecraft:end_rod');
+    expect(c.pos).toEqual({ x: { v: 1, rel: true }, y: { v: 2, rel: true }, z: { v: 0, rel: true } });
+    expect(c.color).toEqual({ r: 1, g: 0.95, b: 0.89, a: 1 });
+    expect(c.range).toEqual({ x: 0.5, y: 0.5, z: 0.5 });
+    expect(c.expression).toBe("(abs(y)==0.5&!(abs(z)<0.5))|(abs(x)==0.5&(!(abs(z)<0.5)|!(abs(y)<0.5)))");
+    expect(c.step).toBe(0.1);
+    expect(c.age).toBe(20);
+    expect(c.speedExpression).toBe('vy=0.05');
+    expect(c.speedStep).toBe(1);
+    expect(c.group).toBeNull();
+    // 回显保留 / 前缀（粘贴→应用后斜杠不丢，可直接复制回游戏）。
+    // 注：规范文本数字去尾零（1.0→1）；表达式无空格/引号 → 不加引号（fmtStr 规则），
+    // parse(serialize(c)) 与 c 语义等价（round-trip 约定）。
+    expect(serialize(c)).toBe(
+      '/particleex conditional minecraft:end_rod ~1 ~2 ~ 1 0.95 0.89 1 0 0 0 0.5 0.5 0.5 ' +
+      '(abs(y)==0.5&!(abs(z)<0.5))|(abs(x)==0.5&(!(abs(z)<0.5)|!(abs(y)<0.5))) 0.1 20 vy=0.05 1 null',
+    );
+    expect(parseCommands(serialize(c))[0]).toEqual(c);
+  });
   it('未闭合引号报错', () => {
     expect(() => P('particleex conditional smoke 0 0 0 1 1 1 1 0 0 0 1 0 1 "x>1')).toThrow(/unterminated/);
   });
@@ -243,7 +269,7 @@ describe('serialize round-trip', () => {
     expect(c1.delta).toBeNull();
     const c2 = { ...c1, speed: 0.5, count: 42 };
     const text = serialize(c2);
-    expect(text).toBe('particle flame 1 2 3 0 0 0 0.5 42');
+    expect(text).toBe('/particle flame 1 2 3 0 0 0 0.5 42');
     const c3 = P(text) as Extract<ParticleCommand, { kind: 'vanilla' }>;
     expect(c3.delta).toEqual({ x: 0, y: 0, z: 0 });
     expect(c3.speed).toBe(0.5);

@@ -299,6 +299,16 @@ button.small {
   border-color: #f87171;
 }
 
+.check-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  padding-bottom: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
 /* ---------- ExprField ---------- */
 
 .expr-field {
