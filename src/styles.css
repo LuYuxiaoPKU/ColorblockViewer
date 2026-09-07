@@ -34,7 +34,9 @@ body {
 @media (max-width: 900px) {
   .app-layout {
     grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
+    /* 面板行设上限（45vh），保证 1fr 视口行永不为 0：
+       auto 行在矮窗下会吃掉全部高度 → canvas 高 0 → uScale 0 → 粒子全不可见 */
+    grid-template-rows: minmax(0, 45vh) 1fr;
   }
 }
 
