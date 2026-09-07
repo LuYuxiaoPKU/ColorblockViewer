@@ -1,77 +1,92 @@
 # ColorBlockViewer
 
-纯前端静态网站：预览 Minecraft Fabric 模组 **AnotherColorBlock** 的 `/particleex`
-粒子效果，以及**原版** `/particle` 命令（粒子类型表/贴图按 1.21.11 / 26.2 分区，
-可切换）。粘贴命令（或使用结构化表单），浏览器内 3D 渲染粒子生成与逐 tick 动画。
+> **v1.0** · 纯前端静态网站 · 无需安装游戏，浏览器里预览 Minecraft 粒子效果
 
-## 功能
+[在线体验](https://luyuxiaopku.github.io/ColorblockViewer/) ·
+[技术路线综述](docs/技术路线.md)
 
-- **10 种模组命令**：`normal` / `conditional` / `parameter` 家族 8 变体（polar/tick/rgba）
-  + `group remove|change` + `clearparticle`
-- **原版 `/particle`**（命令树逐字核对 `ParticleCommand`；粒子类型表与贴图按
-  **1.21.11 / 26.2** 两个版本分区，设置面板可切换）：
-  `particle <粒子名> [pos] [delta] [speed] [count] [normal]`，粒子名支持所选版本
-  全部注册类型（1.21.11 → 116、26.2 → 126，表单下拉建议）与 `type{NBT}` 复杂类型
-  （NBT 载荷按类型名近似渲染）；
-  客户端语义复刻：`delta`/`speed` 为各轴**高斯标准差**（位置/速度随机），`count=0`
-  为单粒子精确生成
-- **双向同步**：表单 ↔ 命令文本，结构化数组为唯一真源（粘贴自动填表，改表自动更新文本）
-- **表达式实时校验**：`ExprField` 防抖编译检查，英文原文 + 中文提示 + 语法高亮
-- **1:1 语义复刻**：表达式引擎（Int32 除法/取模/常量折叠/矩阵/函数重载）与粒子生命周期
-  （customMove 的 pre/stop 回滚、age 恒 0 缺陷、组索引惰性清理、错误消息逐字）按模组
-  Java 源码逐字核对，golden 测试锁行为
-- **播放控制**：▶⏸ / 单步 / 1x–8x 倍速 / 回放重置；墙钟累加器驱动 20 TPS 逻辑，
-  与 60Hz 渲染解耦
-- **设置**：玩家位置（`~` 基准）、默认寿命（近似值）、粒子上限、随机种子、
-  游戏版本（`/particle` 的粒子类型表与贴图分区）
+## 这是什么
 
-## 版本支持
+Minecraft 玩家调粒子效果的痛点：`/particle` 或模组的粒子命令参数多、表达式
+复杂，改一次就要回游戏里执行一次看效果，来回切换非常低效。
 
-- **模组命令**（`/particleex`）：按 AnotherColorBlock **1.21.11** 源码 1:1 语义复刻。
-  跨分支源码 diff（1.21 / 1.21.11 / 26.1 / main）确认：1.21.1–26.2 各分支的命令树、
-  参数类型、表达式引擎**完全一致**，差异仅在权限 API 与 yarn 改名等渲染侧文件，
-  故本预览对模组支持的全部 MC 版本（1.21.1–26.2）语义有效。
-- **原版 `/particle`**：粒子类型注册表与贴图按版本分区，当前内置 **1.21.11**
-  （116 类型 / 251 贴图）与 **26.2**（126 类型 / 285 贴图），设置面板切换后
-  表单下拉与渲染图集同步切换（贴图图集按版本独立缓存）。两版数据均从
-  Mojang 官方客户端 jar 提取（sha1 校验）。
+**ColorBlockViewer 把粒子模拟搬进浏览器**：粘贴命令（或用结构化表单填参数），
+页面内 3D 实时渲染粒子的生成、运动与逐 tick 动画，支持播放/单步/倍速/重置。
+命令语法与求值语义**按模组 Java 源码 1:1 复刻**——包括报错提示文案，预览里
+对的行为，进游戏就是同样的行为。
 
-## 预览简化（与游戏内差异）
+## 预览对象
 
-- **贴图近似**：粒子贴图取自 Minecraft 官方客户端（构建脚本
-  `npm run assets <版本>` 从 Mojang 官方镜像提取，帧表与 MC data-driven 粒子定义
-  一致；当前内置 1.21.11 与 26.2 两版，产物已入库），
-  帧动画 1/20 s/帧、颜色按命令值乘法着色、统一加色混合；`block`/`dust`/`item`
-  等按方块纹理实时渲染的类型与未知名 → 回退软发光圆点（按类型微调 size/alpha/色相）。
-  原版命令的 `type{NBT}`（如 `dust{Red:1f,…}`）不解析 NBT 载荷，按类型名近似
-  （dust 用其帧表而非 NBT 指定颜色）
-- **原版命令的寿命**：原版按粒子类型各有 duration，预览统一走「默认寿命」近似值
-- **原版命令的 force/viewers**：观察者/分发参数与预览无关 → 解析层明确报错
-- **匀速直线运动**：无重力/阻力/类型专属运动（smoke 上升等不做）
-- **默认寿命近似**：`age=0` 时用单一可配置值（MC 中因粒子类型而异）
-- **随机序列不一致**：`normal` 高斯偏移与原版 `/particle` 的 delta/speed 用固定种子
-  PRNG，保证同一次预览可复现，不逐粒子对齐游戏内 Java `Random` 序列
+### 1. AnotherColorBlock 模组的 `/particleex` 命令
 
-## 本地开发
+**AnotherColorBlock** 是一个 Minecraft Fabric 粒子效果模组：它用自定义
+`/particleex` 命令把"位置/颜色/速度随表达式逐 tick 变化"的粒子生成能力开放给
+玩家和地图制作者——例如极坐标运动（`x,y,z=4*cos(t*0.2),0,4*sin(t*0.2)` 的
+环形火焰）、颜色随时间渐变、条件触发生成、粒子分组批量修改。命令家族共
+13 个子命令：
+
+- `normal` — 固定参数生成
+- `conditional` — 表达式条件触发生成
+- `parameter` / `polarparameter` / `tickparameter` / `tickpolarparameter` —
+  位置随参数/极坐标/tick 表达式变化
+- `rgbaparameter` / `rgbapolarparameter` / `rgbatickparameter` /
+  `rgbatickpolarparameter` — 颜色随表达式变化
+- `group remove` / `group change` — 粒子分组批量移除/改写
+- `clearparticle` — 清空全部预览粒子
+
+模组 1.21.1–26.2 各版本分支的命令树与表达式引擎经源码 diff 确认完全一致，
+因此本预览对模组支持的**全部 MC 版本**语义有效。
+
+### 2. 原版 `/particle` 命令
+
+`particle <粒子名> [pos] [delta] [speed] [count] [normal]`，粒子名覆盖所选
+MC 版本的**全部注册类型**（1.21.11 → 116 种、26.2 → 126 种，表单下拉建议），
+支持 `type{NBT}` 复杂类型写法。粒子类型表与贴图按 **1.21.11 / 26.2** 双版本
+分区（设置面板切换），数据从 Mojang 官方客户端 jar 提取（sha1 校验）。
+客户端语义复刻：`delta`/`speed` 为各轴高斯标准差，`count=0` 为单粒子精确生成。
+
+## 功能一览
+
+- **双向同步**：表单 ↔ 命令文本，结构化数组为唯一真源（粘贴自动填表，
+  改表自动更新文本）
+- **表达式实时校验**：防抖编译检查，英文原文 + 中文提示 + 语法高亮
+- **1:1 语义复刻**：表达式引擎（Int32 除法/取模/常量折叠/矩阵/函数重载）与
+  粒子生命周期按模组源码逐字核对，golden 测试锁行为（625 个测试）
+- **播放控制**：▶⏸ / 单步 / 1x–8x 倍速 / 回放重置；20 TPS 逻辑与 60Hz 渲染解耦
+- **设置**：玩家位置（`~` 基准）、默认寿命、粒子上限、随机种子、游戏版本
+- **官方贴图**：粒子使用从 MC 官方客户端提取的真实贴图与帧动画
+
+## 领域位置
+
+Minecraft 粒子效果的可调试性长期是个空白点：原版 `/particle` 只能进游戏
+实测，社区资料基本是 Wiki 的参数表；模组（AnotherColorBlock 等）的粒子命令
+更是没有官方外的可视化工具，调参靠"改一行、回游戏、跑一遍、截图"循环。
+面向粒子的浏览器端实时预览站点（免安装、命令驱动、3D 逐 tick 动画）目前
+**没有公开的先例**——ColorBlockViewer 填补的是"粒子命令调试器"这一细分位：
+不做粒子编辑/导出（游戏内用模组/数据包即可完成），只做**免安装的实时预览与
+语义对齐**。与现有资源（Wiki 命令参考、NBT 查看器等）互补而非重叠。
+
+## 快速使用
+
+1. 打开在线页面（或 `npm run dev` 本地开发）
+2. 在左侧粘贴 `/particleex …` 或 `/particle …` 命令 → 自动解析填表
+3. 点「执行」→ 右侧 3D 视口播放；参数改动即时反映在命令文本
+4. 表达式输错会当场红字提示，不用进游戏才发现
+
+## 开发
 
 ```bash
 npm install
 npm run dev        # 开发服务器
-npm test           # Vitest（624 tests：引擎 golden / 命令解析 / 仿真生命周期 / 渲染 / UI 集成）
-npm run build      # tsc --noEmit + vite build（base /ColorblockViewer/）
+npm test           # Vitest（625 tests）
+npm run build      # tsc --noEmit + vite build
 npm run preview    # 本地预览构建产物
-npm run assets     # 重新提取粒子贴图，参数为 MC 版本：npm run assets "26.2"（或 "1.21.11"）
-                   # 本地 MC 安装（MC_JAR 环境变量）> 官方镜像；注册表提取需 JDK（javap），
-                   # 混淆版本（≤1.21.9）走字节码标记扫描。产物已入库，日常构建无需
+npm run assets "26.2"   # 重新提取指定 MC 版本的粒子贴图（需本地 MC 或官方镜像；
+                        # 注册表提取需 JDK。产物已入库，日常构建无需）
 ```
 
-## 部署
+**技术栈**：React 19 + Three.js（自定义点云 shader）+ TypeScript + Vite +
+Vitest，无后端。GitHub Actions 自动部署到 GitHub Pages。
 
-GitHub Actions：`push main` → `npm ci && npm test && tsc --noEmit && vite build`
-→ `actions/configure-pages` + `upload-pages-artifact` + `deploy-pages`，
-站点地址 `https://luyuxiaopku.github.io/ColorblockViewer/`。
-
-## 技术栈
-
-React 19 + Three.js（自定义点云 shader）+ TypeScript + Vite + Vitest，无后端、无状态库
-（`useSyncExternalStore` 轻量外部 store）。
+架构细节、1:1 移植方法论、验证策略与已知简化清单见
+[技术路线综述](docs/技术路线.md)。
