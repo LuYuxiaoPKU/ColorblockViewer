@@ -21,8 +21,9 @@ export interface SimConfig {
   /** 3D 网格线显示开关：纯渲染层设置 */
   gridVisible: boolean;
   /** 「原版运动学」开关（设置面板）：开启后 sim/kinematics.ts 有证据的类型
-   *  （当前仅 end_rod）套用原版摩擦/重力 + 原版随机寿命；关闭 = 模组原生行为
-   *  （匀速直线 + 命令寿命/默认寿命）。 */
+   *  （26.2 约 50 个：end_rod/totem/crit/smoke 系/portal 系/campfire 系等，
+   *  逐类型见表头证据清单）套用原版摩擦/重力/运动模型 + 原版寿命公式；
+   *  关闭 = 模组原生行为（匀速直线 + 命令寿命/默认寿命）。 */
   nativeKinematics: boolean;
 }
 
