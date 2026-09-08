@@ -708,6 +708,227 @@ describe('原版 /particle 的 end_rod：随机寿命（vanilla=true 路径）',
   });
 });
 
+// ---------- 更多类型原版运动学（26.2 字节码核对；JDK21 ProbeLifetime 对拍）----------
+
+describe('原版运动学：26.2 逐类型寿命 golden（age=0，seed=1 → vanillaRand=2）', () => {
+  // pos(1 2 3) color(1 1 1 1) vel(0 1 0) range(0 0 0) count=n age=0
+  const cmd = (name: string, count: number) =>
+    `particleex normal minecraft:${name} 1 2 3 1 1 1 1 0 1 0 0 0 0 ${count} 0`;
+  const e = () => eng({ seed: 1, nativeKinematics: true });
+
+  // 序列 = ProbeLifetime 的 3 连调输出（JDK 21 实测）
+  const goldens: [string, number[]][] = [
+    ['totem_of_undying', [64, 60, 68]], // 60+I(12)
+    ['crit', [4, 6, 4]],
+    ['heart', [16, 16, 16]],
+    ['note', [6, 6, 6]],
+    ['snowflake', [18, 20, 18]],
+    ['lava', [16, 18, 16]],
+    ['rain', [8, 9, 8]],
+    ['splash', [8, 9, 8]],
+    ['underwater', [16, 18, 16]],
+    ['composter', [21, 23, 20]],
+    ['smoke', [2, 2, 2]],
+    ['large_smoke', [21, 23, 20]],
+    ['ash', [10, 11, 10]], // (int)(20/(0.8+0.2F)·0.5f)；ProbeAsh2 实测
+    ['white_ash', [1, 1, 1]],
+    ['flame', [12, 13, 12]],
+    ['soul', [12, 13, 12]],
+    ['effect', [8, 9, 8]],
+    ['item', [5, 10, 4]],
+    ['glow', [5, 10, 4]],
+    ['shriek', [30, 30, 30]],
+    ['squid_ink', [7, 13, 6]], // (int)(6.0f/(0.8f·F+0.2f))，ProbeSquid 实测
+    ['portal', [47, 42, 49]], // 40+(int)(10f·F)
+    ['reverse_portal', [60, 60, 60]], // 60+2·(int)F 退化恒 60
+    ['campfire_signal_smoke', [88, 120, 119]], // 80+I(50)；交错流：寿命/初速 float 交替消费
+    ['campfire_cosy_smoke', [288, 320, 319]], // 280+I(50)；同上
+  ];
+  for (const [name, seq] of goldens) {
+    it(`${name}：寿命序列 = JDK21 golden`, () => {
+      const en = e();
+      en.runCommand(C(cmd(name, 3)));
+      expect(snap(en).map((p) => p.lifetime)).toEqual(seq);
+    });
+  }
+});
+
+describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () => {
+  const eng1 = (name: string, vel = '0 1 0') => {
+    const en = eng({ seed: 1, nativeKinematics: true });
+    en.runCommand(C(`particleex normal minecraft:${name} 0 0 0 1 1 1 1 ${vel} 0 0 0 1 0`));
+    return en;
+  };
+
+  it('totem：摩擦 0.6 + 重力 −0.05（tick 后 vy = (1−0.05)×0.6）', () => {
+    const en = eng1('totem_of_undying');
+    en.tickOnce();
+    const p = snap(en)[0];
+    expect(p.y).toBeCloseTo(0.95, 12);
+    expect(p.vy).toBeCloseTo(0.95 * 0.6, 12);
+  });
+
+  it('heart：摩擦 0.86、无重力', () => {
+    const en = eng1('heart');
+    en.tickOnce();
+    const p = snap(en)[0];
+    expect(p.y).toBeCloseTo(1, 12);
+    expect(p.vy).toBeCloseTo(0.86, 12);
+  });
+
+  it('note：摩擦 0.66、无重力', () => {
+    const en = eng1('note');
+    en.tickOnce();
+    expect(snap(en)[0].vy).toBeCloseTo(0.66, 12);
+  });
+
+  it('snowflake：摩擦 1.0 + 重力 −0.009，之后逐轴附加 0.95/0.9/0.95', () => {
+    const en = eng({ seed: 1, nativeKinematics: true });
+    en.runCommand(C('particleex normal minecraft:snowflake 0 0 0 1 1 1 1 1 1 0 0 0 0 1 0'));
+    en.tickOnce();
+    const p = snap(en)[0];
+    expect(p.vy).toBeCloseTo((1 - 0.009) * 1.0 * 0.8999999761581421, 12);
+    expect(p.vx).toBeCloseTo(1 * 1.0 * 0.949999988079071, 12);
+    expect(p.x).toBeCloseTo(1, 12); // 位移在阻尼之前
+  });
+
+  it('spell(effect)：摩擦 0.96 + 反重力 +0.004（升）', () => {
+    const en = eng1('effect');
+    en.tickOnce();
+    const p = snap(en)[0];
+    expect(p.y).toBeCloseTo(1 + 0.004, 12);
+    expect(p.vy).toBeCloseTo(1.004 * 0.96, 12);
+  });
+
+  it('ash：摩擦 0.96 + 重力 −0.004（降）', () => {
+    const en = eng1('ash');
+    en.tickOnce();
+    expect(snap(en)[0].y).toBeCloseTo(1 - 0.004, 12);
+  });
+
+  it('lava：摩擦 0.999 + 重力 −0.03', () => {
+    const en = eng1('lava');
+    en.tickOnce();
+    const p = snap(en)[0];
+    expect(p.y).toBeCloseTo(0.97, 12);
+    expect(p.vy).toBeCloseTo(0.97 * 0.999, 12);
+  });
+
+  it('rain：直接重力 −0.06（无 0.04 系数）+ 摩擦 0.98', () => {
+    const en = eng1('rain');
+    en.tickOnce();
+    const p = snap(en)[0];
+    expect(p.y).toBeCloseTo(0.94, 12);
+    expect(p.vy).toBeCloseTo(0.94 * 0.98, 12);
+  });
+
+  it('splash：直接重力 −0.04 + 摩擦 0.98', () => {
+    const en = eng1('splash');
+    en.tickOnce();
+    expect(snap(en)[0].y).toBeCloseTo(0.96, 12);
+  });
+
+  it('suspended 系：匀速（摩擦 1.0、无重力）', () => {
+    const en = eng1('underwater');
+    en.tickOnce();
+    expect(snap(en)[0].y).toBeCloseTo(1, 12);
+    en.tickOnce();
+    expect(snap(en)[0].y).toBeCloseTo(2, 12);
+  });
+
+  it('suspended_town 系：自管 tick，摩擦 0.99、无重力', () => {
+    const en = eng1('composter');
+    en.tickOnce();
+    expect(snap(en)[0].y).toBeCloseTo(1, 12);
+    expect(snap(en)[0].vy).toBeCloseTo(0.99, 12);
+  });
+
+  it('item：Base 默认摩擦 0.98 + 重力 −0.04', () => {
+    const en = eng1('item');
+    en.tickOnce();
+    const p = snap(en)[0];
+    expect(p.y).toBeCloseTo(0.96, 12);
+    expect(p.vy).toBeCloseTo(0.96 * 0.98, 12);
+  });
+
+  it('squid_ink：摩擦 0.92、无重力', () => {
+    const en = eng1('squid_ink');
+    en.tickOnce();
+    expect(snap(en)[0].vy).toBeCloseTo(0.92, 12);
+  });
+
+  it('flame(soul)：摩擦 0.96、无重力', () => {
+    const en = eng1('flame');
+    en.tickOnce();
+    expect(snap(en)[0].vy).toBeCloseTo(0.96, 12);
+  });
+
+  it('portal：位置绝对式 cubic easing（age=10 的 e 与 y 的 (1−t) 项）', () => {
+    const en = eng({ seed: 1, nativeKinematics: true });
+    en.runCommand(C('particleex normal minecraft:portal 0 0 0 1 1 1 1 0 1 0 0 0 0 1 40'));
+    en.tickOnce(); // age=1, t=1/40
+    const p = snap(en)[0];
+    const t = Math.fround(1 / 40);
+    const e = Math.fround(1 - Math.fround(Math.fround(t * t) * 2 - t));
+    expect(p.y).toBeCloseTo(1 * e + Math.fround(1 - t), 12);
+    for (let i = 0; i < 9; i++) en.tickOnce(); // age=10, t=1/4
+    const p10 = snap(en)[0];
+    const t4 = Math.fround(10 / 40);
+    const e4 = Math.fround(1 - Math.fround(Math.fround(t4 * t4) * 2 - t4));
+    expect(p10.y).toBeCloseTo(e4 + Math.fround(1 - t4), 12);
+    expect(p10.x).toBe(0); // vx=0
+  });
+
+  it('reverse_portal：增量式 x += v·t（age=10：Σ t_i 累加）', () => {
+    const en = eng({ seed: 1, nativeKinematics: true });
+    en.runCommand(C('particleex normal minecraft:reverse_portal 0 0 0 1 1 1 1 1 0 0 0 0 0 1 0'));
+    let sum = 0;
+    for (let i = 0; i < 10; i++) {
+      sum += Math.fround((i + 1) / 60);
+      en.tickOnce();
+    }
+    expect(snap(en)[0].x).toBeCloseTo(sum, 12);
+  });
+
+  it('campfire：出生初速 vy += 500.0f/F（float 除法；F = 寿命 I(50) 后的下一个 nextFloat）', () => {
+    const en = eng({ seed: 1, nativeKinematics: true });
+    en.runCommand(C('particleex normal minecraft:campfire_cosy_smoke 0 0 0 1 1 1 1 0 1 0 0 0 0 1 0'));
+    const p = snap(en)[0];
+    // seed=2 交错流（ProbeCampfire 实测）：I(50)=8 → F=4922041/2^24
+    expect(p.lifetime).toBe(288);
+    const rise = Math.fround(500 / (4922041 / 16777216));
+    expect(p.vy).toBe(1 + rise);
+    // 首 tick：vy −= 3e-6 后位移（stop=false 才会位移：vel 0 0 0 会被 stop 回滚冻结）
+    en.tickOnce();
+    const p1 = snap(en)[0];
+    expect(p1.y).toBeCloseTo(1 + rise - 3e-6, 12);
+  });
+
+  it('campfire 初速消费顺序：寿命/初速交替逐粒子（I(50),F,I(50),F…）', () => {
+    const en = eng({ seed: 1, nativeKinematics: true });
+    en.runCommand(C('particleex normal minecraft:campfire_signal_smoke 0 0 0 1 1 1 1 0 0 0 0 0 0 2 0'));
+    const [a, b] = snap(en);
+    expect([a.lifetime, b.lifetime]).toEqual([88, 120]); // I(50) 序列 8, 40（交错流第 1/3 个抽取）
+    expect(a.vy).toBe(Math.fround(500 / (4922041 / 16777216))); // 第 2 个抽取
+    expect(b.vy).toBe(Math.fround(500 / (69727 / 16777216))); // 第 4 个抽取
+  });
+
+  it('显式 age 的 campfire：不消费初速 float（与构造器顺序一致：仅 age=0 路径）', () => {
+    const en = eng({ seed: 1, nativeKinematics: true });
+    en.runCommand(C('particleex normal minecraft:campfire_cosy_smoke 0 0 0 1 1 1 1 0 0 0 0 0 0 1 300'));
+    const p = snap(en)[0];
+    expect(p.lifetime).toBe(300);
+    expect(p.vy).toBe(0); // 无初速
+  });
+
+  it('nativeKinematics 关闭：新类型全部走模组匀速直线（无摩擦/重力/初速）', () => {
+    const en = eng(); // 默认关闭
+    en.runCommand(C('particleex normal minecraft:rain 0 0 0 1 1 1 1 0 1 0 0 0 0 1 0'));
+    en.tickOnce();
+    expect(snap(en)[0].y).toBeCloseTo(1, 12);
+  });
+});
+
 describe('hasLiveWork / queuedGenerators（播放自动停止判据）', () => {
   it('空引擎 → 无活工作', () => {
     const e = eng();

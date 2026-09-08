@@ -61,6 +61,17 @@ export class SimRandom {
     return v1 * multiplier;
   }
 
+  /**
+   * java.util.Random.nextFloat()（JDK 21 javap 逐行核对）：
+   * next(24) / 2^24（Java 原文 (next(24) / (float)(1 << 24))，fdiv → f2d）。
+   * n < 2^24 的整数 × 2^-24 在 double 中精确，位级一致。
+   * 本地 JDK 21 探针逐值验证（ProbeLifetime，2026-09-08 实测）。
+   * 用于原版粒子寿命/初速公式里的 F（如 campfire 的 yd = ydv + 500.0f/F）。
+   */
+  nextFloat(): number {
+    return this.next(24) / 16777216;
+  }
+
   /** java.util.Random.nextInt(bound)（bound > 0；JDK 21 javap 逐行核对）：
    *  bound 为 2 的幂 → next(31) >>> (31-log2(bound))；否则 next(31) % bound
    *  （负结果补 bound）。本地 JDK 21 探针逐值验证（12/16/3/1000 等 bound）。

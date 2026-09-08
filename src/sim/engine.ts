@@ -164,16 +164,16 @@ export class SimEngine {
   // ---------- 生成 ----------
 
   /** 寿命解析（模组调用顺序：构造器默认 → setLifetime(age>0?age:-1?INT_MAX)；
-   *  age=0 时不覆写 → 保持「构造器默认」。构造器默认 = 原版常量（「原版运动学」
-   *  开启且类型有 nativeLifetimeFor 表项时，如 end_rod 60+nextInt(12)；关闭 = 预览
-   *  近似 defaultLifetime），否则走预览默认寿命。 */
+   *  age=0 时不覆写 → 保持「构造器默认」。构造器默认 = 原版寿命公式
+   *  （「原版运动学」开启且类型有表项时，公式在共享 vanillaRand 上求值，
+   *  公式里的 F/I 依次消费，顺序逐字节码），否则走预览默认寿命。 */
   private resolveLifetime(cmdAge: number, name: string): number {
     if (cmdAge > 0) return cmdAge;
     if (cmdAge === -1) return INT_MAX;
     // cmdAge == 0
     if (this.config.nativeKinematics) {
-      const spec = nativeLifetimeFor(name, this.config.mcVersion);
-      if (spec) return spec.min + this.vanillaRand.nextInt(spec.extra);
+      const formula = nativeLifetimeFor(name, this.config.mcVersion);
+      if (formula) return formula(this.vanillaRand);
     }
     return this.config.defaultLifetime;
   }
@@ -206,13 +206,24 @@ export class SimEngine {
       stop: req.vx === 0 && req.vy === 0 && req.vz === 0,
       r: req.r, g: req.g, b: req.b, a: req.a,
       age: 0,
-      lifetime: this.resolveLifetime(req.age, req.name),
+      lifetime: this.config.defaultLifetime, // 下方 resolveLifetime 覆写（campfire 初速依赖 p）
       cx: req.cx, cy: req.cy, cz: req.cz,
       exe, speedStep: req.speedStep, moveT: 0,
       exeStruct,
       alive: true,
       vanilla: req.vanilla === true,
     };
+    p.lifetime = this.resolveLifetime(req.age, req.name);
+    // campfire 出生初速：构造器里 yd = cmdVy + 500.0f/F（FLOAT 除法；F = 寿命
+    // nextInt 之后的下一个 nextFloat —— 消费顺序逐字节码）。Java 侧是粒子私有
+    // 随机（不可复现），预览从共享 vanillaRand 取（分布一致，可复现）。
+    // 仅 age=0（未显式覆写寿命）路径消费，与构造器顺序一致。
+    if (req.age === 0 && this.config.nativeKinematics) {
+      const spec = nativeSpecFor(req.name, this.config.mcVersion);
+      if (spec?.campfireRise) {
+        p.vy += Math.fround(500 / this.vanillaRand.nextFloat());
+      }
+    }
     this.groups.add(req.group, p.id); // null/"null"/空 在 GroupIndex.add 内跳过
     this.pending.push(p);
     result.spawned++;
@@ -275,8 +286,9 @@ export class SimEngine {
 
   /** §3.4：customTick（pre 记录 → 原生 tick → stop 回滚 → customMove）。
    *  原生 tick 内：age++/死亡判定 → 原版运动学（若开启且类型有表：
-   *  重力先于位移、摩擦后于位移 —— Particle.tick 的 velocityY 更新与
-   *  velocityMultiplier 顺序，见 sim/kinematics.ts）→ 位移。 */
+   *  base 管道 = 重力先于位移、摩擦后于位移、可选逐轴附加阻尼；
+   *  portal = 绝对位置式（cubic easing，xStart = 命令位置）；
+   *  reverse_portal = 增量式 x += v·t —— 见 sim/kinematics.ts 证据清单）。 */
   private animate(p: SimParticle): void {
     const preX = p.x;
     const preY = p.y;
@@ -293,16 +305,41 @@ export class SimEngine {
       const spec = this.config.nativeKinematics
         ? nativeSpecFor(p.name, this.config.mcVersion)
         : null;
-      if (spec) {
-        p.vy += spec.gravityY; // 重力：位移**之前**（Particle.tick 顺序）
-      }
-      p.x += p.vx;
-      p.y += p.vy;
-      p.z += p.vz;
-      if (spec) {
-        p.vx *= spec.friction; // 摩擦：位移**之后**
-        p.vy *= spec.friction;
-        p.vz *= spec.friction;
+      if (spec?.motion === 'portal') {
+        // Portal.tick（逐字节码浮点顺序）：t = age/lifetime(fdiv)；
+        // f1 = (t·t)·2 + (−t)；e = 1 − f1（= 1 + t − 2t²，float 链）；
+        // x = xStart + xd·e(f2d)；y = yStart + yd·e(f2d) + (1−t)(f2d)；z 同 x
+        const t = Math.fround(p.age / p.lifetime);
+        const f1 = Math.fround(Math.fround(t * t) * 2 - t);
+        const e = Math.fround(1 - f1);
+        const fall = Math.fround(1 - t);
+        p.x = p.cx + p.vx * e;
+        p.y = p.cy + p.vy * e + fall;
+        p.z = p.cz + p.vz * e;
+      } else if (spec?.motion === 'reverse_portal') {
+        // ReversePortal.tick：每 tick x += xd·t（t = age/lifetime, fdiv→f2d）
+        const t = Math.fround(p.age / p.lifetime);
+        p.x += p.vx * t;
+        p.y += p.vy * t;
+        p.z += p.vz * t;
+      } else {
+        if (spec) {
+          p.vy += spec.gravityY; // 重力：位移**之前**（Particle.tick 顺序）
+        }
+        p.x += p.vx;
+        p.y += p.vy;
+        p.z += p.vz;
+        if (spec) {
+          p.vx *= spec.friction; // 摩擦：位移**之后**
+          p.vy *= spec.friction;
+          p.vz *= spec.friction;
+          if (spec.postFriction) {
+            // snowflake：super.tick() 之后逐轴附加阻尼（0.95f/0.9f/0.95f → double）
+            p.vx *= spec.postFriction[0];
+            p.vy *= spec.postFriction[1];
+            p.vz *= spec.postFriction[2];
+          }
+        }
       }
     }
     if (p.stop) {
@@ -405,7 +442,8 @@ export class SimEngine {
     }
     // mcVersion 不参与引擎语义（贴图/类型表在渲染层与表单按它分区），只保持 config 一致
     if (patch.mcVersion !== undefined) this.config.mcVersion = patch.mcVersion;
-    // nativeKinematics 开关：有证据的类型（end_rod）套用原版摩擦/重力/随机寿命
+    // nativeKinematics 开关：表内类型（sim/kinematics.ts，26.2 约 50 个，逐类型字节码证据）
+    // 套用原版摩擦/重力/运动/随机寿命；表外类型保持模组匀速直线
     if (patch.nativeKinematics !== undefined) this.config.nativeKinematics = patch.nativeKinematics;
   }
 

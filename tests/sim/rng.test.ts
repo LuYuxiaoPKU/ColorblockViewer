@@ -63,6 +63,36 @@ describe('SimRandom（对拍 java.util.Random，JDK 21）', () => {
     }
   });
 
+  it('nextFloat() 序列 bit-exact（JDK 21 ProbeLifetime/ProbeFloat 实测，2026-09-08）', () => {
+    // next(24)/2^24：n < 2^24 整数 × 2^-24 在 double 中精确（Java 侧 fdiv 在
+    // 二进制小数上同样精确，f2d 加宽无损）。
+    expect(seq((r) => r.nextFloat(), 2, 4)).toEqual([
+      12266610 / 16777216,
+      4922041 / 16777216,
+      15123781 / 16777216,
+      69727 / 16777216,
+    ]);
+    expect(seq((r) => r.nextFloat(), 1, 3)).toEqual([
+      12262101 / 16777216,
+      1685660 / 16777216,
+      6880014 / 16777216,
+    ]);
+    expect(seq((r) => r.nextFloat(), 7, 3)).toEqual([
+      12259095 / 16777216,
+      10712884 / 16777216,
+      12568980 / 16777216,
+    ]);
+  });
+
+  it('nextFloat 值域 [0, 1)', () => {
+    const r = new SimRandom(5);
+    for (let i = 0; i < 200; i++) {
+      const v = r.nextFloat();
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThan(1);
+    }
+  });
+
   it('nextInt 非法 bound → 抛错', () => {
     const r = new SimRandom(3);
     expect(() => r.nextInt(0)).toThrow();
