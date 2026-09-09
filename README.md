@@ -36,6 +36,11 @@ Minecraft 玩家调粒子效果的痛点：`/particle` 或模组的粒子命令�
 模组 1.21.1–26.2 各版本分支的命令树与表达式引擎经源码 diff 确认完全一致，
 因此本预览对模组支持的**全部 MC 版本**语义有效。
 
+（注：原模组以 CC0 发布在 MCBBS（该论坛已关闭）且已停止维护；2026-08 出现
+社区维护版 [noone89A/AnotherColorBlock](https://github.com/noone89A/AnotherColorBlock)
+（1.21~26.2 独立分支）。本预览器的 1:1 移植以原版模组 jar 字节码为准，不受
+社区版重写影响。）
+
 ### 2. 原版 `/particle` 命令
 
 `particle <粒子名> [pos] [delta] [speed] [count] [normal]`，粒子名覆盖所选
@@ -65,12 +70,14 @@ Minecraft 粒子效果的可调试性长期是个空白点：原版 `/particle` 
 社区资料基本是 Wiki 的参数表；表达式驱动的模组粒子命令更是没有官方外的
 可视化工具，调参靠"改一行、回游戏、跑一遍、截图"循环。
 
-已有先例按形态分三类（检索核查于 2026-09-07）：
+已有先例按形态分三类（检索核查于 2026-09-10）：
 
 - **游戏内预览/生成模组**：[ParticlePeek](https://modrinth.com/mod/particlepeek)
-  （Fabric，GUI 浏览粒子、实时预览并复制 `/particle` 命令，需进游戏）；
+  （Fabric，GUI 浏览粒子、实时预览并复制 `/particle` 命令，需进游戏；
+  2026-09-10 检索未发现公开源码仓库，疑似停更）；
   [ExParticle](https://modrinth.com/mod/exparticle)（NeoForge 1.21.1，
-  `/particlex` + 数学表达式 + `tick-parameter` 逐 tick 子命令，游戏内运行）
+  `/particlex` + 数学表达式 + `tick-parameter` 逐 tick 子命令，游戏内运行；
+  截至检索日仍活跃，2026-08 新增外部模组 API）
 - **浏览器内粒子编辑器**：[Snowstorm](https://jannisx11.github.io/snowstorm/)
   （基岩版粒子 JSON/Molang 编辑器，双击 HTML 离线打开、实时 3D 预览，
   但不接收 Java 版命令文本）
