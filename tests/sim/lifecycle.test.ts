@@ -708,7 +708,7 @@ describe('原版 /particle 的 end_rod：随机寿命（vanilla=true 路径）',
   });
 });
 
-// ---------- 更多类型原版运动学（26.2 字节码核对；JDK21 ProbeLifetime 对拍）----------
+// ---------- 更多类型原版运动学（26.2 字节码核对；JDK21 ProbeLifetime2/ProbeScan 对拍）----------
 
 describe('原版运动学：26.2 逐类型寿命 golden（age=0，seed=1 → vanillaRand=2）', () => {
   // pos(1 2 3) color(1 1 1 1) vel(0 1 0) range(0 0 0) count=n age=0
@@ -716,31 +716,32 @@ describe('原版运动学：26.2 逐类型寿命 golden（age=0，seed=1 → van
     `particleex normal minecraft:${name} 1 2 3 1 1 1 1 0 1 0 0 0 0 ${count} 0`;
   const e = () => eng({ seed: 1, nativeKinematics: true });
 
-  // 序列 = ProbeLifetime 的 3 连调输出（JDK 21 实测）
+  // 序列 = ProbeLifetime2 的 3 连调输出（JDK 21 实测，操作数顺序逐字节码：
+  // N/((F·0.8d)+0.2d)；float 族全 2^24 域直方图 ProbeScan 与 JDK 逐桶一致）
   const goldens: [string, number[]][] = [
     ['totem_of_undying', [64, 60, 68]], // 60+I(12)
-    ['crit', [4, 6, 4]],
+    ['crit', [5, 7, 4]], // (int)(6.0d/(F·0.8d+0.6d))
     ['heart', [16, 16, 16]],
     ['note', [6, 6, 6]],
-    ['snowflake', [18, 20, 18]],
-    ['lava', [16, 18, 16]],
-    ['rain', [8, 9, 8]],
-    ['splash', [8, 9, 8]],
-    ['underwater', [16, 18, 16]],
-    ['composter', [21, 23, 20]],
-    ['smoke', [2, 2, 2]],
-    ['large_smoke', [21, 23, 20]],
-    ['ash', [10, 11, 10]], // (int)(20/(0.8+0.2F)·0.5f)；ProbeAsh2 实测
+    ['snowflake', [22, 38, 19]], // (int)(16.0d/(F·0.8d+0.2d))+2
+    ['lava', [20, 36, 17]], // (int)(16.0d/(F·0.8d+0.2d))
+    ['rain', [10, 18, 8]],
+    ['splash', [10, 18, 8]],
+    ['underwater', [20, 36, 17]], // Suspended 16.0d
+    ['composter', [25, 46, 21]], // SuspendedTown 20.0d
+    ['smoke', [3, 5, 2]], // (int)((8.0d/(F·0.8d+0.2d))·0.3f)
+    ['large_smoke', [25, 46, 21]], // ·2.5f
+    ['ash', [12, 23, 10]], // (20.0d/(F·0.8d+0.2d))·0.5f
     ['white_ash', [1, 1, 1]],
-    ['flame', [12, 13, 12]],
-    ['soul', [12, 13, 12]],
-    ['effect', [8, 9, 8]],
-    ['item', [5, 10, 4]],
+    ['flame', [14, 22, 12]], // Rising 8.0d +4
+    ['soul', [14, 22, 12]],
+    ['effect', [10, 18, 8]], // Spell 8.0d
+    ['item', [5, 10, 4]], // (int)(4.0f/(0.9f·F+0.1f))
     ['glow', [5, 10, 4]],
     ['shriek', [30, 30, 30]],
-    ['squid_ink', [7, 13, 6]], // (int)(6.0f/(0.8f·F+0.2f))，ProbeSquid 实测
+    ['squid_ink', [7, 13, 6]], // (int)((12.0f·0.5f)/(0.8f·F+0.2f))
     ['portal', [47, 42, 49]], // 40+(int)(10f·F)
-    ['reverse_portal', [60, 60, 60]], // 60+2·(int)F 退化恒 60
+    ['reverse_portal', [61, 60, 61]], // 60+(int)(2.0f·F)：F≥0.5→61
     ['campfire_signal_smoke', [88, 120, 119]], // 80+I(50)；交错流：寿命/初速 float 交替消费
     ['campfire_cosy_smoke', [288, 320, 319]], // 280+I(50)；同上
   ];
@@ -882,9 +883,10 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
   it('reverse_portal：增量式 x += v·t（age=10：Σ t_i 累加）', () => {
     const en = eng({ seed: 1, nativeKinematics: true });
     en.runCommand(C('particleex normal minecraft:reverse_portal 0 0 0 1 1 1 1 1 0 0 0 0 0 1 0'));
+    const life = snap(en)[0].lifetime; // 60+(int)(2.0f·F)：60/61 各半，按实际寿命累加
     let sum = 0;
     for (let i = 0; i < 10; i++) {
-      sum += Math.fround((i + 1) / 60);
+      sum += Math.fround((i + 1) / life);
       en.tickOnce();
     }
     expect(snap(en)[0].x).toBeCloseTo(sum, 12);

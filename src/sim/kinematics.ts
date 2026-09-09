@@ -129,24 +129,31 @@ export type NativeLifetimeFormula = (r: { nextFloat(): number; nextInt(bound: nu
 type RngLike = { nextFloat(): number; nextInt(bound: number): number };
 
 const L = {
-  /** (int)(N/(0.8d+0.2d·F)) —— double 式（snowflake/lava/water_drop/suspended/town/scale 基底） */
-  div: (n: number) => (r: RngLike) => Math.trunc(n / (0.8 + 0.2 * r.nextFloat())),
-  /** (int)(N/(0.8d+0.6d·F)) —— crit */
-  crit: (r: RngLike) => Math.max(Math.trunc(6.0 / (0.8 + 0.6 * r.nextFloat())), 1),
-  /** max((int)((N/(0.8d+0.2d·F))·f2d(scale)),1) —— BaseAshSmoke（javap 1:1：
+  /** (int)(N/(F·0.8d+0.2d)) —— double 家族（lava/water_drop/suspended/town/scale 基底）。
+   *  字节码顺序 nextFloat→f2d→0.8d dmul→0.2d dadd→ddiv：F 先乘 0.8（曾误写成
+   *  N/(0.8+0.2F)，分母被压窄，2026-09-08 审查后按 javap 更正，ProbeLifetime2 实测） */
+  div: (n: number) => (r: RngLike) => Math.trunc(n / (r.nextFloat() * 0.8 + 0.2)),
+  /** (int)(6.0d/(F·0.8d+0.6d)) —— crit（同 div 顺序，crit 用 0.6d） */
+  crit: (r: RngLike) => Math.max(Math.trunc(6.0 / (r.nextFloat() * 0.8 + 0.6)), 1),
+  /** max((int)((N/(F·0.8d+0.2d))·f2d(scale)),1) —— BaseAshSmoke（javap 1:1：
    *  除法结果为 double，乘 f2d(float scale)，**末尾单次** d2i 截断） */
   ashScale: (n: number, scale: number) => (r: RngLike) =>
-    Math.max(Math.trunc((n / (0.8 + 0.2 * r.nextFloat())) * Math.fround(scale)), 1),
-  /** (int)(N/(0.8d+0.2d·F)) + K —— snowflake(+2) / flame(+4) */
-  divPlus: (n: number, k: number) => (r: RngLike) => Math.trunc(n / (0.8 + 0.2 * r.nextFloat())) + k,
-  /** (int)(4.0f/(0.9f·F+0.1f)) —— BaseParticle 默认（item/glow；float 运算） */
-  base: (r: RngLike) => Math.trunc(Math.fround(4.0 / Math.fround(Math.fround(0.9 * r.nextFloat()) + 0.1))),
-  /** (int)(6.0f/(0.8f·F+0.2f)) —— SquidInk（= (int)((0.5f·12.0f)/(F·0.8f+0.2f))，float 运算） */
-  squid: (r: RngLike) => Math.trunc(Math.fround(6.0 / Math.fround(Math.fround(0.8 * r.nextFloat()) + 0.2))),
+    Math.max(Math.trunc((n / (r.nextFloat() * 0.8 + 0.2)) * Math.fround(scale)), 1),
+  /** (int)(N/(F·0.8d+0.2d)) + K —— snowflake(+2) / flame(+4) */
+  divPlus: (n: number, k: number) => (r: RngLike) => Math.trunc(n / (r.nextFloat() * 0.8 + 0.2)) + k,
+  /** (int)(4.0f/(0.9f·F+0.1f)) —— BaseParticle 默认（item/glow；全程 float，
+   *  每步 Java 浮点运算都舍入：fmul→fround(0.9f·F)（0.9f 用 fround 取精确
+   *  float 值，0.9d≠0.9f）、fadd→fround(·+0.1f)、fdiv→fround；(int) 截断。
+   *  全 2^24 域直方图与 JDK21 逐桶一致（ProbeScan） */
+  base: (r: RngLike) => Math.trunc(Math.fround(4.0 / Math.fround(Math.fround(Math.fround(0.9) * r.nextFloat()) + Math.fround(0.1)))),
+  /** (int)((12.0f·0.5f)/(0.8f·F+0.2f)) —— SquidInk（同 base 的 float 链；
+   *  12.0f·0.5f=6.0f 精确） */
+  squid: (r: RngLike) => Math.trunc(Math.fround(6.0 / Math.fround(Math.fround(Math.fround(0.8) * r.nextFloat()) + Math.fround(0.2)))),
   /** 40 + (int)(10.0f·F) —— portal */
   portal: (r: RngLike) => 40 + Math.trunc(Math.fround(10.0 * r.nextFloat())),
-  /** 60 + 2×(int)F —— reverse_portal：(int)F ≡ 0（F∈[0,1)）→ 恒 60（1:1 保留退化） */
-  reversePortal: (r: RngLike) => 60 + 2 * Math.trunc(r.nextFloat()),
+  /** 60 + (int)(2.0f·F) —— reverse_portal：F<0.5→60、F≥0.5→61（各半；
+   *  曾误读为 2·(int)F 恒 60，2026-09-08 按 javap `fmul fconst_2 → f2i` 更正） */
+  reversePortal: (r: RngLike) => 60 + Math.trunc(Math.fround(2.0 * r.nextFloat())),
   /** min + nextInt(extra) —— end_rod/totem/campfire */
   int: (min: number, extra: number) => (r: RngLike) => min + r.nextInt(extra),
   /** 常量 —— heart 16 / note 6 / shriek 30 */
@@ -166,13 +173,13 @@ export const NATIVE_LIFETIME: Record<string, Record<string, NativeLifetimeFormul
     note: L.const(6),
     snowflake: L.divPlus(16, 2),
     glow: L.base,
-    flame: L.divPlus(8, 4), // Rising：(int)(8.0d/(0.8d+0.2d·F)) + 4
+    flame: L.divPlus(8, 4), // Rising：(int)(8.0d/(0.8d·F+0.2d)) + 4
     small_flame: L.divPlus(8, 4),
     copper_fire_flame: L.divPlus(8, 4),
     soul_fire_flame: L.divPlus(8, 4),
     soul: L.divPlus(8, 4),
     sculk_soul: L.divPlus(8, 4),
-    effect: L.div(8), // Spell：(int)(8.0d/(0.8d+0.2d·F))
+    effect: L.div(8), // Spell：(int)(8.0d/(0.8d·F+0.2d))
     instant_effect: L.div(8),
     witch: L.div(8),
     entity_effect: L.div(8),
@@ -180,7 +187,7 @@ export const NATIVE_LIFETIME: Record<string, Record<string, NativeLifetimeFormul
     raid_omen: L.div(8),
     trial_omen: L.div(8),
     lava: L.div(16),
-    rain: L.div(8), // WaterDrop：(int)(8.0d/(0.8d+0.2d·F))
+    rain: L.div(8), // WaterDrop：(int)(8.0d/(0.8d·F+0.2d))
     splash: L.div(8),
     underwater: L.div(16), // Suspended
     spore_blossom_air: L.div(16),
