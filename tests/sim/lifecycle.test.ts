@@ -10,6 +10,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseCommand } from '../../src/command/parser';
 import { SimEngine } from '../../src/sim/engine';
+import { NATIVE_KINEMATICS } from '../../src/sim/kinematics';
 import type { SimConfig } from '../../src/sim/types';
 
 function cfg(over: Partial<SimConfig> = {}): SimConfig {
@@ -607,9 +608,14 @@ describe('原版 /particle 生成', () => {
   });
 });
 
-// ---------- 原版运动学（nativeKinematics，1.21.1 反编译核对）----------
+// ---------- 原版运动学（nativeKinematics，26.2 javap 核对；常量 = f2d 加宽精确值）----------
 
-describe('原版运动学（end_rod：摩擦 0.91/tick + 重力 -5e-4/tick²）', () => {
+// f2d 加宽辅助（Java float 字段 → double，与 src/sim/kinematics.ts 表值同口径）
+const f = Math.fround;
+const FRICTION_END_ROD = f(0.91); // = 0.9100000262260437
+const G_END_ROD = 0.04 * f(0.0125); // = 0.0005000000074505806（表内 gravityY = −该值；double 域先乘后减）
+
+describe('原版运动学（end_rod：摩擦 f2d(0.91f)/tick + 重力 −0.04d×f2d(0.0125f)/tick）', () => {
   // pos(0 0 0) color(1 1 1 1) vel(0 1 0) range(0 0 0) count=1 age=<参数>
   const er = (age: string) =>
     `particleex normal minecraft:end_rod 0 0 0 1 1 1 1 0 1 0 0 0 0 1 ${age}`;
@@ -656,16 +662,16 @@ describe('原版运动学（end_rod：摩擦 0.91/tick + 重力 -5e-4/tick²）'
     const p0 = rod(e);
     expect(p0.vy).toBeCloseTo(1, 10);
     const y0 = p0.y;
-    // tick1：vy = 1 - 0.0005 → y += vy → vy *= 0.91
+    // tick1：vy = 1 − G → y += vy → vy *= F（G/F = f2d 加宽精确值）
     e.tickOnce();
     let p = rod(e);
-    expect(p.y).toBeCloseTo(y0 + 0.9995, 12);
-    expect(p.vy).toBeCloseTo(0.9995 * 0.91, 12);
+    expect(p.y).toBeCloseTo(y0 + (1 - G_END_ROD), 12);
+    expect(p.vy).toBeCloseTo((1 - G_END_ROD) * FRICTION_END_ROD, 12);
     // tick2：vy += 重力 → 位移 → 摩擦
     e.tickOnce();
     p = rod(e);
-    expect(p.y).toBeCloseTo(y0 + 0.9995 + (0.9995 * 0.91 - 0.0005), 12);
-    expect(p.vy).toBeCloseTo((0.9995 * 0.91 - 0.0005) * 0.91, 12);
+    expect(p.y).toBeCloseTo(y0 + (1 - G_END_ROD) + ((1 - G_END_ROD) * FRICTION_END_ROD - G_END_ROD), 12);
+    expect(p.vy).toBeCloseTo(((1 - G_END_ROD) * FRICTION_END_ROD - G_END_ROD) * FRICTION_END_ROD, 12);
   });
 
   it('速度表达式路径回滚原生位移 → 不受摩擦/重力影响（用户实况命令语义）', () => {
@@ -683,10 +689,10 @@ describe('原版运动学（end_rod：摩擦 0.91/tick + 重力 -5e-4/tick²）'
     e.runCommand(C(er('100')));
     e.tickOnce(); // 匀速：y = 1，vy 仍 1
     e.updateConfig({ nativeKinematics: true });
-    e.tickOnce(); // 开开后：vy = 1-0.0005 → y += → vy *= 0.91
+    e.tickOnce(); // 开开后：vy = 1−G → y += → vy *= F
     const p = snap(e)[0];
-    expect(p.y).toBeCloseTo(1 + 0.9995, 12);
-    expect(p.vy).toBeCloseTo(0.9995 * 0.91, 12);
+    expect(p.y).toBeCloseTo(1 + (1 - G_END_ROD), 12);
+    expect(p.vy).toBeCloseTo((1 - G_END_ROD) * FRICTION_END_ROD, 12);
   });
 });
 
@@ -755,78 +761,85 @@ describe('原版运动学：26.2 逐类型寿命 golden（age=0，seed=1 → van
 });
 
 describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () => {
+  // 期望值按 26.2 javap 管道从 float 常量推导（f2d 加宽），不复制表内字面量：
+  //   friction 表值 = fround(构造器 putfield 的 float 常量)；
+  //   base 管道 gravityY 表值 = −0.04d×fround(gravity)（double 域先乘后减）；
+  //   自管 tick gravityY 表值 = −fround(gravity)（rain/splash/campfire 直接减）。
+  const f = Math.fround;
+  const fr = (d: number) => f(d);
+  const gBase = (g: number) => -0.04 * f(g);
   const eng1 = (name: string, vel = '0 1 0') => {
     const en = eng({ seed: 1, nativeKinematics: true });
     en.runCommand(C(`particleex normal minecraft:${name} 0 0 0 1 1 1 1 ${vel} 0 0 0 1 0`));
     return en;
   };
 
-  it('totem：摩擦 0.6 + 重力 −0.05（tick 后 vy = (1−0.05)×0.6）', () => {
+  it('totem：摩擦 0.6f + 重力 −0.05（tick 后 vy = (1−0.05)×f2d(0.6f)）', () => {
     const en = eng1('totem_of_undying');
     en.tickOnce();
     const p = snap(en)[0];
-    expect(p.y).toBeCloseTo(0.95, 12);
-    expect(p.vy).toBeCloseTo(0.95 * 0.6, 12);
+    expect(p.y).toBeCloseTo(0.95, 12); // −0.04d×fround(1.25f) 恰精确 = −0.05
+    expect(p.vy).toBeCloseTo(0.95 * fr(0.6), 12);
   });
 
-  it('heart：摩擦 0.86、无重力', () => {
+  it('heart：摩擦 0.86f、无重力', () => {
     const en = eng1('heart');
     en.tickOnce();
     const p = snap(en)[0];
     expect(p.y).toBeCloseTo(1, 12);
-    expect(p.vy).toBeCloseTo(0.86, 12);
+    expect(p.vy).toBeCloseTo(fr(0.86), 12);
   });
 
-  it('note：摩擦 0.66、无重力', () => {
+  it('note：摩擦 0.66f、无重力', () => {
     const en = eng1('note');
     en.tickOnce();
-    expect(snap(en)[0].vy).toBeCloseTo(0.66, 12);
+    expect(snap(en)[0].vy).toBeCloseTo(fr(0.66), 12);
   });
 
-  it('snowflake：摩擦 1.0 + 重力 −0.009，之后逐轴附加 0.95/0.9/0.95', () => {
+  it('snowflake：摩擦 1.0 + 重力 −0.04d×fround(0.225f)，之后逐轴附加 0.95/0.9/0.95', () => {
     const en = eng({ seed: 1, nativeKinematics: true });
     en.runCommand(C('particleex normal minecraft:snowflake 0 0 0 1 1 1 1 1 1 0 0 0 0 1 0'));
     en.tickOnce();
     const p = snap(en)[0];
-    expect(p.vy).toBeCloseTo((1 - 0.009) * 1.0 * 0.8999999761581421, 12);
+    expect(p.vy).toBeCloseTo((1 + gBase(0.225)) * 1.0 * 0.8999999761581421, 12);
     expect(p.vx).toBeCloseTo(1 * 1.0 * 0.949999988079071, 12);
     expect(p.x).toBeCloseTo(1, 12); // 位移在阻尼之前
   });
 
-  it('spell(effect)：摩擦 0.96 + 反重力 +0.004（升）', () => {
+  it('spell(effect)：摩擦 0.96f + 反重力 −0.04d×fround(−0.1f)（升）', () => {
     const en = eng1('effect');
     en.tickOnce();
     const p = snap(en)[0];
-    expect(p.y).toBeCloseTo(1 + 0.004, 12);
-    expect(p.vy).toBeCloseTo(1.004 * 0.96, 12);
+    expect(p.y).toBeCloseTo(1 + gBase(-0.1), 12);
+    expect(p.vy).toBeCloseTo((1 + gBase(-0.1)) * fr(0.96), 12);
   });
 
-  it('ash：摩擦 0.96 + 重力 −0.004（降）', () => {
+  it('ash：摩擦 0.96f + 重力 −0.04d×fround(0.1f)（降）', () => {
     const en = eng1('ash');
     en.tickOnce();
-    expect(snap(en)[0].y).toBeCloseTo(1 - 0.004, 12);
+    expect(snap(en)[0].y).toBeCloseTo(1 + gBase(0.1), 12);
   });
 
-  it('lava：摩擦 0.999 + 重力 −0.03', () => {
+  it('lava：摩擦 0.999f + 重力 −0.03', () => {
     const en = eng1('lava');
     en.tickOnce();
     const p = snap(en)[0];
-    expect(p.y).toBeCloseTo(0.97, 12);
-    expect(p.vy).toBeCloseTo(0.97 * 0.999, 12);
+    expect(p.y).toBeCloseTo(0.97, 12); // −0.04d×fround(0.75f) 恰精确
+    expect(p.vy).toBeCloseTo(0.97 * fr(0.999), 12);
   });
 
-  it('rain：直接重力 −0.06（无 0.04 系数）+ 摩擦 0.98', () => {
+  it('rain：直接重力 −fround(0.06f)（无 0.04 系数）+ 摩擦 0.98f', () => {
     const en = eng1('rain');
     en.tickOnce();
     const p = snap(en)[0];
-    expect(p.y).toBeCloseTo(0.94, 12);
-    expect(p.vy).toBeCloseTo(0.94 * 0.98, 12);
+    expect(p.y).toBeCloseTo(1 - f(0.06), 12);
+    expect(p.vy).toBeCloseTo((1 - f(0.06)) * fr(0.98), 12);
   });
 
-  it('splash：直接重力 −0.04 + 摩擦 0.98', () => {
+  it('splash：直接重力 −fround(0.04f) + 摩擦 0.98f', () => {
     const en = eng1('splash');
     en.tickOnce();
-    expect(snap(en)[0].y).toBeCloseTo(0.96, 12);
+    expect(snap(en)[0].y).toBeCloseTo(1 - f(0.04), 12);
   });
 
   it('suspended 系：匀速（摩擦 1.0、无重力）', () => {
@@ -837,31 +850,31 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
     expect(snap(en)[0].y).toBeCloseTo(2, 12);
   });
 
-  it('suspended_town 系：自管 tick，摩擦 0.99、无重力', () => {
+  it('suspended_town 系：自管 tick，摩擦 0.99d（字节码 double 常量，非 f2d）、无重力', () => {
     const en = eng1('composter');
     en.tickOnce();
     expect(snap(en)[0].y).toBeCloseTo(1, 12);
     expect(snap(en)[0].vy).toBeCloseTo(0.99, 12);
   });
 
-  it('item：Base 默认摩擦 0.98 + 重力 −0.04', () => {
+  it('item：Base 默认摩擦 0.98f + 重力 −0.04', () => {
     const en = eng1('item');
     en.tickOnce();
     const p = snap(en)[0];
-    expect(p.y).toBeCloseTo(0.96, 12);
-    expect(p.vy).toBeCloseTo(0.96 * 0.98, 12);
+    expect(p.y).toBeCloseTo(0.96, 12); // −0.04d×fround(1.0f) 恰精确
+    expect(p.vy).toBeCloseTo(0.96 * fr(0.98), 12);
   });
 
-  it('squid_ink：摩擦 0.92、无重力', () => {
+  it('squid_ink：摩擦 0.92f、无重力', () => {
     const en = eng1('squid_ink');
     en.tickOnce();
-    expect(snap(en)[0].vy).toBeCloseTo(0.92, 12);
+    expect(snap(en)[0].vy).toBeCloseTo(fr(0.92), 12);
   });
 
-  it('flame(soul)：摩擦 0.96、无重力', () => {
+  it('flame(soul)：摩擦 0.96f、无重力', () => {
     const en = eng1('flame');
     en.tickOnce();
-    expect(snap(en)[0].vy).toBeCloseTo(0.96, 12);
+    expect(snap(en)[0].vy).toBeCloseTo(fr(0.96), 12);
   });
 
   it('portal：位置绝对式 cubic easing（age=10 的 e 与 y 的 (1−t) 项）', () => {
@@ -900,10 +913,10 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
     expect(p.lifetime).toBe(288);
     const rise = Math.fround(500 / (4922041 / 16777216));
     expect(p.vy).toBe(1 + rise);
-    // 首 tick：vy −= 3e-6 后位移（stop=false 才会位移：vel 0 0 0 会被 stop 回滚冻结）
+    // 首 tick：vy −= fround(3.0E-6f) 后位移（stop=false 才会位移：vel 0 0 0 会被 stop 回滚冻结）
     en.tickOnce();
     const p1 = snap(en)[0];
-    expect(p1.y).toBeCloseTo(1 + rise - 3e-6, 12);
+    expect(p1.y).toBeCloseTo(1 + rise - f(3e-6), 12);
   });
 
   it('campfire 初速消费顺序：寿命/初速交替逐粒子（I(50),F,I(50),F…）', () => {
@@ -929,6 +942,71 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
     en.tickOnce();
     expect(snap(en)[0].y).toBeCloseTo(1, 12);
   });
+});
+
+describe('NATIVE_KINEMATICS 表值 = f2d 加宽精确值（防字面量回归）', () => {
+  // 每个表项的 friction/gravityY 必须等于 Java float 字段 f2d 加宽后的精确
+  // double（26.2 javap 逐常量核对；SuspendedTown 系 friction 例外 = 0.99d 常量）。
+  // 期望值从构造器 putfield 的 float 十进制常量推导（fround），不抄表内字面量。
+  const f = Math.fround;
+  // [mcVersion, 类型名, 期望 friction, 期望 gravityY]
+  const T: [string, string, number, number][] = [
+    ['1.21.11', 'end_rod', f(0.91), -0.04 * f(0.0125)],
+    ['26.2', 'end_rod', f(0.91), -0.04 * f(0.0125)],
+    ['26.2', 'totem_of_undying', f(0.6), -0.04 * f(1.25)],
+    ['26.2', 'heart', f(0.86), 0],
+    ['26.2', 'angry_villager', f(0.86), 0],
+    ['26.2', 'note', f(0.66), 0],
+    ['26.2', 'snowflake', 1.0, -0.04 * f(0.225)],
+    ['26.2', 'glow', f(0.96), 0],
+    ['26.2', 'flame', f(0.96), 0],
+    ['26.2', 'small_flame', f(0.96), 0],
+    ['26.2', 'copper_fire_flame', f(0.96), 0],
+    ['26.2', 'soul_fire_flame', f(0.96), 0],
+    ['26.2', 'soul', f(0.96), 0],
+    ['26.2', 'sculk_soul', f(0.96), 0],
+    ['26.2', 'effect', f(0.96), -0.04 * f(-0.1)],
+    ['26.2', 'instant_effect', f(0.96), -0.04 * f(-0.1)],
+    ['26.2', 'witch', f(0.96), -0.04 * f(-0.1)],
+    ['26.2', 'entity_effect', f(0.96), -0.04 * f(-0.1)],
+    ['26.2', 'infested', f(0.96), -0.04 * f(-0.1)],
+    ['26.2', 'raid_omen', f(0.96), -0.04 * f(-0.1)],
+    ['26.2', 'trial_omen', f(0.96), -0.04 * f(-0.1)],
+    ['26.2', 'lava', f(0.999), -0.04 * f(0.75)],
+    ['26.2', 'rain', f(0.98), -f(0.06)],
+    ['26.2', 'splash', f(0.98), -f(0.04)],
+    ['26.2', 'underwater', 1.0, 0],
+    ['26.2', 'spore_blossom_air', 1.0, 0],
+    ['26.2', 'crimson_spore', 1.0, 0],
+    ['26.2', 'warped_spore', 1.0, 0],
+    ['26.2', 'composter', 0.99, 0],
+    ['26.2', 'dolphin', 0.99, 0],
+    ['26.2', 'happy_villager', 0.99, 0],
+    ['26.2', 'egg_crack', 0.99, 0],
+    ['26.2', 'mycelium', 0.99, 0],
+    ['26.2', 'smoke', f(0.96), -0.04 * f(-0.1)],
+    ['26.2', 'white_smoke', f(0.96), -0.04 * f(-0.1)],
+    ['26.2', 'large_smoke', f(0.96), -0.04 * f(-0.1)],
+    ['26.2', 'ash', f(0.96), -0.04 * f(0.1)],
+    ['26.2', 'white_ash', f(0.96), -0.04 * f(0.1)],
+    ['26.2', 'item', f(0.98), -0.04 * f(1.0)],
+    ['26.2', 'item_slime', f(0.98), -0.04 * f(1.0)],
+    ['26.2', 'item_cobweb', f(0.98), -0.04 * f(1.0)],
+    ['26.2', 'item_snowball', f(0.98), -0.04 * f(1.0)],
+    ['26.2', 'sulfur_cube_goo', f(0.98), -0.04 * f(1.0)],
+    ['26.2', 'shriek', f(0.98), 0],
+    ['26.2', 'squid_ink', f(0.92), 0],
+    ['26.2', 'glow_squid_ink', f(0.92), 0],
+    ['26.2', 'campfire_cosy_smoke', 1.0, -f(3e-6)],
+    ['26.2', 'campfire_signal_smoke', 1.0, -f(3e-6)],
+  ];
+  for (const [ver, name, fr, gy] of T) {
+    it(`${ver} ${name}：friction=${fr} gravityY=${gy}（f2d 精确）`, () => {
+      const spec = NATIVE_KINEMATICS[ver][name];
+      expect(spec.friction).toBe(fr);
+      expect(spec.gravityY).toBe(gy);
+    });
+  }
 });
 
 describe('hasLiveWork / queuedGenerators（播放自动停止判据）', () => {
