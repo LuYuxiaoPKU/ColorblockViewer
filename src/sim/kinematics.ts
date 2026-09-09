@@ -6,12 +6,13 @@
 // 的类型套用原版常量；未列出的类型保持模组行为（匀速直线）。
 //
 // 通用管道（Particle.tick，26.2 字节码）：
-//   save pre → age++ → age>=lifetime 死亡 → yd −= 0.04×gravity（f2d）→
+//   save pre → age++ → age>=lifetime 死亡 → yd −= 0.04d×f2d(gravity:F) →
 //   move(xd,yd,zd) → [speedUpWhenYMotionIsBlocked && 碰撞]（预览无碰撞，不建模）
-//   → 三轴 ×= friction（f2d）→ [onGround ×= 0.7]（预览不建模）。
-// gravityY 约定：friction/gravityY 表项里的 gravityY = 每 tick 对 vy 的增量
-//   （base 管道类型 = −0.04×gravityField；自管 tick 类型 = 其 tick 里的实际增量，
-//   如 rain 直接 −= gravity 字段）。
+//   → 三轴 ×= f2d(friction:F) → [onGround ×= 0.7]（预览不建模）。
+// 表值约定：friction/gravityY 均为 Java float 字段 f2d 加宽后的精确 double
+//   （friction = fround(十进制字面量)；base 管道 gravityY = −0.04d×fround(gravity)
+//   在 double 域先乘后减；自管 tick = 其 tick 里的实际 yd 增量）。
+//   例外：SuspendedTown 系 friction 是字节码里的 double 常量 0.99d（非 f2d）。
 //
 // 自管 tick 的类型（不复用通用管道）：
 //   - water_drop/splash：WaterDrop.tick —— yd −= gravity（直接，无 0.04 系数）、
@@ -55,39 +56,40 @@ export interface NativeKinematics {
 
 export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>> = {
   '1.21.11': {
-    end_rod: { friction: 0.91, gravityY: -0.0005 },
+    end_rod: { friction: 0.9100000262260437, gravityY: -0.0005000000074505806 },
   },
   '26.2': {
     // 常量来源（26.2 javap）：
     //  friction 字段 putfield 值 / gravity 字段 putfield 值 / 自管 tick 常量。
-    //  gravityY = −0.04×gravity（base 管道）或 tick 里的实际 yd 增量（自管 tick）。
-    end_rod: { friction: 0.91, gravityY: -0.0005 }, // SimpleAnimated 0.91；EndRod gravity 0.0125
-    totem_of_undying: { friction: 0.6, gravityY: -0.05 }, // Totem：friction 0.6f；gravity 1.25f
-    heart: { friction: 0.86, gravityY: 0 }, // Heart：friction 0.86f；无 gravity 覆写（默认 0）
-    angry_villager: { friction: 0.86, gravityY: 0 }, // Heart$AngryVillagerProvider
-    note: { friction: 0.66, gravityY: 0 }, // Note：friction 0.66f
+    //  friction/gravityY = f2d 加宽后的精确 double（见文件头约定）；
+    //  base 管道 gravityY = −0.04d×fround(gravity)，在 double 域先乘后减。
+    end_rod: { friction: 0.9100000262260437, gravityY: -0.0005000000074505806 }, // SimpleAnimated fround(0.91f)；EndRod fround(0.0125f)
+    totem_of_undying: { friction: 0.6000000238418579, gravityY: -0.05 }, // Totem：friction 0.6f；gravityY = −0.04d×fround(1.25f)（恰精确）
+    heart: { friction: 0.8600000143051147, gravityY: 0 }, // Heart：friction 0.86f；无 gravity 覆写（默认 0）
+    angry_villager: { friction: 0.8600000143051147, gravityY: 0 }, // Heart$AngryVillagerProvider
+    note: { friction: 0.6600000262260437, gravityY: 0 }, // Note：friction 0.66f
     snowflake: {
       friction: 1.0, // Snowflake：friction fconst_1
-      gravityY: -0.009, // gravity 0.225f × 0.04
+      gravityY: -0.008999999761581421, // −0.04d×fround(0.225f)
       postFriction: [0.949999988079071, 0.8999999761581421, 0.949999988079071], // 0.95f/0.9f/0.95f → double
     },
-    glow: { friction: 0.96, gravityY: 0 }, // Glow：friction 0.96f
-    flame: { friction: 0.96, gravityY: 0 }, // Rising：friction 0.96f
-    small_flame: { friction: 0.96, gravityY: 0 },
-    copper_fire_flame: { friction: 0.96, gravityY: 0 },
-    soul_fire_flame: { friction: 0.96, gravityY: 0 },
-    soul: { friction: 0.96, gravityY: 0 }, // Soul→Rising
-    sculk_soul: { friction: 0.96, gravityY: 0 },
-    effect: { friction: 0.96, gravityY: 0.004 }, // Spell：gravity −0.1f → −0.04×(−0.1)
-    instant_effect: { friction: 0.96, gravityY: 0.004 },
-    witch: { friction: 0.96, gravityY: 0.004 },
-    entity_effect: { friction: 0.96, gravityY: 0.004 },
-    infested: { friction: 0.96, gravityY: 0.004 },
-    raid_omen: { friction: 0.96, gravityY: 0.004 },
-    trial_omen: { friction: 0.96, gravityY: 0.004 },
-    lava: { friction: 0.999, gravityY: -0.03 }, // Lava：friction 0.999f；gravity 0.75f
-    rain: { friction: 0.98, gravityY: -0.06 }, // WaterDrop 自管 tick：yd −= gravity(0.06f) 直接
-    splash: { friction: 0.98, gravityY: -0.04 }, // Splash 覆写 gravity 0.04f
+    glow: { friction: 0.9599999785423279, gravityY: 0 }, // Glow：friction 0.96f
+    flame: { friction: 0.9599999785423279, gravityY: 0 }, // Rising：friction 0.96f
+    small_flame: { friction: 0.9599999785423279, gravityY: 0 },
+    copper_fire_flame: { friction: 0.9599999785423279, gravityY: 0 },
+    soul_fire_flame: { friction: 0.9599999785423279, gravityY: 0 },
+    soul: { friction: 0.9599999785423279, gravityY: 0 }, // Soul→Rising
+    sculk_soul: { friction: 0.9599999785423279, gravityY: 0 },
+    effect: { friction: 0.9599999785423279, gravityY: 0.004000000059604645 }, // Spell：−0.04d×fround(−0.1f)
+    instant_effect: { friction: 0.9599999785423279, gravityY: 0.004000000059604645 },
+    witch: { friction: 0.9599999785423279, gravityY: 0.004000000059604645 },
+    entity_effect: { friction: 0.9599999785423279, gravityY: 0.004000000059604645 },
+    infested: { friction: 0.9599999785423279, gravityY: 0.004000000059604645 },
+    raid_omen: { friction: 0.9599999785423279, gravityY: 0.004000000059604645 },
+    trial_omen: { friction: 0.9599999785423279, gravityY: 0.004000000059604645 },
+    lava: { friction: 0.9990000128746033, gravityY: -0.03 }, // Lava：friction 0.999f；gravityY = −0.04d×fround(0.75f)（恰精确）
+    rain: { friction: 0.9800000190734863, gravityY: -0.05999999865889549 }, // WaterDrop 自管 tick：yd −= f2d(gravity)，gravity fround(0.06f)
+    splash: { friction: 0.9800000190734863, gravityY: -0.03999999910593033 }, // Splash 覆写 gravity fround(0.04f)
     underwater: { friction: 1.0, gravityY: 0 }, // Suspended：friction fconst_1
     spore_blossom_air: { friction: 1.0, gravityY: 0 },
     crimson_spore: { friction: 1.0, gravityY: 0 },
@@ -97,23 +99,23 @@ export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>>
     happy_villager: { friction: 0.99, gravityY: 0 },
     egg_crack: { friction: 0.99, gravityY: 0 },
     mycelium: { friction: 0.99, gravityY: 0 },
-    smoke: { friction: 0.96, gravityY: 0.004 }, // BaseAshSmoke：gravity 参数 −0.1f
-    white_smoke: { friction: 0.96, gravityY: 0.004 },
-    large_smoke: { friction: 0.96, gravityY: 0.004 },
-    ash: { friction: 0.96, gravityY: -0.004 }, // Ash：gravity 参数 +0.1f
-    white_ash: { friction: 0.96, gravityY: -0.004 },
-    item: { friction: 0.98, gravityY: -0.04 }, // Base 默认 friction 0.98；BreakingItem gravity 1.0f
-    item_slime: { friction: 0.98, gravityY: -0.04 },
-    item_cobweb: { friction: 0.98, gravityY: -0.04 },
-    item_snowball: { friction: 0.98, gravityY: -0.04 },
-    sulfur_cube_goo: { friction: 0.98, gravityY: -0.04 },
-    shriek: { friction: 0.98, gravityY: 0 }, // Shriek：无覆写（Base 0.98）；gravity fconst_0
-    squid_ink: { friction: 0.92, gravityY: 0 }, // SquidInk：friction 0.92f
-    glow_squid_ink: { friction: 0.92, gravityY: 0 },
+    smoke: { friction: 0.9599999785423279, gravityY: 0.004000000059604645 }, // BaseAshSmoke：gravity 参数 −0.1f
+    white_smoke: { friction: 0.9599999785423279, gravityY: 0.004000000059604645 },
+    large_smoke: { friction: 0.9599999785423279, gravityY: 0.004000000059604645 },
+    ash: { friction: 0.9599999785423279, gravityY: -0.004000000059604645 }, // Ash：gravity 参数 +0.1f
+    white_ash: { friction: 0.9599999785423279, gravityY: -0.004000000059604645 },
+    item: { friction: 0.9800000190734863, gravityY: -0.04 }, // Base 默认 friction 0.98f；gravityY = −0.04d×fround(1.0f)（恰精确）
+    item_slime: { friction: 0.9800000190734863, gravityY: -0.04 },
+    item_cobweb: { friction: 0.9800000190734863, gravityY: -0.04 },
+    item_snowball: { friction: 0.9800000190734863, gravityY: -0.04 },
+    sulfur_cube_goo: { friction: 0.9800000190734863, gravityY: -0.04 },
+    shriek: { friction: 0.9800000190734863, gravityY: 0 }, // Shriek：无覆写（Base 0.98f）；gravity fconst_0
+    squid_ink: { friction: 0.9200000166893005, gravityY: 0 }, // SquidInk：friction 0.92f
+    glow_squid_ink: { friction: 0.9200000166893005, gravityY: 0 },
     portal: { motion: 'portal', friction: 1, gravityY: 0 },
     reverse_portal: { motion: 'reverse_portal', friction: 1, gravityY: 0 },
-    campfire_cosy_smoke: { friction: 1.0, gravityY: -3e-6, campfireRise: true },
-    campfire_signal_smoke: { friction: 1.0, gravityY: -3e-6, campfireRise: true },
+    campfire_cosy_smoke: { friction: 1.0, gravityY: -0.000003000000106112566, campfireRise: true }, // yd −= f2d(gravity)，gravity 3.0E-6f
+    campfire_signal_smoke: { friction: 1.0, gravityY: -0.000003000000106112566, campfireRise: true },
     // water_current_down 未收录：tick 含水流块检查（移除/速度分支依赖世界状态）。
   },
 };
