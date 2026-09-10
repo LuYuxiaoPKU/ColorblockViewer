@@ -13,9 +13,14 @@ interface PlaybackHandlers {
 
 export function Viewport({
   containerRef,
+  renderCapacity,
   onStep,
   onReset,
-}: PlaybackHandlers & { containerRef: React.RefObject<HTMLDivElement | null> }) {
+}: PlaybackHandlers & {
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  /** 点云缓冲容量（挂载时按当时 maxParticles 固定）；活粒子数超过它 → 显示「渲染截断」 */
+  renderCapacity: number;
+}) {
   const { playing, speed, hud } = useAppState();
 
   return (
@@ -23,6 +28,7 @@ export function Viewport({
       <div className="viewport-canvas" ref={containerRef} />
       <div className="hud">
         tick {hud.tick} · 粒子 {hud.count} · 丢弃 {hud.dropped}
+        {renderCapacity > 0 && hud.count > renderCapacity ? ' · 渲染截断' : ''}
       </div>
       <div className="playback-bar">
         <button className={playing ? 'active' : 'primary'} onClick={() => setPlaying(!playing)}>

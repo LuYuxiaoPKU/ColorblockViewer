@@ -5,7 +5,7 @@
 // rAF 循环读 ref（playing/speed 变化时重启 effect）。React state 只承担
 // 低频显示（HUD 10Hz 轮询）。
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SimEngine } from './sim/engine';
 import { SimViewport } from './render/sync';
 import { useAppState, setHud, pushToast, getState, clearToasts, setPlaying, applyInputText } from './store/appState';
@@ -17,6 +17,7 @@ const TICK_MS = 50; // 20 TPS
 export default function App() {
   const { playing, speed, sim } = useAppState();
 
+  const [renderCapacity, setRenderCapacity] = useState(0);
   const engineRef = useRef<SimEngine | null>(null);
   const viewportRef = useRef<SimViewport | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -32,6 +33,8 @@ export default function App() {
     if (!containerRef.current) return;
     const vp = new SimViewport(containerRef.current, engineRef.current!.config.maxParticles, engineRef.current!.config.mcVersion);
     viewportRef.current = vp;
+    // 点云缓冲容量 = 挂载时 maxParticles（运行期调大上限不扩容缓冲）→ 截断提示
+    setRenderCapacity(engineRef.current!.config.maxParticles);
     vp.setPointScale(vp.size, 50); // fov 与 scene.ts 相机一致；首帧前设定像素换算
     vp.start();
     const onResize = () => vp.resize();
@@ -161,7 +164,7 @@ export default function App() {
         </p>
         <CommandPane onRun={run} />
       </aside>
-      <Viewport containerRef={containerRef} onStep={step} onReset={reset} />
+      <Viewport containerRef={containerRef} renderCapacity={renderCapacity} onStep={step} onReset={reset} />
     </div>
   );
 }
