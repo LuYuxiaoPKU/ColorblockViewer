@@ -312,15 +312,15 @@ describe('原版 /particle（MC 26.2）', () => {
     expect(c.nbt).toBe('color:0x00FF00,scale:2f');
   });
 
-  it('type{NBT}：非 dust 类型只校验语法、记录载荷不消费', () => {
+  it('type{NBT}：非收录类型只校验语法、记录载荷不消费', () => {
     const c = V('particle minecraft:block{BlockState:123}');
     expect(c.name).toBe('minecraft:block');
     expect(c.nbt).toBe('BlockState:123');
   });
 
   it('dust NBT 缺 color/scale → 报错（游戏内 Can\'t parse particle options）', () => {
-    expect(() => V('particle dust{Red:1f}')).toThrow(/dust 的 NBT 需含 color 与 scale/);
-    expect(() => V('particle dust{color:0xFF0000}')).toThrow(/需含 color 与 scale/);
+    expect(() => V('particle dust{Red:1f}')).toThrow(/dust 的 NBT 缺字段 "color"/);
+    expect(() => V('particle dust{color:0xFF0000}')).toThrow(/dust 的 NBT 缺字段 "scale"/);
   });
 
   it('dust NBT 未知字段 → 报错（RecordCodecBuilder 严格）', () => {
@@ -328,10 +328,68 @@ describe('原版 /particle（MC 26.2）', () => {
   });
 
   it('dust NBT 值越界 → 报错', () => {
-    expect(() => V('particle dust{color:0x1FF0000,scale:1f}')).toThrow(/color 应为 0xRRGGBB/);
-    expect(() => V('particle dust{color:[1,0,0,0],scale:1f}')).toThrow(/color 列表应为 3 个/);
-    expect(() => V('particle dust{color:0xFF0000,scale:0.001f}')).toThrow(/scale 超出范围/);
-    expect(() => V('particle dust{color:0xFF0000,scale:5f}')).toThrow(/scale 超出范围/);
+    expect(() => V('particle dust{color:0x1FF0000,scale:1f}')).toThrow(/"color" 应为RGB 颜色/);
+    expect(() => V('particle dust{color:[1,0,0,0],scale:1f}')).toThrow(/"color" 应为RGB 颜色/);
+    expect(() => V('particle dust{color:0xFF0000,scale:0.001f}')).toThrow(/"scale" 超出范围 \[0\.01, 4\]/);
+    expect(() => V('particle dust{color:0xFF0000,scale:5f}')).toThrow(/"scale" 超出范围 \[0\.01, 4\]/);
+  });
+
+  it('dust_color_transition NBT：from_color/to_color 必填，scale 必填', () => {
+    const c = V('particle dust_color_transition{from_color:0x0000FF,to_color:0xFF0000,scale:2f}');
+    expect(c.nbt).toBe('from_color:0x0000FF,to_color:0xFF0000,scale:2f');
+    expect(() => V('particle dust_color_transition{from_color:0x0000FF}')).toThrow(/缺字段 "to_color"/);
+    expect(() => V('particle dust_color_transition{from_color:0x0000FF,to_color:0xFF0000}')).toThrow(/缺字段 "scale"/);
+    expect(() => V('particle dust_color_transition{from_color:0x0000FF,to_color:0xFF0000,scale:9f}')).toThrow(/"scale" 超出范围/);
+  });
+
+  it('effect/instant_effect NBT：color 缺省 -1（白）、power 缺省 1 → 空载荷合法', () => {
+    expect(V('particle effect{}').nbt).toBe('');
+    expect(V('particle instant_effect{color:0x00FF00,power:2f}').nbt).toBe('color:0x00FF00,power:2f');
+    expect(() => V('particle effect{color:0x00FF00,power:"x"}')).toThrow(/"power" 应为浮点数/);
+    expect(() => V('particle effect{foo:1}')).toThrow(/不应含字段 "foo"/);
+  });
+
+  it('entity_effect/tinted_leaves/flash NBT：color 为 ARGB（0xAARRGGBB 或 [a,r,g,b]）必填', () => {
+    expect(V('particle entity_effect{color:0x80FF0000}').nbt).toBe('color:0x80FF0000');
+    expect(V('particle flash{color:[0.5,1,0,0]}').nbt).toBe('color:[0.5,1,0,0]');
+    expect(() => V('particle entity_effect{}')).toThrow(/缺字段 "color"/);
+    expect(() => V('particle entity_effect{color:[1,0,0]}')).toThrow(/"color" 应为ARGB 颜色/);
+  });
+
+  it('dragon_breath NBT：power 可选缺省 1 → 空载荷合法；sculk_charge 的 roll 必填', () => {
+    expect(V('particle dragon_breath{}').nbt).toBe('');
+    expect(V('particle sculk_charge{roll:0.5f}').nbt).toBe('roll:0.5f');
+    expect(() => V('particle sculk_charge{roll:0.5f,Red:1f}')).toThrow(/不应含字段 "Red"/);
+    expect(() => V('particle sculk_charge{}')).toThrow(/缺字段 "roll"/);
+  });
+
+  it('shriek NBT：delay 必填整数', () => {
+    expect(V('particle shriek{delay:20}').nbt).toBe('delay:20');
+    expect(() => V('particle shriek{delay:20.5f}')).toThrow(/"delay" 应为整数/);
+  });
+
+  it('geyser 系 NBT（仅 26.2）：water_blocks 必填 POSITIVE_INT（≥1）', () => {
+    expect(V('particle geyser{water_blocks:4}').nbt).toBe('water_blocks:4');
+    expect(V('particle geyser_plume{water_blocks:1}').nbt).toBe('water_blocks:1');
+    expect(() => V('particle geyser{}')).toThrow(/缺字段 "water_blocks"/);
+    expect(() => V('particle geyser{water_blocks:0}')).toThrow(/"water_blocks" 应为正整数/);
+    expect(() => V('particle geyser{water_blocks:-2}')).toThrow(/"water_blocks" 应为正整数/);
+    expect(() => V('particle geyser{water_blocks:2.5f}')).toThrow(/"water_blocks" 应为整数/);
+    expect(() => V('particle geyser{water_blocks:4,Red:1}')).toThrow(/不应含字段 "Red"/);
+  });
+
+  it('geyser_base/geyser_poof NBT：+burst_impulse_base 必填浮点', () => {
+    expect(V('particle geyser_base{water_blocks:4,burst_impulse_base:0.1f}').nbt)
+      .toBe('water_blocks:4,burst_impulse_base:0.1f');
+    expect(V('particle geyser_poof{water_blocks:2,burst_impulse_base:1}').nbt)
+      .toBe('water_blocks:2,burst_impulse_base:1');
+    expect(() => V('particle geyser_base{water_blocks:4}')).toThrow(/缺字段 "burst_impulse_base"/);
+    expect(() => V('particle geyser_poof{water_blocks:0,burst_impulse_base:1f}')).toThrow(/"water_blocks" 应为正整数/);
+  });
+
+  it('命名空间前缀不影响 NBT schema 校验', () => {
+    expect(V('particle minecraft:dust{color:0xFF0000,scale:1f}').nbt).toBe('color:0xFF0000,scale:1f');
+    expect(() => V('particle minecraft:dust{Red:1f}')).toThrow(/dust 的 NBT 缺字段 "color"/);
   });
 
   it('NBT 语法错误 → 报错（花括号不闭合/缺冒号/坏数值）', () => {

@@ -138,7 +138,10 @@ function parseVal(s: string): NbtVal {
  *  十进制：123 / -42 / 1.0 / 1.0f / 1.0d / 1I / 1L（后缀剥除后取数值） */
 function parseNum(s: string): number {
   if (/^0[xX][0-9a-fA-F]+[bBsSiIlLfFdD]?$/.test(s)) {
-    return parseInt(s.replace(/[bBsSiIlLfFdD]$/, ''), 16);
+    // 类型后缀仅 b/s/i/l（B/S/I/L）可跟在十六进制后：F/f/D/d 本身是十六进制数字
+    // （SnbtGrammar 的 hex 数字运行对 [0-9a-fA-F] 贪婪 → 0xFF 的尾 F 是数字，
+    // 不是 float 后缀）。旧正则 [..fFdD]$ 会把 0x0000FF 的尾 F 当后缀剥掉 → 15。
+    return parseInt(s.replace(/[bBsSiIlL]$/, ''), 16);
   }
   const m = s.match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)[fFdDIlBsS]?$/);
   if (!m) throw new NbtParseError(`数值无效："${s}"`);

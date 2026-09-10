@@ -16,6 +16,7 @@ import type { CompiledBlock } from '../engine';
 import { ParticleStruct } from '../engine/struct';
 import type { ParticleCommand } from '../command/types';
 import { parseCompound } from '../nbt/parse';
+import { OPTION_FIELDS, parseColorField } from '../nbt/particleOptions';
 import {
   computeSpawnStep,
   fillConditionalPoint,
@@ -130,17 +131,25 @@ function stepGuard(prev: number, next: number, iters: number): void {
   }
 }
 
-// ---------- 各命令入口（与 ClientNetworkHandler 各 handler 一一对应）----------
+// ---------- type{NBT} 载荷 → 渲染色/大小倍数（schema 见 nbt/particleOptions.ts）----------
 
-/** dust 的 NBT 载荷 → 渲染色/大小倍数。
- *  取证（1.21.11 ls.class / 26.2 DustParticleOptions 字节码，同构）：
- *  color = 0xRRGGBB int（或 [r,g,b] 0-1 列表）；scale ∈ [0.01,4]。
- *  DustParticle 构造器：options.getColor() → Vector3f(0-1) 写入 rCol/gCol/bCol
- *  （**逐粒子 ±20% 抖动** randomizeColor —— 预览不抖动，用基准色，已知近似）。
- *  非 dust 类型或空载荷 → 全缺省（白 + 1）。 */
-function dustNbtVisuals(nbt: string | null): { nbtTint: boolean; sizeMul: number; r: number; g: number; b: number } {
+/** type{NBT} 载荷 → 渲染色/大小倍数（schema 见 nbt/particleOptions.ts，
+ *  逐类型字节码取证）。消费规则：
+ *  - 渲染色：dust 的 color（DustParticle 构造器把 getColor() 写入 rCol/gCol/bCol；
+ *    **逐粒子 ±20% 抖动** randomizeColor —— 预览不抖动，用基准色，已知近似）
+ *    与 ARGB 类型（entity_effect/tinted_leaves/flash）的 color；
+ *    dust_color_transition 取 from_color 作为出生色（age 插值不模拟，取动画起点）。
+ *  - 点大小倍数：scale（仅 dust/dust_color_transition 有该字段，
+ *    ScalableParticleOptionsBase 构造器 Mth.clamp 0.01-4）。
+ *  - power/roll/delay 不影响可见外观（power 只影响亮度/衰减距离、roll 是旋转、
+ *    delay 是延迟）→ 不消费。
+ *  非收录类型或空载荷 → 全缺省（白 + 1）。 */
+function nbtVisuals(name: string, nbt: string | null): { nbtTint: boolean; sizeMul: number; r: number; g: number; b: number } {
   const def = { nbtTint: false, sizeMul: 1, r: 1, g: 1, b: 1 };
   if (nbt === null) return def;
+  const base = name.replace(/^minecraft:/i, '').toLowerCase();
+  const schema = OPTION_FIELDS[base];
+  if (!schema) return def;
   let fields;
   try {
     fields = parseCompound(nbt);
@@ -150,24 +159,27 @@ function dustNbtVisuals(nbt: string | null): { nbtTint: boolean; sizeMul: number
   let r = 1, g = 1, b = 1;
   let tint = false;
   let sizeMul = 1;
-  for (const f of fields) {
-    if (f.key === 'color') {
-      if (Array.isArray(f.val)) {
-        if (f.val.length === 3 && f.val.every(v => typeof v === 'number')) {
-          r = f.val[0]; g = f.val[1]; b = f.val[2]; tint = true;
+  for (const sf of schema) {
+    const f = fields.find(x => x.key === sf.key);
+    if (!f) continue; // 可选字段缺省：不消费（渲染色/大小保持缺省）
+    if (sf.kind === 'rgb' || sf.kind === 'argb') {
+      const isTintKey = sf.key === 'color' || (base === 'dust_color_transition' && sf.key === 'from_color');
+      if (isTintKey) {
+        const comp = parseColorField(f.val, sf.kind);
+        if (comp) {
+          // argb 首分量 = alpha（VECTOR4F 编码序）→ 渲染色取 RGB 三分量
+          const rgb = sf.kind === 'argb' ? comp.slice(1) : comp;
+          r = rgb[0]; g = rgb[1]; b = rgb[2]; tint = true;
         }
-      } else if (typeof f.val === 'number' && f.val >= 0 && f.val <= 0xffffff) {
-        r = ((f.val >> 16) & 255) / 255;
-        g = ((f.val >> 8) & 255) / 255;
-        b = (f.val & 255) / 255;
-        tint = true;
       }
-    } else if (f.key === 'scale' && typeof f.val === 'number' && f.val >= 0.01 && f.val <= 4) {
+    } else if (sf.key === 'scale' && typeof f.val === 'number' && f.val >= 0.01 && f.val <= 4) {
       sizeMul = f.val;
     }
   }
   return { nbtTint: tint, sizeMul, r, g, b };
 }
+
+// ---------- 各命令入口（与 ClientNetworkHandler 各 handler 一一对应）----------
 
 /** normal：count 次高斯偏移（RANDOM 为共享静态，按 i 顺序逐次消费） */
 export function execNormal(cmd: ParticleCommand & { kind: 'normal' }, sink: SpawnSink): void {
@@ -358,10 +370,8 @@ export function execVanilla(cmd: ParticleCommand & { kind: 'vanilla' }, sink: Sp
   const delta = cmd.delta ?? { x: 0, y: 0, z: 0 };
   const speed = cmd.speed ?? 0;
   const count = cmd.count ?? 0;
-  // dust/dust_pillar 的 NBT 颜色与尺寸（其余类型 NBT 不消费 → 白 + 1）
-  const baseName = cmd.name.replace(/^minecraft:/i, '').toLowerCase();
-  const isDust = baseName === 'dust' || baseName === 'dust_pillar';
-  const vis = isDust ? dustNbtVisuals(cmd.nbt) : dustNbtVisuals(null);
+  // 收录类型的 NBT 颜色/尺寸消费（其余类型 NBT 不消费 → 白 + 1）
+  const vis = nbtVisuals(cmd.name, cmd.nbt);
   if (count === 0) {
     // 单粒子：精确位置 + 确定速度 speed×delta
     spawnOne(sink, {

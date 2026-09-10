@@ -110,11 +110,12 @@ export interface VanillaCmd {
   /** 尾部 normal 字面量（命令树 [normal] [viewers]，viewers 预览不支持；
    *  无该字面量时客户端走「force」分支，预览等价 —— 见 execVanilla 注释） */
   normal: boolean;
-  /** type{NBT} 的 NBT 载荷（null = 无；仅解析 dust 的 color/scale，
-   *  其余类型记录但不消费 —— 渲染层按类型名近似）。
-   *  取证：1.21.11 混淆版 ls.class（=DustParticleOptions）字节码
-   *  CODEC = { color: RGB_COLOR_CODEC(0xRRGGBB int 或 [r,g,b] 0-1), scale: FLOAT }，
-   *  REDSTONE = {color:0xFF0000, scale:1}；26.2 命名版同构。 */
+  /** type{NBT} 的 NBT 载荷（null = 无；解析层按 nbt/particleOptions.ts 收录的
+   *  14 个扁平标量类型逐类型 CODEC 校验，渲染层消费渲染色/大小倍数——
+   *  见 command/parser.ts parseVanillaNbt 与 sim/spawn.ts nbtVisuals 注释）。
+   *  取证（26.2 命名版逐类 javap；1.21.11 混淆版同构）：
+   *  dust 的 CODEC = { color: RGB_COLOR_CODEC(0xRRGGBB int 或 [r,g,b] 0-1),
+   *  scale: FLOAT validate [0.01,4] }，REDSTONE = {color:0xFF0000, scale:1}。 */
   nbt: string | null;
 }
 
