@@ -54,3 +54,18 @@ export class AioobeError extends ExprError {
     this.name = 'AioobeError';
   }
 }
+
+// 运行时防护（非 1:1 后果）：括号嵌套过深。1:1 解析器逐括号层做
+// snapshot/recovery 回溯，深嵌套（逐层外包 `(((…)))`）触发指数级回溯——
+// Java 原版对同样输入同样挂死（Probe25 对真实 Java 源码实锤：12 层 ~65ms、
+// 16 层 ~0.7s、20 层挂死）。预览在深度超限处中止并提示，而非冻结标签页；
+// 语义层保持 1:1（浅层表达式行为不变）。
+export class ParseDepthError extends Error {
+  constructor(depth: number) {
+    super(
+      `表达式括号嵌套过深（${depth} 层，上限 12）：Java 原版对深嵌套会指数级回溯、卡死，` +
+      '预览已中止。请改写为浅层嵌套（如拆成多条赋值语句）。',
+    );
+    this.name = 'ParseDepthError';
+  }
+}

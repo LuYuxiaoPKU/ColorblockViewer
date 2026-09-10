@@ -37,6 +37,7 @@ const CN_HINTS: [RegExp, string][] = [
   [/need matrix, function call, assign expression, var, number/, '表达式语法错误（期望赋值/函数/变量/数字）'],
   [/Cannot invoke "com\.noone\.particleex/, '空表达式或 "null" 字面量（此槽位不允许）'],
   [/Index .* out of bounds/, '运行期数组越界（矩阵维度）'],
+  [/括号嵌套过深/, '括号嵌套过深：Java 原版会指数级回溯卡死，预览已中止（请拆成浅层表达式）'],
 ];
 
 export function exprCnHint(msg: string): string {

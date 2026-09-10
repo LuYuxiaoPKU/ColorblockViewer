@@ -112,6 +112,24 @@ function parseOptionalExpr(src: string | null): CompiledBlock | null {
   return parseExpr(src);
 }
 
+// ---------- 浮点步长循环防护（运行时防护，非 1:1 后果）----------
+// Java 的 for(t=begin; t<=end; t+=step) 在极端取值下是死循环：
+// t+step===t（浮点粒度）时 t 不再前进；begin/end ~1e16、step=1 时约 2e16
+// 次迭代才耗尽（期间无限生成 + 池上限丢弃）——Java 游戏内同为命令队列
+// 冻结。预览不复制冻结后果：显式中止 + 提示，语义层 1:1 不变。
+// 正常命令（range/begin/end 常规量级）远低于上限，不触发。
+const MAX_FIXPOINT_ITERS = 1_000_000;
+
+/** 步长守卫：prev → next 不前进 = 定点不收敛；总迭代超限 = 冻结态。 */
+function stepGuard(prev: number, next: number, iters: number): void {
+  if (prev === next) {
+    throw new Error('浮点步长不收敛（t+step===t）：Java 版在此是死循环（命令队列冻结），预览已中止该命令。');
+  }
+  if (iters > MAX_FIXPOINT_ITERS) {
+    throw new Error('迭代次数超限（>1,000,000）：Java 版在此同样是死循环/超长生成（冻结），预览已中止该命令（可缩小 range 或增大 step）。');
+  }
+}
+
 // ---------- 各命令入口（与 ClientNetworkHandler 各 handler 一一对应）----------
 
 /** dust 的 NBT 载荷 → 渲染色/大小倍数。
@@ -176,12 +194,20 @@ export function execConditional(cmd: ParticleCommand & { kind: 'conditional' }, 
   const pos = resolveVec3(cmd.pos, sink.playerPos);
   const exe = parseOptionalExpr(cmd.expression); // "null"/空 → null（无条件生成）；真错误抛给调用方
   const struct = new ParticleStruct();
-  for (let cx = -cmd.range.x; cx <= cmd.range.x; cx += cmd.step) {
-    for (let cy = -cmd.range.y; cy <= cmd.range.y; cy += cmd.step) {
-      for (let cz = -cmd.range.z; cz <= cmd.range.z; cz += cmd.step) {
+  let iters = 0;
+  let cx = -cmd.range.x;
+  while (cx <= cmd.range.x) {
+    let cy = -cmd.range.y;
+    while (cy <= cmd.range.y) {
+      let cz = -cmd.range.z;
+      while (cz <= cmd.range.z) {
+        stepGuard(cz, cz + cmd.step, iters++);
         if (exe != null) {
           fillConditionalPoint(struct, cx, cy, cz);
-          if (exe.run(struct) === 0) continue;
+          if (exe.run(struct) === 0) {
+            cz += cmd.step;
+            continue;
+          }
         }
         spawnOne(sink, {
           name: cmd.name,
@@ -192,8 +218,13 @@ export function execConditional(cmd: ParticleCommand & { kind: 'conditional' }, 
           age: cmd.age, speedExpression: cmd.speedExpression, speedStep: cmd.speedStep,
           group: cmd.group,
         });
+        cz += cmd.step;
       }
+      stepGuard(cy, cy + cmd.step, iters);
+      cy += cmd.step;
     }
+    stepGuard(cx, cx + cmd.step, iters);
+    cx += cmd.step;
   }
 }
 
@@ -220,7 +251,10 @@ export function execParameter(cmd: ParticleCommand & { kind: 'parameter' }, sink
     sink.addGenerator(g); // engine：立即 run 一次 + 注册
   } else {
     const struct = new ParticleStruct();
-    for (let t = cmd.begin; t <= cmd.end; t += cmd.step) {
+    let iters = 0;
+    let t = cmd.begin;
+    while (t <= cmd.end) {
+      stepGuard(t, t + cmd.step, iters++);
       fillParameterPoint(struct, t);
       exe.run(struct);
       const step = computeSpawnStepLike(struct, cmd.polar, cmd.color, cmd.speed);
@@ -233,6 +267,7 @@ export function execParameter(cmd: ParticleCommand & { kind: 'parameter' }, sink
         age: cmd.age, speedExpression: cmd.speedExpression, speedStep: cmd.speedStep,
         group: cmd.group,
       });
+      t += cmd.step;
     }
   }
 }
@@ -279,7 +314,10 @@ function computeSpawnStepLike(
  *  返回本 tick 是否还有 t <= end（→ 需要排队到下一 tick 初）。 */
 export function runGeneratorStep(g: TickGenerator, sink: SpawnSink): boolean {
   const data = g.struct;
-  for (let i = 0; i < g.cpt && g.t <= g.end; g.t += g.step) {
+  let iters = 0;
+  let i = 0;
+  while (i < g.cpt && g.t <= g.end) {
+    stepGuard(g.t, g.t + g.step, iters++);
     fillParameterPoint(data, g.t);
     g.exe.run(data);
     const step = computeSpawnStep(g);
@@ -294,6 +332,7 @@ export function runGeneratorStep(g: TickGenerator, sink: SpawnSink): boolean {
       age: g.age, speedExpression: g.speedExpression, speedStep: g.speedStep,
       group: g.group,
     });
+    g.t += g.step;
     i++;
   }
   return g.t <= g.end;
