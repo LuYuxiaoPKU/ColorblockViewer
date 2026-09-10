@@ -16,6 +16,7 @@
 import { useSyncExternalStore } from 'react';
 import { parseCommands } from '../command/parser';
 import { serializeAll } from '../command/serialize';
+import type { SharePayload } from '../share/encoding';
 import type {
   ParticleCommand,
   NormalCmd,
@@ -230,6 +231,16 @@ export function applyInputText(): string | null {
     set({ toasts: [...state.toasts, msg].slice(-5) });
     return msg;
   }
+}
+
+/** 分享链接还原（main.tsx 首渲染前调用）：?s= 载荷 → 命令真源 + 设置
+ *  （sim 与当前默认合并，旧链接缺新字段时降级到默认） */
+export function loadShared(p: SharePayload): void {
+  set({
+    commands: p.commands,
+    input: serializeAll(p.commands),
+    sim: { ...state.sim, ...p.sim },
+  });
 }
 
 export function setPlaying(playing: boolean): void {

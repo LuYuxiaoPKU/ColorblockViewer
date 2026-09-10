@@ -2,9 +2,28 @@
 // + HudStatus（tick / 粒子数 / 丢弃）。播放状态镜像在 store（按钮高亮），
 // rAF 热路径读 App 的 ref。
 
-import { useAppState, setPlaying, setSpeed } from '../store/appState';
+import { useAppState, setPlaying, setSpeed, getState, pushToast } from '../store/appState';
+import { encodeShare, shareUrl } from '../share/encoding';
 
 const SPEEDS = [0.125, 0.25, 0.5, 1, 2, 4, 8];
+
+/** 复制分享链接（当前命令 + 设置 → ?s=）；写剪贴板失败时回退 toast 显示原文 */
+function copyShareUrl(): void {
+  const { commands, sim } = getState();
+  const url = shareUrl(
+    encodeShare({ commands, sim }),
+    window.location.origin,
+    window.location.pathname,
+  );
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(url).then(
+      () => pushToast('分享链接已复制到剪贴板'),
+      () => pushToast('复制失败：' + url),
+    );
+  } else {
+    pushToast('分享链接：' + url);
+  }
+}
 
 interface PlaybackHandlers {
   onStep: () => void;
@@ -38,6 +57,9 @@ export function Viewport({
           单步
         </button>
         <button onClick={onReset}>↺ 回放重置</button>
+        <button onClick={copyShareUrl} title="把当前命令与设置编码进 URL，发链接即可还原">
+          🔗 复制分享链接
+        </button>
         <span className="speed-group">
           {SPEEDS.map((s) => (
             <button key={s} className={speed === s ? 'active' : ''} onClick={() => setSpeed(s)}>
