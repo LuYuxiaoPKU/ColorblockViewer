@@ -265,6 +265,20 @@ describe('M5 全流程', () => {
     // 默认命令 count=100 → HUD 「粒子 100」
     const hud = container.querySelector('.hud');
     expect(hud?.textContent).toContain('粒子 100');
+    // 未超容量 → 无截断提示
+    expect(hud?.textContent).not.toContain('渲染截断');
+  });
+
+  it('活粒子数超过缓冲容量 → HUD 显示「渲染截断」', () => {
+    // 缓冲容量在挂载时按当时 maxParticles（默认 20000）固定；运行期调高上限
+    // 不会扩容缓冲，超出部分不渲染（syncToPoints 截断）→ 需要提示
+    act(() => setSim({ maxParticles: 25000 }));
+    setValue(ta(), 'particle flame 0 2 0 0.5 0.5 0.5 0.3 10050\nparticle flame 0 2 0 0.5 0.5 0.5 0.3 10050\n');
+    click(button('应用'));
+    click(button('执行'));
+    const hud = container.querySelector('.hud');
+    expect(hud?.textContent).toContain('粒子 20100');
+    expect(hud?.textContent).toContain('渲染截断');
   });
 
   it('网格设置 → viewport.setGrid(size, visible) 随 sim 驱动', () => {
