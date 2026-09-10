@@ -14,6 +14,8 @@ export interface SnapshotSource {
     age: number;
     lifetime: number;
     vanilla: boolean;
+    nbtTint?: boolean;
+    sizeMul?: number;
   }[];
 }
 

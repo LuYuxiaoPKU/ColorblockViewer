@@ -81,7 +81,9 @@ function group(c: GroupCmd): string {
 function vanilla(c: VanillaCmd): string {
   // 槽位默认值（命令树缺省）
   const defPos = { x: { v: 0, rel: true }, y: { v: 0, rel: true }, z: { v: 0, rel: true } };
-  const parts = ['particle', fmtStr(c.name)];
+  // NBT 载荷：原样拼回（解析层已校验语法；含 `}`/空白由解析器按 SNBT 读回）
+  const nameTok = c.nbt !== null ? c.name + '{' + c.nbt + '}' : fmtStr(c.name);
+  const parts = ['particle', nameTok];
   // pos
   if (c.pos !== null) parts.push(fmtPos(c.pos));
   else if (c.delta !== null || c.speed !== null || c.count !== null || c.normal) parts.push(fmtPos(defPos));

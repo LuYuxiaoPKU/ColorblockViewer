@@ -25,6 +25,7 @@ const CMDS = [
     speed: 0.1,
     count: 50,
     normal: false,
+    nbt: null,
   },
 ];
 

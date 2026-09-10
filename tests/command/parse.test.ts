@@ -240,7 +240,9 @@ describe('serialize round-trip', () => {
     'particleex clearparticle',
     'particle flame',
     'particle dust ~ ~1 ~-2',
-    'particle dust{Red:1f,Green:0f,Blue:0f,Size:1f} 1 2 3 0.1 0.2 0.3 0 5',
+    'particle dust{color:0xFF0000,scale:1f} 1 2 3 0.1 0.2 0.3 0 5',
+    'particle dust{color:[1.0,0.0,0.0],scale:1.0f} 1 2 3',
+    'particle block{BlockState:123} 1 2 3',
     'particle flame 1 2 3 0 0 0 0.5 42',
     'particle flame ~ ~ ~ 0 0 0 0.5 42 normal',
   ];
@@ -282,7 +284,7 @@ describe('原版 /particle（MC 26.2）', () => {
 
   it('仅 name：其余槽全 null（命令树默认）', () => {
     const c = V('particle flame');
-    expect(c).toEqual({ kind: 'vanilla', name: 'flame', pos: null, delta: null, speed: null, count: null, normal: false });
+    expect(c).toEqual({ kind: 'vanilla', name: 'flame', pos: null, delta: null, speed: null, count: null, normal: false, nbt: null });
   });
 
   it('/particle 前缀 + minecraft: 命名空间', () => {
@@ -300,8 +302,43 @@ describe('原版 /particle（MC 26.2）', () => {
   });
 
   it('type{NBT}：剥离 NBT 保留类型名（含命名空间前缀）', () => {
-    expect(V('particle dust{Red:1f,Green:0f,Blue:0f,Size:1f}').name).toBe('dust');
-    expect(V('particle minecraft:block{BlockState:BlockState}').name).toBe('minecraft:block');
+    expect(V('particle dust{color:0xFF0000,scale:1f}').name).toBe('dust');
+    expect(V('particle minecraft:block{BlockState:1}').name).toBe('minecraft:block');
+  });
+
+  it('type{NBT}：dust 载荷记录到 nbt 字段（取证：1.21.11 ls.class CODEC = color/scale）', () => {
+    const c = V('particle dust{color:0x00FF00,scale:2f}');
+    expect(c.name).toBe('dust');
+    expect(c.nbt).toBe('color:0x00FF00,scale:2f');
+  });
+
+  it('type{NBT}：非 dust 类型只校验语法、记录载荷不消费', () => {
+    const c = V('particle minecraft:block{BlockState:123}');
+    expect(c.name).toBe('minecraft:block');
+    expect(c.nbt).toBe('BlockState:123');
+  });
+
+  it('dust NBT 缺 color/scale → 报错（游戏内 Can\'t parse particle options）', () => {
+    expect(() => V('particle dust{Red:1f}')).toThrow(/dust 的 NBT 需含 color 与 scale/);
+    expect(() => V('particle dust{color:0xFF0000}')).toThrow(/需含 color 与 scale/);
+  });
+
+  it('dust NBT 未知字段 → 报错（RecordCodecBuilder 严格）', () => {
+    expect(() => V('particle dust{color:0xFF0000,scale:1f,Red:1f}')).toThrow(/不应含字段 "Red"/);
+  });
+
+  it('dust NBT 值越界 → 报错', () => {
+    expect(() => V('particle dust{color:0x1FF0000,scale:1f}')).toThrow(/color 应为 0xRRGGBB/);
+    expect(() => V('particle dust{color:[1,0,0,0],scale:1f}')).toThrow(/color 列表应为 3 个/);
+    expect(() => V('particle dust{color:0xFF0000,scale:0.001f}')).toThrow(/scale 超出范围/);
+    expect(() => V('particle dust{color:0xFF0000,scale:5f}')).toThrow(/scale 超出范围/);
+  });
+
+  it('NBT 语法错误 → 报错（花括号不闭合/缺冒号/坏数值）', () => {
+    expect(() => V('particle dust{color:0xFF0000')).toThrow(/NBT 解析失败/);
+    expect(() => V('particle dust{color}')).toThrow(/缺少冒号/);
+    expect(() => V('particle dust{color:0xZZ,scale:1f}')).toThrow(/数值无效/);
+    expect(() => V('particle dust{color:{a:1},scale:1f}')).toThrow(/嵌套 NBT 暂不支持/);
   });
 
   it('delta 不接受 ~（命令树 vec3(0) 绝对坐标）', () => {

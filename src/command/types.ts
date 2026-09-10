@@ -110,6 +110,12 @@ export interface VanillaCmd {
   /** 尾部 normal 字面量（命令树 [normal] [viewers]，viewers 预览不支持；
    *  无该字面量时客户端走「force」分支，预览等价 —— 见 execVanilla 注释） */
   normal: boolean;
+  /** type{NBT} 的 NBT 载荷（null = 无；仅解析 dust 的 color/scale，
+   *  其余类型记录但不消费 —— 渲染层按类型名近似）。
+   *  取证：1.21.11 混淆版 ls.class（=DustParticleOptions）字节码
+   *  CODEC = { color: RGB_COLOR_CODEC(0xRRGGBB int 或 [r,g,b] 0-1), scale: FLOAT }，
+   *  REDSTONE = {color:0xFF0000, scale:1}；26.2 命名版同构。 */
+  nbt: string | null;
 }
 
 export type ParticleCommand = NormalCmd | ConditionalCmd | ParameterCmd | GroupCmd | ClearCmd | VanillaCmd;
