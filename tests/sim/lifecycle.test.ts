@@ -1053,3 +1053,74 @@ describe('hasLiveWork / queuedGenerators（播放自动停止判据）', () => {
     expect(e.hasLiveWork()).toBe(true);
   });
 });
+
+// ---------- type{NBT} 载荷 → 渲染消费（nbtVisuals：渲染色/大小倍数）----------
+
+describe('type{NBT} 渲染消费（nbtVisuals）', () => {
+  // 单粒子路径（count=0）：精确位置、无高斯消费
+  const v = (s2: string) => {
+    const en = eng();
+    en.runCommand(C(s2));
+    return snap(en)[0];
+  };
+
+  it('dust{color,scale}：渲染色 + 大小倍数', () => {
+    const p1 = v('particle dust{color:0x00FF00,scale:2f}');
+    expect(p1.nbtTint).toBe(true);
+    expect([p1.r, p1.g, p1.b]).toEqual([0, 1, 0]);
+    expect(p1.sizeMul).toBe(2);
+  });
+
+  it('dust 的 color 也接受 [r,g,b] 0-1 列表形式', () => {
+    const p1 = v('particle dust{color:[1,0,0.5],scale:1f}');
+    expect(p1.nbtTint).toBe(true);
+    expect([p1.r, p1.g, p1.b]).toEqual([1, 0, 0.5]);
+  });
+
+  it('entity_effect{color:ARGB}：alpha 在前，渲染色取 RGB 三分量', () => {
+    const p1 = v('particle entity_effect{color:0x80FF0000}');
+    expect(p1.nbtTint).toBe(true);
+    expect([p1.r, p1.g, p1.b]).toEqual([1, 0, 0]);
+  });
+
+  it('dust_color_transition：出生色 = from_color（age 插值不模拟），scale 消费', () => {
+    const p1 = v('particle dust_color_transition{from_color:0x0000FF,to_color:0xFF0000,scale:2f}');
+    expect(p1.nbtTint).toBe(true);
+    expect([p1.r, p1.g, p1.b]).toEqual([0, 0, 1]);
+    expect(p1.sizeMul).toBe(2);
+  });
+
+  it('effect{}（全缺省）：color 缺省 -1 = 白 —— 不消费（缺省不置 nbtTint，渲染按出生白等价）', () => {
+    const p1 = v('particle effect{}');
+    expect(p1.nbtTint).toBeFalsy();
+    expect([p1.r, p1.g, p1.b]).toEqual([1, 1, 1]);
+    expect(p1.sizeMul).toBe(1);
+  });
+
+  it('effect{color:0x00FF00}：显式 color 消费（power 缺省不消费外观）', () => {
+    const p1 = v('particle effect{color:0x00FF00}');
+    expect(p1.nbtTint).toBe(true);
+    expect([p1.r, p1.g, p1.b]).toEqual([0, 1, 0]);
+  });
+
+  it('dragon_breath/sculk_charge/shriek/geyser 系：无渲染色/大小字段 → 缺省', () => {
+    for (const cmd of [
+      'particle dragon_breath{power:2f}',
+      'particle sculk_charge{roll:0.5f}',
+      'particle shriek{delay:20}',
+      'particle geyser{water_blocks:4}',
+      'particle geyser_base{water_blocks:4,burst_impulse_base:0.1f}',
+    ]) {
+      const p1 = v(cmd);
+      expect(p1.nbtTint).toBeFalsy();
+      expect(p1.sizeMul).toBe(1);
+    }
+  });
+
+  it('非收录类型无 NBT → 白 + 1（vanilla 出生色语义）', () => {
+    const p1 = v('particle flame');
+    expect(p1.nbtTint).toBeFalsy();
+    expect(p1.sizeMul).toBe(1);
+    expect(p1.vanilla).toBe(true);
+  });
+});

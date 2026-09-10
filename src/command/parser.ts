@@ -15,6 +15,7 @@ import { tokenize, CommandParseError } from './tokens';
 import { parseVec3, parsePlain3, parseRGBA, isNum } from './coords';
 import { USAGE, USAGE_VANILLA } from './schema';
 import { parseCompound, NbtParseError, type NbtField } from '../nbt/parse';
+import { OPTION_FIELDS, checkField, fieldKindCn } from '../nbt/particleOptions';
 import type {
   ParticleCommand,
   NormalCmd,
@@ -28,13 +29,14 @@ import type {
 const INT_MAX = 2147483647;
 const DBL_MAX = Number.MAX_VALUE;
 
-/** type{NBT}：提取 NBT 载荷并校验语法 + dust 字段。
- *  取证（1.21.11 混淆版 ls.class = DustParticleOptions 字节码）：
- *  CODEC = { color: RGB_COLOR_CODEC（0xRRGGBB int 或 [r,g,b] 0-1 列表）,
- *  scale: FLOAT ∈ [0.01,4] }；REDSTONE = {color:0xFF0000, scale:1}。
- *  非法 NBT / dust 字段越界 → CommandParseError（游戏内 = particle.invalidOptions
- *  命令失败，预览同为命令失败 —— 后果一致，非「复刻崩溃」）。
- *  非 dust 类型：只校验语法（花括号/字段/数值），记录载荷不消费（渲染按类型名近似）。
+/** type{NBT}：提取 NBT 载荷并按该类型的 ParticleOptions CODEC 校验字段。
+ *  取证（26.2 命名版 client.jar 逐类 javap 字节码，1.21.11 混淆版同构）：
+ *  22 类携带载荷，其中 14 个扁平标量类型（16 个类型名）按各自 RecordCodec 校验——
+ *  缺必填字段 / 未知字段 / 字段值越界 → CommandParseError（游戏内 =
+ *  particle.invalidOptions 命令失败，预览同为命令失败，后果一致）。
+ *  嵌套 8 类（block/block_marker/block_crumble/falling_dust/dust_pillar/item/
+ *  vibration/trail）需嵌套 NBT → 统一「嵌套 NBT 暂不支持」（先于本函数触发）。
+ *  未收录类型（其余 SimpleParticleType 本就不接受 {NBT}；UI 不提示）→ 仅语法校验。
  *  @param body NBT 体（不含外层花括号）。 */
 function parseVanillaNbt(typeName: string, rawName: string, body: string): string {
   let fields: NbtField[];
@@ -50,28 +52,23 @@ function parseVanillaNbt(typeName: string, rawName: string, body: string): strin
     }
   }
   const base = typeName.replace(/^minecraft:/i, '').toLowerCase();
-  if (base === 'dust' || base === 'dust_pillar') {
-    // 两版本的 DustParticleOptions CODEC 均只有 color/scale 两字段
-    // （RecordCodecBuilder 严格：未知字段 → Can't parse particle options）
-    const keys = new Set(fields.map(f => f.key));
-    if (!keys.has('color') || !keys.has('scale')) {
-      throw new CommandParseError(`dust 的 NBT 需含 color 与 scale（取证：1.21.11 ls.class / 26.2 DustParticleOptions CODEC）：${rawName}`);
+  const schema = OPTION_FIELDS[base];
+  if (schema) {
+    const have = new Map(fields.map(f => [f.key, f]));
+    for (const sf of schema) {
+      const hf = have.get(sf.key);
+      if (!hf) {
+        if (sf.def !== undefined) continue; // 可选字段（optionalFieldOf）缺省合法
+        throw new CommandParseError(`${base} 的 NBT 缺字段 "${sf.key}"（应为${fieldKindCn(sf.kind)}）：${rawName}`);
+      }
+      const bad = checkField(sf.kind, hf.val);
+      if (bad) {
+        throw new CommandParseError(`${base} 的字段 "${sf.key}" ${bad}：${rawName}`);
+      }
     }
     for (const f of fields) {
-      if (f.key === 'color') {
-        if (Array.isArray(f.val)) {
-          if (f.val.length !== 3 || f.val.some(v => typeof v !== 'number' || v < 0 || v > 1)) {
-            throw new CommandParseError(`dust 的 color 列表应为 3 个 0-1 的数：${rawName}`);
-          }
-        } else if (typeof f.val !== 'number' || f.val < 0 || f.val > 0xffffff || !Number.isInteger(f.val)) {
-          throw new CommandParseError(`dust 的 color 应为 0xRRGGBB 整数（0-16777215）：${rawName}`);
-        }
-      } else if (f.key === 'scale') {
-        if (typeof f.val === 'number' && (f.val < 0.01 || f.val > 4)) {
-          throw new CommandParseError(`dust 的 scale 超出范围 [0.01, 4]：${rawName}`);
-        }
-      } else {
-        throw new CommandParseError(`dust 的 NBT 不应含字段 "${f.key}"（仅支持 color/scale）：${rawName}`);
+      if (!schema.some(sf => sf.key === f.key)) {
+        throw new CommandParseError(`${base} 的 NBT 不应含字段 "${f.key}"：${rawName}`);
       }
     }
   }
