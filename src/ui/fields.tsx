@@ -171,12 +171,15 @@ export function TextField({
   onChange,
   placeholder,
   list,
+  badge,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   list?: string[];
+  /** 字段行尾角标（如保真度 ✅/⚠️/❌）；title 悬停说明 */
+  badge?: { text: string; title: string };
 }) {
   // id 只保留字母数字/-/_（label 里的（）{}|. 等 CSS 选择器特殊字符会破坏
   // `input.list` 的 #id 解析——真实浏览器走 getElementById 无碍，但 happy-dom 用
@@ -184,7 +187,10 @@ export function TextField({
   const id = 'dl-' + label.replace(/[^\p{L}\p{N}_-]/gu, '-');
   return (
     <label className="numfield textfield">
-      <span className="numfield-label">{label}</span>
+      <span className="numfield-label">
+        {label}
+        {badge ? <span className="field-badge" title={badge.title}>{badge.text}</span> : null}
+      </span>
       <input
         value={value}
         list={list ? id : undefined}

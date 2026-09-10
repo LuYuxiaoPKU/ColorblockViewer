@@ -230,6 +230,34 @@ describe('M5 全流程', () => {
     expect(button('+ 添加 delta')).toBeTruthy();
   });
 
+  it('vanilla 表单：粒子类型名行尾保真度角标（✅ 已核对 / ⚠️ 近似 / ❌ 未收录）', () => {
+    act(() => {
+      setCommand(0, { ...structuredClone(DEFAULT_VANILLA), name: 'end_rod' });
+    });
+    const badge = () => container.querySelector('.field-badge')?.textContent ?? '';
+    expect(badge()).toContain('已核对'); // 26.2 运动学表内
+    act(() => {
+      setCommand(0, { ...structuredClone(DEFAULT_VANILLA), name: 'dust' });
+    });
+    expect(badge()).toContain('近似'); // 注册表内但运动学未逐条核对（按类型名近似）
+    act(() => {
+      setCommand(0, { ...structuredClone(DEFAULT_VANILLA), name: 'no_such_type' });
+    });
+    expect(badge()).toContain('未收录');
+    // 切到 1.21.11：end_rod 仍是唯一表内类型（§10 证据边界）；smoke 在 26.2
+    // 表内但 1.21.11 分区无表项 → 近似（版本分区生效）
+    act(() => setSim({ mcVersion: '1.21.11' }));
+    act(() => {
+      setCommand(0, { ...structuredClone(DEFAULT_VANILLA), name: 'end_rod' });
+    });
+    expect(badge()).toContain('已核对');
+    act(() => {
+      setCommand(0, { ...structuredClone(DEFAULT_VANILLA), name: 'smoke' });
+    });
+    expect(badge()).toContain('近似');
+    act(() => setSim({ mcVersion: '26.2' }));
+  });
+
   it('vanilla 表单：游戏版本切换 → 粒子名下拉与标签按版本分区', () => {
     act(() => {
       setCommand(0, { ...structuredClone(DEFAULT_VANILLA), name: 'smoke' });

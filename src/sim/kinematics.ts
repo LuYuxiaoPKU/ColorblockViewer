@@ -239,3 +239,25 @@ export function nativeSpecFor(name: string, version = '26.2'): NativeKinematics 
 export function nativeLifetimeFor(name: string, version = '26.2'): NativeLifetimeFormula | null {
   return NATIVE_LIFETIME[version]?.[normKey(name)] ?? null;
 }
+
+// ---------- 保真度分级（UI「护城河可视化」：让用户看见哪些类型是字节码核对、
+//  哪些是近似）——判定规则与 §10 证据边界一致 ----------
+
+export type Fidelity = 'full' | 'approx' | 'unknown';
+
+/** 保真度标签：✅ = 该类型在运动学表内（逐类型摩擦/重力/运动模式/初速有
+ *  字节码证据）；⚠️ = 近似（注册表内但运动学未逐条核对——含仅寿命公式核对
+ *  的类型与按类型名近似的 NBT 类型）；❌ = 不在该版本注册表。
+ *  保守口径，宁低勿高：未收录证据的类型一律不标 ✅。 */
+export function fidelityFor(
+  rawName: string,
+  version = '26.2',
+  types: string[] = [],
+): Fidelity {
+  const base = rawName.replace(/\{.*$/, ''); // type{NBT}：NBT 载荷不参与分级
+  const key = normKey(base);
+  if (types.length > 0 && !types.includes(key)) return 'unknown';
+  if (nativeSpecFor(key, version)) return 'full';
+  return 'approx';
+}
+
