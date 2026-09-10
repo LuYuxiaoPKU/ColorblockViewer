@@ -42,6 +42,12 @@ export interface SimParticle {
   lifetime: number;
   /** 由原版 /particle 命令生成（渲染层：出生色恒为白，原版语义） */
   vanilla: boolean;
+  /** type{NBT} 已解析出渲染色（dust 的 color）：true 时渲染层不强制出生色为白，
+   *  直接用 r/g/b（= NBT 色）。取证：DustParticle 构造器把 options.getColor()
+   *  写入 rCol/gCol/bCol（非 SimpleParticle 的白）。 */
+  nbtTint?: boolean;
+  /** 点大小倍数（dust 的 scale，默认 1；原版 quadSize = 0.75·scale，预览按相对倍数） */
+  sizeMul?: number;
   /** 命令位置 = 中心 */
   cx: number; cy: number; cz: number;
   /** 速度表达式（customMove 路径） */

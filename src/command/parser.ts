@@ -14,6 +14,7 @@
 import { tokenize, CommandParseError } from './tokens';
 import { parseVec3, parsePlain3, parseRGBA, isNum } from './coords';
 import { USAGE, USAGE_VANILLA } from './schema';
+import { parseCompound, NbtParseError, type NbtField } from '../nbt/parse';
 import type {
   ParticleCommand,
   NormalCmd,
@@ -26,6 +27,68 @@ import type {
 
 const INT_MAX = 2147483647;
 const DBL_MAX = Number.MAX_VALUE;
+
+/** type{NBT}：提取 NBT 载荷并校验语法 + dust 字段。
+ *  取证（1.21.11 混淆版 ls.class = DustParticleOptions 字节码）：
+ *  CODEC = { color: RGB_COLOR_CODEC（0xRRGGBB int 或 [r,g,b] 0-1 列表）,
+ *  scale: FLOAT ∈ [0.01,4] }；REDSTONE = {color:0xFF0000, scale:1}。
+ *  非法 NBT / dust 字段越界 → CommandParseError（游戏内 = particle.invalidOptions
+ *  命令失败，预览同为命令失败 —— 后果一致，非「复刻崩溃」）。
+ *  非 dust 类型：只校验语法（花括号/字段/数值），记录载荷不消费（渲染按类型名近似）。
+ *  @param body NBT 体（不含外层花括号）。 */
+function parseVanillaNbt(typeName: string, rawName: string, body: string): string {
+  let fields: NbtField[];
+  try {
+    fields = parseCompound(body);
+  } catch (e) {
+    if (e instanceof NbtParseError) throw new CommandParseError(`NBT 解析失败：${e.message}。原文：${rawName}`);
+    throw e;
+  }
+  for (const f of fields) {
+    if (typeof f.val === 'object' && !Array.isArray(f.val)) {
+      throw new CommandParseError(`NBT 解析失败：嵌套 NBT 暂不支持。原文：${rawName}`);
+    }
+  }
+  const base = typeName.replace(/^minecraft:/i, '').toLowerCase();
+  if (base === 'dust' || base === 'dust_pillar') {
+    // 两版本的 DustParticleOptions CODEC 均只有 color/scale 两字段
+    // （RecordCodecBuilder 严格：未知字段 → Can't parse particle options）
+    const keys = new Set(fields.map(f => f.key));
+    if (!keys.has('color') || !keys.has('scale')) {
+      throw new CommandParseError(`dust 的 NBT 需含 color 与 scale（取证：1.21.11 ls.class / 26.2 DustParticleOptions CODEC）：${rawName}`);
+    }
+    for (const f of fields) {
+      if (f.key === 'color') {
+        if (Array.isArray(f.val)) {
+          if (f.val.length !== 3 || f.val.some(v => typeof v !== 'number' || v < 0 || v > 1)) {
+            throw new CommandParseError(`dust 的 color 列表应为 3 个 0-1 的数：${rawName}`);
+          }
+        } else if (typeof f.val !== 'number' || f.val < 0 || f.val > 0xffffff || !Number.isInteger(f.val)) {
+          throw new CommandParseError(`dust 的 color 应为 0xRRGGBB 整数（0-16777215）：${rawName}`);
+        }
+      } else if (f.key === 'scale') {
+        if (typeof f.val === 'number' && (f.val < 0.01 || f.val > 4)) {
+          throw new CommandParseError(`dust 的 scale 超出范围 [0.01, 4]：${rawName}`);
+        }
+      } else {
+        throw new CommandParseError(`dust 的 NBT 不应含字段 "${f.key}"（仅支持 color/scale）：${rawName}`);
+      }
+    }
+  }
+  return body;
+}
+
+/** 从 name token 提取 NBT 体（剥外层花括号）。
+ *  命令分词（readUnquotedString）已保证 token 内无空白；token 以 `{` 开头
+ *  （type{NBT} 文法），必须恰以配对的 `}` 结尾 —— 否则未闭合（游戏内
+ *  TagParser 语法错 / 尾随数据错，预览报「未闭合」）。 */
+function extractNbtBody(rawName: string, brace: number): string {
+  const rest = rawName.slice(brace + 1);
+  if (!rest.endsWith('}')) {
+    throw new CommandParseError(`NBT 解析失败：未闭合（缺 }）。原文：${rawName}`);
+  }
+  return rest.slice(0, -1);
+}
 
 class Cur {
   i = 0;
@@ -200,19 +263,20 @@ function parseGroup(toks: string[]): GroupCmd {
 /** 原版 /particle（MC 26.2，ParticleCommand.register 命令树）：
  *  <name> [pos] [delta] [speed] [count] [normal]。
  *  槽位链前缀封闭；pos 支持 ~（vec3()），delta 不支持 ~（vec3(0)）。
- *  name 支持 type{NBT}（NBT 载荷不解析，剥 `{` 之后保留类型名 —— 渲染层按
- *  类型名取帧表；dust/block/item 等 NBT 决定外观的类型按类型名近似）。
+ *  name 支持 type{NBT}：类型名 = `{` 前部分；NBT 载荷按 SNBT 解析并记录
+ *  （dust 的 color/scale 渲染层消费，其余类型按类型名近似 —— 见 parseVanillaNbt）。
  *  尾部 force / viewers 槽位预览无意义（无多人分发、无观察者概念）→ 拒绝并
  *  提示改用 normal；未知尾部 → 参数过多。 */
 function parseVanilla(toks: string[]): VanillaCmd {
   const c = new Cur(toks, USAGE_VANILLA);
   const rawName = c.tok('name');
-  // type{NBT}：剥 NBT 载荷（类型名不含 `{`；未闭合 `{` 同样截断，游戏内该
-  // 命令会因 NBT 解析失败报错，预览按类型名近似展示）
-  const name = rawName.replace(/\{.*$/, '');
+  // type{NBT}：类型名 = `{` 前部分；NBT 载荷校验语法 + dust 字段（见 parseVanillaNbt）
+  const brace = rawName.indexOf('{');
+  const name = brace < 0 ? rawName : rawName.slice(0, brace);
   if (name === '') {
     throw new CommandParseError(`粒子名不能为空：${rawName}。用法：${USAGE_VANILLA}`);
   }
+  const nbt = brace < 0 ? null : parseVanillaNbt(name, rawName, extractNbtBody(rawName, brace));
   let pos: VanillaCmd['pos'] = null;
   let delta: VanillaCmd['delta'] = null;
   let speed: number | null = null;
@@ -243,7 +307,7 @@ function parseVanilla(toks: string[]): VanillaCmd {
       `参数过多（从 "${tail}" 开始）。用法：${USAGE_VANILLA}`,
     );
   }
-  return { kind: 'vanilla', name, pos, delta, speed, count, normal };
+  return { kind: 'vanilla', name, pos, delta, speed, count, normal, nbt };
 }
 
 // 单行命令（可选前缀 /particleex）→ 结构；不识别 → CommandParseError

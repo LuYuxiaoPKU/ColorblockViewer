@@ -212,6 +212,9 @@ export class SimEngine {
       exeStruct,
       alive: true,
       vanilla: req.vanilla === true,
+      // type{NBT} 渲染色/大小（dust 的 color/scale；缺省 = 白 + 1，不进对象字面量）
+      ...(req.nbtTint ? { nbtTint: true } : {}),
+      ...(req.sizeMul !== undefined ? { sizeMul: req.sizeMul } : {}),
     };
     p.lifetime = this.resolveLifetime(req.age, req.name);
     // campfire 出生初速：构造器里 yd = cmdVy + 500.0f/F（FLOAT 除法；F = 寿命

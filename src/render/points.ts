@@ -423,6 +423,10 @@ export interface RenderParticle {
   lifetime: number;
   /** 是否由原版 /particle 命令生成（原版粒子出生色恒为白） */
   vanilla: boolean;
+  /** type{NBT} 已解析出渲染色（dust 的 color）：true 时不强制出生色为白 */
+  nbtTint?: boolean;
+  /** 点大小倍数（dust 的 scale，默认 1） */
+  sizeMul?: number;
 }
 
 /** 把快照前缀全量写入缓冲。返回写入数（= setDrawRange 的 count）。
@@ -456,7 +460,9 @@ export function syncToPoints(
     if (multi) {
       // 原版 SimpleAnimatedParticle：初始色 = 出生渲染色（原版粒子恒白；
       // 模组粒子出生时已把命令色写进 renderColor → 起点即命令色）
-      if (p.vanilla) {
+      // 例外：dust 的 NBT color 直接写入 rCol/gCol/bCol（DustParticle 构造器）
+      // → nbtTint 时不强制白（取证：26.2 字节码）
+      if (p.vanilla && !p.nbtTint) {
         r = 1;
         g = 1;
         b = 1;
@@ -483,7 +489,7 @@ export function syncToPoints(
     color[i4 + 1] = hg;
     color[i4 + 2] = hb;
     color[i4 + 3] = alpha * tw.alpha * alphaMul;
-    size[i] = BASE_SIZE * tw.size * sizeMul;
+    size[i] = BASE_SIZE * tw.size * sizeMul * (p.sizeMul ?? 1);
     // 帧 UV：有帧表的类型取帧格左上角（多帧按寿命进度 ageFrame；单帧恒第 0 帧）；
     // 无帧表 → (0,0)（着色器走圆点分支时忽略；图集未加载时 uHasAtlas=0 同样忽略）
     if (frames && frames.length > 0) {

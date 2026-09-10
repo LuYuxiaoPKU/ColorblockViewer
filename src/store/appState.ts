@@ -129,6 +129,7 @@ export const DEFAULT_VANILLA: VanillaCmd = {
   speed: null,
   count: null,
   normal: false,
+  nbt: null,
 };
 
 // parameter 变体名 ↔ (polar, tick, rgba)

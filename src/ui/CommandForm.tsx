@@ -198,7 +198,7 @@ function VanillaForm({ cmd, i }: { cmd: VanillaCmd; i: number }) {
         value={cmd.name}
         list={typeList}
         badge={vanillaFidelityBadge(cmd.name, sim.mcVersion)}
-        placeholder="flame / dust{Red:1f,Green:0f,Blue:0f,Size:1f}"
+        placeholder="flame / dust{color:0xFF0000,scale:1f}"
         onChange={(v) => up({ name: v })}
       />
       {cmd.pos ? (
