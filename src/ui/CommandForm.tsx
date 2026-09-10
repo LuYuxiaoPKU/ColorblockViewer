@@ -24,6 +24,7 @@ import {
 import { ExprField } from './ExprField';
 import { NumField, Vec3Field, Vec3PlainField, RgbaField, TextField } from './fields';
 import { particleVersionData } from '../render/points';
+import { fidelityFor, type Fidelity } from '../sim/kinematics';
 
 // 粒子名建议（渲染层 TWEAKS 覆盖的类型；MC 的 ParticleArgument 允许任意注册名，
 // 输入框不强制枚举）
@@ -32,6 +33,22 @@ const PARTICLE_SUGGESTIONS = [
   'sparkle', 'crit', 'crimson_spore', 'dandelion', 'bubble', 'wax_on',
 ];
 
+// 保真度角标（「护城河可视化」：让用户看见哪些类型的原版行为是字节码核对）：
+// ✅ = 逐类型字节码核对；⚠️ = 近似（寿命/动画通用行为或按类型名近似）；
+// ❌ = 不在该版本注册表。仅 vanilla /particle 命令显示（模组命令的引擎语义
+// 本身就是 1:1 移植，无此梯度）。
+const FIDELITY_BADGE: Record<Fidelity, { text: string; title: string }> = {
+  full: { text: '✅ 已核对', title: '该类型的原版运动学/寿命已逐条字节码核对' },
+  approx: { text: '⚠️ 近似', title: '部分核对（寿命公式/通用动画）或按类型名近似，详见技术路线 §7/§10' },
+  unknown: { text: '❌ 未收录', title: '不在该版本注册表，按未知类型处理' },
+};
+
+function vanillaFidelityBadge(name: string, version: string) {
+  const base = name.replace(/\{.*$/, ''); // type{NBT} 的 NBT 载荷不参与保真度分级
+  if (base === '') return undefined;
+  const types = particleVersionData(version)?.types ?? [];
+  return FIDELITY_BADGE[fidelityFor(base, version, types)];
+}
 // 可选尾部（normal/conditional/parameter 共有）：age / 速度表达式 / speedStep / group
 type Tail = { age: number; speedExpression: string | null; speedStep: number; group: string | null };
 
@@ -180,6 +197,7 @@ function VanillaForm({ cmd, i }: { cmd: VanillaCmd; i: number }) {
         label={`粒子类型名（${sim.mcVersion} 注册表，支持 type{NBT}）`}
         value={cmd.name}
         list={typeList}
+        badge={vanillaFidelityBadge(cmd.name, sim.mcVersion)}
         placeholder="flame / dust{Red:1f,Green:0f,Blue:0f,Size:1f}"
         onChange={(v) => up({ name: v })}
       />

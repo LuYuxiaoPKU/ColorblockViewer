@@ -278,6 +278,13 @@ button.small {
   color: var(--muted);
 }
 
+/* 保真度角标（vanilla 粒子类型名行尾）：✅ 字节码核对 / ⚠️ 近似 / ❌ 未收录 */
+.field-badge {
+  margin-left: 6px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
 .numfield input,
 .numfield select {
   font: inherit;
