@@ -8,8 +8,7 @@
 import { ExprError } from './types';
 import {
   Mat, matAddS, matSubS, matMulS, matDivS, matModS, matPowM,
-  matAddM, matSubM, matMulM, matNeg, toNumber, scalarMat, matToD, matToI,
-  iadd, isub, imul, intDiv, intMod, dmod, d2i,
+  matAddM, matSubM, matMulM, toNumber, scalarMat, matToD, matToI, d2i,
 } from './matrix';
 
 export type V = number | Mat;
@@ -64,58 +63,6 @@ function isMat(v: V): v is Mat {
 // 7→10 = d2i 饱和，与 Java 对 int/double 值的 (int) 窄化一致）；Mat 按 13。
 function coerceByValue(v: V, target: number): V {
   return typeof v === 'number' ? coerce(7, v, target) : coerce(13, v, target);
-}
-
-// 标量 int 域运算（Java iadd/...；|0 即 32 位回绕）
-export function opScalar(op: string, a: number, b: number, dom: 10 | 7): number {
-  if (dom === 10) {
-    switch (op) {
-      case '+': return iadd(a, b);
-      case '-': return isub(a, b);
-      case '*': return imul(a, b);
-      case '/': return intDiv(a, b);
-      case '%': return intMod(a, b);
-      case '^': return Math.pow(a, b); // int^int → Java double（闭包端按 rt 7 用）
-      case '<': return a < b ? 1 : 0;
-      case '<=': return a <= b ? 1 : 0;
-      case '>': return a > b ? 1 : 0;
-      case '>=': return a >= b ? 1 : 0;
-      case '==': return a === b ? 1 : 0;
-      case '!=': return a !== b ? 1 : 0;
-    }
-  }
-  // double 域：比较遵循 JVM dcmpl/dcmpg 语义 —— 排序比较遇 NaN 恒为 1；
-  // NaN==NaN 为 0，NaN!=NaN 为 1
-  const nan = isNaN(a) || isNaN(b);
-  switch (op) {
-    case '+': return a + b;
-    case '-': return a - b;
-    case '*': return a * b;
-    case '/': return a / b;
-    case '%': return dmod(a, b);
-    case '^': return Math.pow(a, b);
-    case '<': return nan ? 1 : (a < b ? 1 : 0);
-    case '<=': return nan ? 1 : (a <= b ? 1 : 0);
-    case '>': return nan ? 1 : (a > b ? 1 : 0);
-    case '>=': return nan ? 1 : (a >= b ? 1 : 0);
-    case '==': return nan ? 0 : (a === b ? 1 : 0);
-    case '!=': return nan ? 1 : (a !== b ? 1 : 0);
-  }
-  throw new ExprError('bad operator: ' + op);
-}
-
-// 标量一元（int 域）
-export function opUn(op: string, v: number): number {
-  if (op === 'NEG') return isub(0, v);
-  return v === 0 ? 1 : 0; // NOT
-}
-
-// 一元 double/矩阵 分支（NEG：-v / matNeg）
-export function opUnD(op: string, v: V): V {
-  if (op === 'NEG') return isMat(v) ? matNeg(v) : -(v as number);
-  // NOT：仅标量合法（double 域 v==0?1.0:0.0）；矩阵 → "bad type"
-  if (isMat(v)) throw new ExprError('bad type');
-  return (v as number) === 0 ? 1 : 0;
 }
 
 // 矩阵 矩阵 / 矩阵 标量 运算（op ∈ + - * / % ^）
