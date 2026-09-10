@@ -3,13 +3,20 @@
 // 行号：节点 line 取 Java 对应 token 的行（binop 取操作符行；call 取 LPAREN 行）。
 
 import { Lexer, Token } from './lexer';
-import { ExprError, TypeTag } from './types';
+import { ExprError, ParseDepthError, TypeTag } from './types';
 import { Node, binReturnType } from './ast';
 import {
   Mat, matAddS, matSubS, matMulS, matDivS, matModS, matPowM,
   matAddM, matSubM, matMulM,
   iadd, isub, imul, intDiv, intMod, dmod,
 } from './matrix';
+
+// 括号深度上限（运行时防护，非 1:1 后果）：每层括号触发一轮
+// snapshot/recovery 回溯，深嵌套指数爆炸（Java 原版同样挂死，见
+// ParseDepthError 注释）。实测 12 外包层 ~65ms、16 层 ~0.7s、20 层挂死；
+// 上限 = 12 外包层（含最内层共 13 个同时开启的括号）= 允许原版耗时上界
+// ~65ms 的输入（用户拍板「运行时防护 + 显式提示」，语义层 1:1 不变）。
+const MAX_PAREN_DEPTH = 13;
 
 // Java (int)(double) 窄化（饱和）——用于解析期真值判断
 function javaIntCast(v: number): number {
@@ -28,6 +35,8 @@ function intPow(l: number, r: number): number {
 
 export class Parser {
   private lx: Lexer;
+  /** 当前括号嵌套深度（运行时防护计数，见 MAX_PAREN_DEPTH） */
+  private parenDepth = 0;
 
   constructor(lexer: Lexer) {
     this.lx = lexer;
@@ -45,6 +54,7 @@ export class Parser {
   // parseAssignOrFunctionCallExp：先试赋值，失败回退到 括号/函数/标识符。
   // recovery() 完整回滚（ptr+line+peek，与 Java 一致）；已消费的 token 在回滚后
   // 会被重新解析，最终失败形态由外层重试决定（与 Java 逐字节一致）。
+  // parenDepth 由 parseParenExp 自管理（try/finally），回滚重试不泄漏深度。
   private parseAssignOrFunctionCall(): Node {
     try {
       this.lx.snapshot();
@@ -134,6 +144,21 @@ export class Parser {
   // parseParenExp：矩阵/名字矩阵/1×1 退化
   private parseParenExp(): Node {
     const line = this.lx.nextToken('LPAREN').line;
+    // 上限检查在自增之前：超限抛错不泄漏计数（回滚重试路径依赖干净计数）
+    if (this.parenDepth + 1 > MAX_PAREN_DEPTH) {
+      throw new ParseDepthError(this.parenDepth + 1);
+    }
+    this.parenDepth++;
+    try {
+      return this.parseParenBody(line);
+    } finally {
+      // 错误路径也须还原：1:1 的 recovery 回滚重试会再次进入 parseParenExp，
+      // 深度泄漏会让后续合法浅层表达式被误判过深
+      this.parenDepth--;
+    }
+  }
+
+  private parseParenBody(line: number): Node {
     const exps: Node[][] = [];
     let expRow = this.parseExps();
     exps.push(expRow);
