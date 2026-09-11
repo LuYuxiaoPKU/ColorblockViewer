@@ -15,7 +15,7 @@ import { tokenize, CommandParseError } from './tokens';
 import { parseVec3, parsePlain3, parseRGBA, isNum } from './coords';
 import { USAGE, USAGE_VANILLA } from './schema';
 import { parseCompound, NbtParseError, type NbtField } from '../nbt/parse';
-import { OPTION_FIELDS, checkField, fieldKindCn } from '../nbt/particleOptions';
+import { OPTION_FIELDS, NESTED_OPTION_FIELDS, checkField, checkNestedField, fieldKindCn, NESTED_KIND_CN } from '../nbt/particleOptions';
 import type {
   ParticleCommand,
   NormalCmd,
@@ -31,12 +31,16 @@ const DBL_MAX = Number.MAX_VALUE;
 
 /** type{NBT}：提取 NBT 载荷并按该类型的 ParticleOptions CODEC 校验字段。
  *  取证（26.2 命名版 client.jar 逐类 javap 字节码，1.21.11 混淆版同构）：
- *  22 类携带载荷，其中 14 个扁平标量类型（16 个类型名）按各自 RecordCodec 校验——
+ *  22 类携带载荷，其中 14 个扁平标量类型（16 个类型名）按各自 RecordCodec 校验，
+ *  嵌套 8 类（block/block_marker/block_crumble/falling_dust/dust_pillar/item/
+ *  vibration/trail）按 NESTED_OPTION_FIELDS 逐字段校验（含嵌套 codec——
+ *  BlockState/ItemStackTemplate/Vec3/PositionSource，语义见 nbt/particleOptions.ts
+ *  头注：注册表名/属性值域无注册表 → 近似放行并文档化）。
  *  缺必填字段 / 未知字段 / 字段值越界 → CommandParseError（游戏内 =
  *  particle.invalidOptions 命令失败，预览同为命令失败，后果一致）。
- *  嵌套 8 类（block/block_marker/block_crumble/falling_dust/dust_pillar/item/
- *  vibration/trail）需嵌套 NBT → 统一「嵌套 NBT 暂不支持」（先于本函数触发）。
- *  未收录类型（其余 SimpleParticleType 本就不接受 {NBT}；UI 不提示）→ 仅语法校验。
+ *  未收录类型（其余 SimpleParticleType 本就不接受 {NBT}；UI 不提示）→ 仅语法
+ *  校验（含「嵌套 NBT 暂不支持」——游戏内 Unit codec 会拒绝任何 NBT，预览对
+ *  未收录类型不模拟该拒绝，见 schema 注释）。
  *  @param body NBT 体（不含外层花括号）。 */
 function parseVanillaNbt(typeName: string, rawName: string, body: string): string {
   let fields: NbtField[];
@@ -46,12 +50,32 @@ function parseVanillaNbt(typeName: string, rawName: string, body: string): strin
     if (e instanceof NbtParseError) throw new CommandParseError(`NBT 解析失败：${e.message}。原文：${rawName}`);
     throw e;
   }
+  const base = typeName.replace(/^minecraft:/i, '').toLowerCase();
+  const nested = NESTED_OPTION_FIELDS[base];
+  if (nested) {
+    const have = new Map(fields.map(f => [f.key, f]));
+    for (const sf of nested) {
+      const hf = have.get(sf.key);
+      if (!hf) {
+        throw new CommandParseError(`${base} 的 NBT 缺字段 "${sf.key}"（应为${NESTED_KIND_CN[sf.kind]}）：${rawName}`);
+      }
+      const bad = checkNestedField(sf.kind, hf.val);
+      if (bad) {
+        throw new CommandParseError(`${base} 的字段 "${sf.key}" ${bad}：${rawName}`);
+      }
+    }
+    for (const f of fields) {
+      if (!nested.some(sf => sf.key === f.key)) {
+        throw new CommandParseError(`${base} 的 NBT 不应含字段 "${f.key}"：${rawName}`);
+      }
+    }
+    return body;
+  }
   for (const f of fields) {
     if (typeof f.val === 'object' && !Array.isArray(f.val)) {
       throw new CommandParseError(`NBT 解析失败：嵌套 NBT 暂不支持。原文：${rawName}`);
     }
   }
-  const base = typeName.replace(/^minecraft:/i, '').toLowerCase();
   const schema = OPTION_FIELDS[base];
   if (schema) {
     const have = new Map(fields.map(f => [f.key, f]));

@@ -1240,3 +1240,168 @@ describe('type{NBT} 渲染消费（nbtVisuals）', () => {
     expect(p1.vanilla).toBe(true);
   });
 });
+
+describe('trail{NBT} 消费：lerp 回位 + duration 寿命 + stop 回滚（26.2 javap）', () => {
+  const TR = 'particle trail{target:[10,0,0],color:0xFF0000,duration:100} 0 0 0 1 1 1 0 0';
+
+  it('出生：stop=true（零速）、渲染色 = color（0xFF0000 → 红）、lifetime = duration', () => {
+    const e = eng({ nativeKinematics: true });
+    e.runCommand(C(TR));
+    const p = snap(e)[0];
+    expect(p.stop).toBe(true);
+    expect(p.nbtTint).toBe(true);
+    expect([p.r, p.g, p.b]).toEqual([1, 0, 0]);
+    expect(p.lifetime).toBe(100);
+    expect(p.trailTarget).toEqual({ x: 10, y: 0, z: 0 });
+  });
+
+  it('vanilla 路径 stop=true：lerp 位移被模组回滚 → 位置钉在出生点，age 照常递增', () => {
+    const e = eng({ nativeKinematics: true });
+    e.runCommand(C(TR));
+    for (let i = 0; i < 5; i++) e.tickOnce();
+    const p = snap(e)[0];
+    expect(p.age).toBe(5);
+    expect([p.x, p.y, p.z]).toEqual([0, 0, 0]);
+  });
+
+  it('stop=false：每 tick lerp 回位（target 绝对坐标，余量 1/(lifetime−age)）', () => {
+    const e = eng({ nativeKinematics: true });
+    e.runCommand(C(TR));
+    const p0 = snap(e)[0];
+    expect(p0.lifetime).toBe(100);
+    p0.stop = false; // snapshot 活引用：模拟模组参数模式 setStop(false)
+    // 手工模拟 TrailParticle.tick（逐字节码 double 顺序）对照：
+    // Mth.lerp(delta,start,end) 字节码 = start + (end−start)·delta
+    let x = 0, y = 0, z = 0;
+    const lt = 100;
+    for (let a = 1; a <= 3; a++) {
+      const f2 = 1 / (lt - a);
+      x = x + (10 - x) * f2;
+      y = y + (0 - y) * f2;
+      z = z + (0 - z) * f2;
+      e.tickOnce();
+    }
+    const p3 = snap(e)[0];
+    expect(p3.x).toBeCloseTo(x, 12);
+    expect(p3.y).toBeCloseTo(y, 12);
+    expect(p3.z).toBeCloseTo(z, 12);
+    // 逐 tick 逼近 target（x 从 0 向 10 收敛、单调）
+    expect(p3.x).toBeGreaterThan(0);
+    expect(p3.x).toBeLessThan(10);
+  });
+
+  it('duration 优先级：命令 age=0 时 duration 覆写寿命（构造器公式不消费）', () => {
+    const e = eng({ seed: 42, nativeKinematics: true });
+    e.runCommand(C(TR));
+    expect(snap(e)[0].lifetime).toBe(100); // ≠ defaultLifetime(20)、≠ 任何公式值
+    // 寿命到期死亡
+    for (let i = 0; i < 100; i++) e.tickOnce();
+    expect(e.aliveCount).toBe(0);
+  });
+
+  it('nativeKinematics 关闭：trail 零速仍静止（stop 路径无运动学参与）', () => {
+    const e = eng({ nativeKinematics: false });
+    e.runCommand(C(TR));
+    for (let i = 0; i < 3; i++) e.tickOnce();
+    expect(snap(e)[0].x).toBe(0);
+  });
+});
+
+describe('原版运动学：trail 轨迹逐位 golden（26.2 字节码；JDK21 ProbeTrail 实测）', () => {
+  // 逐位精确对拍（doubleToRawLongBits 十六进制）。抓镜像公式类 bug：
+  // target+(x−target)·f2 与 x+(target−x)·f2 前几 tick 位置完全不同
+  // （spawn 0/target 10：正向 0→1.111→2.222 vs 镜像 0→9.889→9.999）。
+  // golden = ProbeTrail.java（JDK 21）：f2 = 1.0d/(lifetime−age)（i2d+ddiv），
+  // x = Mth.lerp(f2, x, target.x)（= x + (target−x)·f2），y/z 同，tick 不调 super。
+  // 覆盖：正向/反向/双向、整数与分数 target、L=2（首 tick f2=1 直接落点）。
+  const buf = new ArrayBuffer(8);
+  const dv = new DataView(buf);
+  const hex = (d: number) => {
+    dv.setFloat64(0, d);
+    // 对齐 Java Long.toHexString（无前导零、大写）
+    return dv.getBigUint64(0).toString(16).toUpperCase();
+  };
+  type Case = {
+    cmd: string;
+    lt: number; // lifetime = duration
+    // 每行 = 一次 tick（tick 1..N）后的 (x,y,z) 十六进制
+    gold: [string, string, string][];
+  };
+  const cases: Case[] = [
+    // A: spawn 0, target 10, L=10
+    {
+      cmd: 'particle trail{target:[10,0,0],color:0xFF0000,duration:10} 0 0 0 0 0 0 0 0',
+      lt: 10,
+      gold: [
+        ['3FF1C71C71C71C72', '0', '0'],
+        ['4001C71C71C71C72', '0', '0'],
+        ['400AAAAAAAAAAAAA', '0', '0'],
+        ['4011C71C71C71C72', '0', '0'],
+        ['401638E38E38E38E', '0', '0'],
+        ['401AAAAAAAAAAAAA', '0', '0'],
+        ['401F1C71C71C71C6', '0', '0'],
+        ['4021C71C71C71C72', '0', '0'],
+        ['4024000000000000', '0', '0'],
+      ],
+    },
+    // B: spawn 0, target 0.5, L=7
+    {
+      cmd: 'particle trail{target:[0.5,0,0],color:0xFF0000,duration:7} 0 0 0 0 0 0 0 0',
+      lt: 7,
+      gold: [
+        ['3FB5555555555555', '0', '0'],
+        ['3FC5555555555556', '0', '0'],
+        ['3FD0000000000000', '0', '0'],
+        ['3FD5555555555555', '0', '0'],
+        ['3FDAAAAAAAAAAAAA', '0', '0'],
+        ['3FE0000000000000', '0', '0'],
+      ],
+    },
+    // C: spawn (1,0,0), target −2.25, L=5（反向 + 分数）
+    {
+      cmd: 'particle trail{target:[-2.25,0,0],color:0xFF0000,duration:5} 1 0 0 0 0 0 0 0',
+      lt: 5,
+      gold: [
+        ['3FC8000000000000', '0', '0'],
+        ['BFE4000000000000', '0', '0'],
+        ['BFF7000000000000', '0', '0'],
+        ['C002000000000000', '0', '0'],
+      ],
+    },
+    // D: 双向 + 非零 spawn（1,2,3）→ (−4.5,8.25,0.5), L=6
+    {
+      cmd: 'particle trail{target:[-4.5,8.25,0.5],color:0xFF0000,duration:6} 1 2 3 0 0 0 0 0',
+      lt: 6,
+      gold: [
+        ['BFB99999999999A0', '400A000000000000', '4004000000000000'],
+        ['BFF3333333333334', '4012000000000000', '4000000000000000'],
+        ['C002666666666666', '4017000000000000', '3FF8000000000000'],
+        ['C00B333333333333', '401C000000000000', '3FF0000000000000'],
+        ['C012000000000000', '4020800000000000', '3FE0000000000000'],
+      ],
+    },
+    // E: L=2（首 tick f2=1 直接落点）
+    {
+      cmd: 'particle trail{target:[3,0,0],color:0xFF0000,duration:2} 0 0 0 0 0 0 0 0',
+      lt: 2,
+      gold: [['4008000000000000', '0', '0']],
+    },
+  ];
+  cases.forEach((c, i) => {
+    it(`用例 ${'ABCDE'[i]}（${c.cmd.split('{')[0]} target 轨迹逐位一致）`, () => {
+      const e = eng({ nativeKinematics: true });
+      e.runCommand(C(c.cmd));
+      const p0 = snap(e)[0];
+      expect(p0.lifetime).toBe(c.lt);
+      p0.stop = false; // snapshot 活引用：启用 lerp（模组参数模式 setStop(false)）
+      c.gold.forEach(([hx, hy, hz], idx) => {
+        e.tickOnce();
+        const p = snap(e)[0];
+        expect(p.age).toBe(idx + 1);
+        expect(hex(p.x)).toBe(hx);
+        expect(hex(p.y)).toBe(hy);
+        expect(hex(p.z)).toBe(hz);
+      });
+    });
+  });
+});

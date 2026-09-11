@@ -166,10 +166,14 @@ export class SimEngine {
   /** 寿命解析（模组调用顺序：构造器默认 → setLifetime(age>0?age:-1?INT_MAX)；
    *  age=0 时不覆写 → 保持「构造器默认」。构造器默认 = 原版寿命公式
    *  （「原版运动学」开启且类型有表项时，公式在共享 vanillaRand 上求值，
-   *  公式里的 F/I 依次消费，顺序逐字节码），否则走预览默认寿命。 */
-  private resolveLifetime(cmdAge: number, name: string, scale: number): number {
+   *  公式里的 F/I 依次消费，顺序逐字节码），否则走预览默认寿命。
+   *  trailDuration：trail{NBT} 的 duration——Provider 里 setLifetime(duration)
+   *  在构造器之后无条件调用（仅 vanilla 路径传入；模组路径无 NBT）。
+   *  优先级：命令 age > trailDuration > 构造器默认（与 Java 调用顺序一致）。 */
+  private resolveLifetime(cmdAge: number, name: string, scale: number, trailDuration?: number): number {
     if (cmdAge > 0) return cmdAge;
     if (cmdAge === -1) return INT_MAX;
+    if (trailDuration !== undefined) return trailDuration;
     // cmdAge == 0
     if (this.config.nativeKinematics) {
       const formula = nativeLifetimeFor(name, this.config.mcVersion);
@@ -215,8 +219,9 @@ export class SimEngine {
       // type{NBT} 渲染色/大小（dust 的 color/scale；缺省 = 白 + 1，不进对象字面量）
       ...(req.nbtTint ? { nbtTint: true } : {}),
       ...(req.sizeMul !== undefined ? { sizeMul: req.sizeMul } : {}),
+      ...(req.trailTarget ? { trailTarget: req.trailTarget } : {}),
     };
-    p.lifetime = this.resolveLifetime(req.age, req.name, p.sizeMul ?? 1);
+    p.lifetime = this.resolveLifetime(req.age, req.name, p.sizeMul ?? 1, req.trailDuration);
     // campfire 出生初速：构造器里 yd = cmdVy + 500.0f/F（FLOAT 除法；F = 寿命
     // nextInt 之后的下一个 nextFloat —— 消费顺序逐字节码）。Java 侧是粒子私有
     // 随机（不可复现），预览从共享 vanillaRand 取（分布一致，可复现）。
@@ -305,7 +310,10 @@ export class SimEngine {
    *  原生 tick 内：age++/死亡判定 → 原版运动学（若开启且类型有表：
    *  base 管道 = 重力先于位移、摩擦后于位移、可选逐轴附加阻尼；
    *  portal = 绝对位置式（cubic easing，xStart = 命令位置）；
-   *  reverse_portal = 增量式 x += v·t —— 见 sim/kinematics.ts 证据清单）。 */
+   *  reverse_portal = 增量式 x += v·t —— 见 sim/kinematics.ts 证据清单；
+   *  trail = 绝对坐标 lerp（tick 本体，不调 super），置于 !p.stop 门内：
+   *  模组 stop 回滚在 tick() 之后，stop=true 时 lerp 位移被撤销（
+   *  /particle trail 零速生成 → stop=true → 位置钉在出生点，age 照常 ++）。 */
   private animate(p: SimParticle): void {
     const preX = p.x;
     const preY = p.y;
@@ -318,6 +326,22 @@ export class SimEngine {
       return;
     }
     if (!p.stop) {
+      if (p.trailTarget) {
+        // TrailParticle.tick（逐字节码浮点顺序）：tick 本体 = age++/死亡判定后
+        // f2 = 1.0/(lifetime−age)（int 差值 i2d 后纯 double 除法，无 float
+        // 舍入）；x = Mth.lerp(f2, x, target.x)（字节码栈序 d2, x, target.x），
+        // Mth.lerp(delta,start,end) 字节码 = start + (end−start)·delta，
+        // 即 x + (target.x−x)·f2 —— 位置线性推进，末 tick 恰好落到
+        // target（age=n 时位移 n/(lifetime−1)·全程）。target 绝对世界
+        // 坐标；tick **不调 super**（不走 base 重力/摩擦管道）。stop=true
+        // 时模组 customTick 在 tick() 后回滚 → lerp 位移被撤销（age 照常
+        // ++，位置钉在出生点；/particle trail 零速生成即此路径）。
+        const f2 = 1 / (p.lifetime - p.age);
+        p.x = p.x + (p.trailTarget.x - p.x) * f2;
+        p.y = p.y + (p.trailTarget.y - p.y) * f2;
+        p.z = p.z + (p.trailTarget.z - p.z) * f2;
+        return;
+      }
       // 原版运动学（可选；关闭时 = 模组原生匀速直线，1:1 复刻）
       const spec = this.config.nativeKinematics
         ? nativeSpecFor(p.name, this.config.mcVersion)
