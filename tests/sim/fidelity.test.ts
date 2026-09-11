@@ -32,12 +32,13 @@ describe('fidelityFor（26.2）', () => {
     expect(fidelityFor('explosion', '26.2', TYPES_262)).toBe('full');
     expect(fidelityFor('spit', '26.2', TYPES_262)).toBe('full');
     expect(fidelityFor('reset_mob_growth', '26.2', TYPES_262)).toBe('full');
+    expect(fidelityFor('vibration', '26.2', TYPES_262)).toBe('full'); // 2026-09-11 核对入表：motion='vibration' 绝对式 lerp 归位
+    expect(fidelityFor('vibration{destination:{block:{pos:[1,2,3]}},arrival_in_ticks:20}', '26.2', TYPES_262)).toBe('full'); // NBT 载荷不参与分级
   });
 
   it('注册表内但运动学未逐条核对 → approx（approx 清单类型）', () => {
     expect(fidelityFor('block', '26.2', TYPES_262)).toBe('approx');
     expect(fidelityFor('sweep_attack', '26.2', TYPES_262)).toBe('approx');
-    expect(fidelityFor('vibration', '26.2', TYPES_262)).toBe('approx');
     expect(fidelityFor('geyser_base', '26.2', TYPES_262)).toBe('approx'); // NoRender 发射器种子粒子
   });
 

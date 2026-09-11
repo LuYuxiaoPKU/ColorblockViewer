@@ -50,6 +50,9 @@ export interface SimParticle {
   sizeMul?: number;
   /** trail{NBT} 的 target（绝对坐标终点；每 tick lerp 归位，TrailParticle.tick 字节码） */
   trailTarget?: { x: number; y: number; z: number };
+  /** vibration{NBT} 的 destination block 中心（绝对坐标；每 tick
+   *  x = lerp(1/(lifetime−age), x, target.x) 推进，VibrationSignalParticle.tick 字节码） */
+  vibrationTarget?: { x: number; y: number; z: number };
   /** 命令位置 = 中心 */
   cx: number; cy: number; cz: number;
   /** 速度表达式（customMove 路径） */
