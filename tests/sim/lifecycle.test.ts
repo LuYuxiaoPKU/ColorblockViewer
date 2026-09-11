@@ -743,7 +743,31 @@ describe('原版运动学：26.2 逐类型寿命 golden（age=0，seed=1 → van
     ['soul', [14, 22, 12]],
     ['effect', [10, 18, 8]], // Spell 8.0d
     ['item', [5, 10, 4]], // (int)(4.0f/(0.9f·F+0.1f))
-    ['glow', [5, 10, 4]],
+    ['glow', [10, 8, 13]], // 26.2 = (int)(8.0d/(D*0.8d+0.2d))，nextDouble 域（旧 golden 按 1.21.11 nextFloat 域生成，2026-09-10 JDK21 重测）
+    // —— 2026-09-10 入表新类型（ProbeNew3 同序列 JDK21 实测；seed=2 前 3 抽取）——
+    ['dust', [10, 8, 13]], // DustParticleBase nextDouble 域 + ×scale(=1) + max(·,1)
+    ['dust_color_transition', [10, 8, 13]], // 同 Base
+    ['cloud', [22, 35, 17]], // PlayerCloud：(int)max(f32(t·2.5f),1.0f)，t=(int)(8.0d/(F·0.8d+0.3d))
+    ['sneeze', [22, 35, 17]], // SneezeProvider → PlayerCloud
+    ['falling_spore_blossom', [93, 191, 77]], // (int)(64.0f/(fround(F·0.8f)+0.1f)) float 链
+    ['trial_spawner_detection', [13, 18, 12]], // max(f2i(fdiv(8.0f,randomBetween(F,0.5f,1.0f))·1.5f),1)
+    ['trial_spawner_detection_ominous', [13, 18, 12]],
+    ['bubble', [10, 18, 8]], // (int)(8.0d/(F·0.8d+0.2d))（同 div8 族）
+    ['bubble_column_up', [50, 92, 43]], // (int)(40.0d/…)
+    ['falling_lava', [81, 147, 69]], // (int)(64.0d/…)
+    ['falling_nectar', [20, 36, 17]], // (int)(16.0d/…)（同 div16 族）
+    ['landing_obsidian_tear', [35, 64, 30]], // (int)(28.0d/…)
+    ['firework', [52, 48, 56]], // 48 + I(12)
+    ['sculk_charge', [12, 8, 16]], // 8 + I(12)
+    ['sculk_charge_pop', [8, 7, 9]], // I(4) + 6
+    ['scrape', [38, 22, 30]], // I(30) + 10
+    ['electric_spark', [3, 2, 3]], // I(2) + 2
+    ['explosion', [8, 7, 9]], // I(4) + 6
+    ['gust', [14, 13, 15]], // I(4) + 12
+    ['flash', [4, 4, 4]], // 常量
+    ['sonic_boom', [16, 16, 16]], // 常量
+    ['pause_mob_growth', [8, 8, 8]], // SimpleVertical 常量
+    ['reset_mob_growth', [8, 8, 8]],
     ['shriek', [30, 30, 30]],
     ['squid_ink', [7, 13, 6]], // (int)((12.0f·0.5f)/(0.8f·F+0.2f))
     ['portal', [47, 42, 49]], // 40+(int)(10f·F)
@@ -934,6 +958,98 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
     const p = snap(en)[0];
     expect(p.lifetime).toBe(300);
     expect(p.vy).toBe(0); // 无初速
+  });
+
+  // 以下命令 pos=0 0 0（y 从 0 起）、vel='0 1 0'（cmdVy=1）；位移用摩擦前 vy。
+  it('dust：构造器出生初速 ×0.1f→f2d（spawnVelocityMul；Java 侧无条件、与 age 无关）', () => {
+    const en = eng1('dust');
+    const p = snap(en)[0];
+    expect(p.vy).toBe(f(0.1)); // 1 × f2d(0.1f)
+    expect(p.vx).toBe(0);
+    en.tickOnce();
+    const p1 = snap(en)[0];
+    expect(p1.y).toBeCloseTo(f(0.1), 12); // 无重力：y = 0 + vy
+    expect(p1.vy).toBeCloseTo(f(0.1) * fr(0.96), 12); // 摩擦 0.96f
+  });
+
+  it('crit：出生初速 ×0.4d + 摩擦 0.7f + 重力 −0.02（构造器末尾 tick() off-by-one 不建模）', () => {
+    const en = eng1('crit');
+    expect(snap(en)[0].vy).toBe(0.4);
+    en.tickOnce();
+    const p1 = snap(en)[0];
+    expect(p1.y).toBeCloseTo(0.4 - 0.02, 12); // 重力先于位移
+    expect(p1.vy).toBeCloseTo((0.4 - 0.02) * fr(0.7), 12);
+  });
+
+  it('bubble：出生初速 ×0.2f→f2d + 自管 yd += 0.002d + 摩擦 0.85d', () => {
+    const en = eng1('bubble');
+    expect(snap(en)[0].vy).toBe(f(0.2));
+    en.tickOnce();
+    const p1 = snap(en)[0];
+    expect(p1.y).toBeCloseTo(f(0.2) + 0.002, 12);
+    expect(p1.vy).toBeCloseTo((f(0.2) + 0.002) * 0.8500000238418579, 12);
+  });
+
+  it('dripping_lava：hang 系 = 位移用摩擦前 vy、postMove ×0.02（表 friction）+ tick 尾部 ×0.98（表 postFriction）', () => {
+    const en = eng1('dripping_lava');
+    en.tickOnce();
+    const p1 = snap(en)[0];
+    // gravityY = −0.02d×fround(0.06f)（hang 构造器 gravity×0.02f；tick 直接减）
+    // 字节码顺序（DripParticle.tick + DripHang.postMoveUpdate）：
+    //   yd −= f2d(gravity) → move → 三轴×0.02d → 三轴×0.98d
+    const g = -0.0011999999405816197;
+    const post = 0.9800000190734863;
+    expect(p1.y).toBeCloseTo(1 + g, 12); // y = 0 + 摩擦前 vy
+    expect(p1.vy).toBeCloseTo((1 + g) * 0.02 * post, 12);
+  });
+
+  it('reset_mob_growth：出生初速偏移 +0.03d（SimpleVertical；确定性、无随机消费）', () => {
+    const en = eng1('reset_mob_growth');
+    expect(snap(en)[0].vy).toBe(1.03); // cmdVy=1 + 0.03
+    en.tickOnce();
+    const p1 = snap(en)[0];
+    expect(p1.y).toBeCloseTo(1.03, 12);
+    expect(p1.vy).toBeCloseTo(1.03 * fr(0.98), 12);
+  });
+
+  it('cloud：无出生初速（零速构造）+ 摩擦 0.96f、无重力', () => {
+    const en = eng1('cloud');
+    expect(snap(en)[0].vy).toBe(1); // 模组 cmdVy 原样（无 × 常量）
+    en.tickOnce();
+    expect(snap(en)[0].vy).toBeCloseTo(fr(0.96), 12);
+  });
+
+  it('spawnVelocityMul 与显式 age 无关（Java 构造器无条件；campfire 例外仍 age=0）', () => {
+    const en = eng({ seed: 1, nativeKinematics: true });
+    en.runCommand(C('particleex normal minecraft:dust 0 0 0 1 1 1 1 0 1 0 0 0 0 1 50'));
+    const p = snap(en)[0];
+    expect(p.lifetime).toBe(50); // 显式 age
+    expect(p.vy).toBe(f(0.1)); // 初速修正不受 age 影响
+  });
+
+  it('firework：摩擦 0.91f + 重力 −0.04d×fround(0.1f)（cmdV 原样，无 × 常量）', () => {
+    const en = eng1('firework');
+    en.tickOnce();
+    const p1 = snap(en)[0];
+    expect(p1.y).toBeCloseTo(1 + gBase(0.1), 12);
+    expect(p1.vy).toBeCloseTo((1 + gBase(0.1)) * fr(0.91), 12);
+  });
+
+  it('spit：摩擦 0.9f + 重力 −0.04d×fround(0.5f)（±0.05f 抖动不建模）', () => {
+    const en = eng1('spit');
+    en.tickOnce();
+    const p1 = snap(en)[0];
+    expect(p1.y).toBeCloseTo(1 + gBase(0.5), 12);
+    expect(p1.vy).toBeCloseTo((1 + gBase(0.5)) * fr(0.9), 12);
+  });
+
+  it('explosion：零速构造（spawnVelocityMul 0）+ 无摩擦/重力 → 静止', () => {
+    const en = eng1('explosion');
+    expect(snap(en)[0].vy).toBe(0);
+    en.tickOnce();
+    const p1 = snap(en)[0];
+    expect(p1.y).toBe(0); // cmdVy=1 ×0 → vy=0、无重力 → 无位移（stop 按 cmdV=false）
+    expect(p1.vy).toBe(0);
   });
 
   it('nativeKinematics 关闭：新类型全部走模组匀速直线（无摩擦/重力/初速）', () => {
