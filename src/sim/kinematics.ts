@@ -26,6 +26,13 @@
 //   - portal：位置绝对式 x = xStart + xd·e(t) 等（e = 3t²−2t³ 的浮点计算，
 //     t = age/lifetime，fdiv）；y 另加 (1−t)。xStart = 命令位置。
 //   - reverse_portal：位置增量式 每 tick x += xd·t（t = age/lifetime，fdiv）。
+//   - vibration：VibrationSignalParticle.tick —— 构造器零速 + lifetime =
+//     arrival_in_ticks（NBT 直传）；age++/死亡判定 → target 空 remove →
+//     t = 1.0d/(lifetime−age)（int 差 i2d 后纯 double 除法，无 float 舍入）→
+//     x = Mth.lerp(t, x, target.x) 三轴（= x + (target−x)·t，末 tick 恰好落点）
+//     → rot/pitch 每 tick 重算（纯渲染）。tick 不调 super。预览 target =
+//     destination 的 block 中心（+0.5 各轴；SAFE_POSITION_SOURCE 已排除
+//     entity 源）；stop 回滚与 trail 同门（模组 customTick 在 tick() 后回滚）。
 //   - dripping_*（hang 系）：DripHang.tick —— lifetime--（≡ age++）、
 //     yd −= f2d(gravity)（直接）、move、postMoveUpdate 三轴 ×0.02d（drip 悬挂
 //     的黏滞）、三轴 ×0.9800000190734863d（DripParticle.tick 尾部恒有）。
@@ -71,19 +78,30 @@
 // 流体 level 随机（世界状态）。
 //
 // 近似收录（注册表内、无干净 base 模型）：block/block_crumble/block_marker、
-// cherry/pale_oak/tinted_leaves（FallAndLand 落地分支 + 位置抖动）、current_down
-// （水流块检查）、dust_pillar/dust_plume、elder_guardian、enchant、firefly、
-// falling_dust（post-move 重力 + 速度钳制）、geyser 系（发射器；GeyserBase
-// 寿命用流体 level 随机）、gust_emitter_*、nautilus、noxious_gas(_cloud)、
-// ominous_spawning、sulfur_bubbles、trail、vault_connection、vibration、
-// sweep_attack、explosion_emitter（NoRender 种子粒子）。
+// cherry/pale_oak/tinted_leaves（自管 tick 的 wind/swirl/flowAway 曲线 +
+// 落地分支 + 构造器随机消费）、current_down（水流块检查）、dust_pillar/
+// dust_plume（dust_plume 每 tick 变摩擦/重力 = 变参数管道；dust_pillar 速度
+// 走 nextGaussian）、elder_guardian（模型渲染、零速无位移）、enchant/nautilus/
+// vault_connection（绝对式曲线 + 颜色插值）、explosion_emitter/geyser 系/
+// gust_emitter_*（NoRender 发射器种子粒子；geyser_base 寿命用 level 随机）、
+// falling_dust（自管 tick：move 后 yd−=0.003d 再 max(yd,−0.14d) 钳制 + 旋转，
+// 非 base 管道）、firefly（构造器三轴 ×0.8d 后每 tick 随机位置抖动）、
+// ominous_spawning（绝对式线性 x = xStart + xd·(1−t)，xStart 非出生点）、
+// sweep_attack（构造器零速，Java 侧 tick 不推进位置）、sulfur_bubbles
+// （自管 tick：yEnd 目标式 + 逐 tick 随机漂移/碰撞分支 + 出生随机消费）、
+// noxious_gas(_cloud)（gas 的 BaseAshSmoke 管线本身可建但寿命 = 构造器后
+// 覆写 6.0d/(f2d(F)·0.5d+0.5d)·f2d(3.0f)——可建模候选见下方注释；cloud =
+// NoRender 发射器，tick 每 2 tick 用 level 随机向可达 sulfur 方块吐 gas，
+// 世界状态依赖）。
+// 2026-09-11 本轮核对后从近似升级入表的类型：vibration（motion='vibration'
+// 绝对式 lerp 归位，destination 为 block 时 = 方块中心）、trail（既有）。
 // ambient_entity_effect：粒子数据表里有名字，但 26.2 注册表未注册（type map
 // 无条目）——命令用它会走模组报错路径，不进本表。
 //
 // 版本分区：本表证据仅来自 26.2 字节码 → 新类型只进 '26.2'；'1.21.11' 保留
 // end_rod（1.21.1 反编译核对）。1.21.1 未逐类型核对，不臆测（八荣八耻 #1）。
 
-export type MotionKind = 'base' | 'portal' | 'reverse_portal';
+export type MotionKind = 'base' | 'portal' | 'reverse_portal' | 'vibration';
 
 export interface NativeKinematics {
   /** 运动模型：base = 通用管道；portal/reverse_portal = 自管位置式（无摩擦/重力） */
@@ -218,6 +236,15 @@ export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>>
     poof: { friction: 0.8999999761581421, gravityY: 0.004000000059604645 }, // Explode 原样
     pause_mob_growth: { friction: 0.9800000190734863, gravityY: 0, spawnVelOffsetY: -0.03 }, // SimpleVertical up=false
     reset_mob_growth: { friction: 0.9800000190734863, gravityY: 0, spawnVelOffsetY: 0.03 }, // SimpleVertical up=true
+    // —— 绝对式 lerp 归位（2026-09-11 核对）——
+    vibration: { motion: 'vibration', friction: 1, gravityY: 0 }, // VibrationSignalParticle：零速构造，
+      // 构造器 lifetime = arrival_in_ticks（NBT，Provider 直传，无公式 → age=0 走命令/默认寿命）；
+      // tick（逐字节码）：age++ → 达寿命 remove → target.getPosition 为空 remove →
+      // t = 1.0d/(lifetime−age)（double 域 i2d 纯除法）→ x = Mth.lerp(t, x, tx) 三轴，
+      // 末 tick 恰好落到波源中心。preview：destination 校验仅 block 源（entity 源
+      // 解析层已拒绝）→ target = 方块中心（+0.5, +0.5, +0.5，BlockPos 相对命令位置
+      // 可正可负）；每 tick 位置式推进后 p.stop 回滚被撤销（零速构造 stop 恒 true
+      // → 自定义 lerp 放在 !stop 门外，见 engine.animate）。
     // water_current_down 未收录：tick 含水流块检查（移除/速度分支依赖世界状态）。
   },
 };

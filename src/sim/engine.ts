@@ -169,11 +169,14 @@ export class SimEngine {
    *  公式里的 F/I 依次消费，顺序逐字节码），否则走预览默认寿命。
    *  trailDuration：trail{NBT} 的 duration——Provider 里 setLifetime(duration)
    *  在构造器之后无条件调用（仅 vanilla 路径传入；模组路径无 NBT）。
-   *  优先级：命令 age > trailDuration > 构造器默认（与 Java 调用顺序一致）。 */
-  private resolveLifetime(cmdAge: number, name: string, scale: number, trailDuration?: number): number {
+   *  vibrationArrival：vibration{NBT} 的 arrival_in_ticks——构造器内
+   *  setLifetime(arrival)（构造器**内**覆写，同样取代公式/默认寿命）。
+   *  优先级：命令 age > trailDuration/vibrationArrival > 构造器默认
+   *  （与 Java 调用顺序一致；vanilla 路径无 age 参数，两者同层）。 */
+  private resolveLifetime(cmdAge: number, name: string, scale: number, nbtLifetime?: number): number {
     if (cmdAge > 0) return cmdAge;
     if (cmdAge === -1) return INT_MAX;
-    if (trailDuration !== undefined) return trailDuration;
+    if (nbtLifetime !== undefined) return nbtLifetime;
     // cmdAge == 0
     if (this.config.nativeKinematics) {
       const formula = nativeLifetimeFor(name, this.config.mcVersion);
@@ -220,8 +223,9 @@ export class SimEngine {
       ...(req.nbtTint ? { nbtTint: true } : {}),
       ...(req.sizeMul !== undefined ? { sizeMul: req.sizeMul } : {}),
       ...(req.trailTarget ? { trailTarget: req.trailTarget } : {}),
+      ...(req.vibrationTarget ? { vibrationTarget: req.vibrationTarget } : {}),
     };
-    p.lifetime = this.resolveLifetime(req.age, req.name, p.sizeMul ?? 1, req.trailDuration);
+    p.lifetime = this.resolveLifetime(req.age, req.name, p.sizeMul ?? 1, req.trailDuration ?? req.vibrationArrival);
     // campfire 出生初速：构造器里 yd = cmdVy + 500.0f/F（FLOAT 除法；F = 寿命
     // nextInt 之后的下一个 nextFloat —— 消费顺序逐字节码）。Java 侧是粒子私有
     // 随机（不可复现），预览从共享 vanillaRand 取（分布一致，可复现）。
@@ -363,6 +367,19 @@ export class SimEngine {
         p.x += p.vx * t;
         p.y += p.vy * t;
         p.z += p.vz * t;
+      } else if (spec?.motion === 'vibration') {
+        // VibrationSignalParticle.tick（逐字节码浮点顺序）：age++/死亡判定后
+        // t = 1.0d/(lifetime−age)（int 差值 i2d 后纯 double 除法）；
+        // x = Mth.lerp(t, x, target.x)（= x + (tx−x)·t）三轴，末 tick 恰好
+        // 落到波源中心；tick **不调 super**（零速构造、无摩擦/重力）。
+        // destination 校验仅 block 源 → target = 方块中心（spawn 注入）。
+        // stop=true 时模组 customTick 回滚 → lerp 位移被撤销（与 trail 同门）。
+        if (p.vibrationTarget) {
+          const t = 1 / (p.lifetime - p.age);
+          p.x = p.x + (p.vibrationTarget.x - p.x) * t;
+          p.y = p.y + (p.vibrationTarget.y - p.y) * t;
+          p.z = p.z + (p.vibrationTarget.z - p.z) * t;
+        }
       } else {
         if (spec) {
           p.vy += spec.gravityY; // 重力：位移**之前**（Particle.tick 顺序）

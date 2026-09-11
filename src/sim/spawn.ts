@@ -15,7 +15,7 @@
 import type { CompiledBlock } from '../engine';
 import { ParticleStruct } from '../engine/struct';
 import type { ParticleCommand } from '../command/types';
-import { parseCompound } from '../nbt/parse';
+import { parseCompound, type NbtVal } from '../nbt/parse';
 import { OPTION_FIELDS, NESTED_OPTION_FIELDS, parseColorField } from '../nbt/particleOptions';
 import {
   computeSpawnStep,
@@ -61,6 +61,12 @@ export interface SpawnRequest {
   trailTarget?: { x: number; y: number; z: number };
   /** trail{NBT} 的 duration（寿命覆写；仅 age=0 路径生效，命令显式 age 优先） */
   trailDuration?: number;
+  /** vibration{NBT} 的 arrival_in_ticks（构造器内 setLifetime 值；同
+   *  trailDuration 规则——仅 age=0 路径生效，命令显式 age 优先） */
+  vibrationArrival?: number;
+  /** vibration{NBT} 的 destination block 中心（绝对坐标；引擎每 tick lerp 推进
+   *  至波源中心，VibrationSignalParticle.tick 字节码） */
+  vibrationTarget?: { x: number; y: number; z: number };
 }
 
 /** 命令执行上下文：engine 注入的生成回调与结果收集 */
@@ -158,6 +164,38 @@ function nbtTrailExtra(nbt: string): {
   }
   const d = fields.find(f => f.key === 'duration');
   if (d && typeof d.val === 'number' && Number.isInteger(d.val) && d.val >= 1) out.duration = d.val;
+  return out;
+}
+
+/** vibration 的 NBT 附加消费：destination 的 block 中心（**绝对坐标**——
+ *  VibrationSignalParticle.tick 每 tick `Mth.lerp(1/(lifetime−age), 当前位置,
+ *  目标)`，与出生点同坐标系）。解析层已把 SAFE_POSITION_SOURCE 限定为
+ *  {block:{pos:[x,y,z]}}（entity 源拒绝）→ pos 是 BlockPos，中心 = +0.5 各轴。
+ *  arrival_in_ticks 消费为寿命覆写（与 trail duration 同规则：仅 age=0 路径
+ *  生效，命令显式 age 优先——构造器内 setLifetime 的 Java 语义与预览
+ *  「age 优先」约定在此对齐；负值/0 原样传入 → 首 tick 即死，与 Java
+ *  age>=lifetime 判定一致）。 */
+function nbtVibrationExtra(nbt: string): {
+  target?: { x: number; y: number; z: number };
+  arrival?: number;
+} {
+  const out: { target?: { x: number; y: number; z: number }; arrival?: number } = {};
+  let fields;
+  try {
+    fields = parseCompound(nbt);
+  } catch {
+    return out;
+  }
+  const arr = fields.find(f => f.key === 'arrival_in_ticks');
+  if (arr && typeof arr.val === 'number' && Number.isInteger(arr.val)) out.arrival = arr.val;
+  const dest = fields.find(f => f.key === 'destination');
+  if (!dest || typeof dest.val !== 'object' || dest.val === null || Array.isArray(dest.val)) return out;
+  const inner = (dest.val as { [k: string]: NbtVal })['block'];
+  if (!inner || typeof inner !== 'object' || inner === null || Array.isArray(inner)) return out;
+  const pos = (inner as { [k: string]: NbtVal })['pos'];
+  if (Array.isArray(pos) && pos.length === 3 && pos.every(v => typeof v === 'number' && Number.isInteger(v))) {
+    out.target = { x: pos[0] as number + 0.5, y: pos[1] as number + 0.5, z: pos[2] as number + 0.5 };
+  }
   return out;
 }
 
@@ -405,8 +443,9 @@ export function execVanilla(cmd: ParticleCommand & { kind: 'vanilla' }, sink: Sp
   const count = cmd.count ?? 0;
   // 收录类型的 NBT 颜色/尺寸消费（其余类型 NBT 不消费 → 白 + 1）
   const vis = nbtVisuals(cmd.name, cmd.nbt);
-  const trailBase = cmd.name.replace(/^minecraft:/i, '').toLowerCase();
-  const trailExtra = trailBase === 'trail' && cmd.nbt !== null ? nbtTrailExtra(cmd.nbt) : {};
+  const baseName = cmd.name.replace(/^minecraft:/i, '').toLowerCase();
+  const trailExtra = baseName === 'trail' && cmd.nbt !== null ? nbtTrailExtra(cmd.nbt) : {};
+  const vibrationExtra = baseName === 'vibration' && cmd.nbt !== null ? nbtVibrationExtra(cmd.nbt) : {};
   if (count === 0) {
     // 单粒子：精确位置 + 确定速度 speed×delta
     spawnOne(sink, {
@@ -422,6 +461,8 @@ export function execVanilla(cmd: ParticleCommand & { kind: 'vanilla' }, sink: Sp
       sizeMul: vis.sizeMul,
       trailTarget: trailExtra.target,
       trailDuration: trailExtra.duration,
+      vibrationTarget: vibrationExtra.target,
+      vibrationArrival: vibrationExtra.arrival,
     });
     return;
   }
@@ -446,6 +487,8 @@ export function execVanilla(cmd: ParticleCommand & { kind: 'vanilla' }, sink: Sp
       sizeMul: vis.sizeMul,
       trailTarget: trailExtra.target,
       trailDuration: trailExtra.duration,
+      vibrationTarget: vibrationExtra.target,
+      vibrationArrival: vibrationExtra.arrival,
     });
   }
 }
