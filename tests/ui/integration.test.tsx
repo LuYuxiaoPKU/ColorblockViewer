@@ -237,9 +237,9 @@ describe('M5 全流程', () => {
     const badge = () => container.querySelector('.field-badge')?.textContent ?? '';
     expect(badge()).toContain('已核对'); // 26.2 运动学表内
     act(() => {
-      setCommand(0, { ...structuredClone(DEFAULT_VANILLA), name: 'dust' });
+      setCommand(0, { ...structuredClone(DEFAULT_VANILLA), name: 'vibration' });
     });
-    expect(badge()).toContain('近似'); // 注册表内但运动学未逐条核对（按类型名近似）
+    expect(badge()).toContain('近似'); // 注册表内但运动学未逐条核对（approx 清单）
     act(() => {
       setCommand(0, { ...structuredClone(DEFAULT_VANILLA), name: 'no_such_type' });
     });

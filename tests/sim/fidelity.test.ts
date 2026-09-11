@@ -11,20 +11,42 @@ const TYPES_262 = PARTICLE_DATA['26.2'].types;
 const TYPES_12111 = PARTICLE_DATA['1.21.11'].types;
 
 describe('fidelityFor（26.2）', () => {
-  it('运动学表内类型 → full（end_rod 双版本表内）', () => {
+  it('运动学表内类型 → full（end_rod 双版本表内；26.2 全量入表家族）', () => {
     expect(fidelityFor('end_rod', '26.2', TYPES_262)).toBe('full');
     expect(fidelityFor('minecraft:End_Rod', '26.2', TYPES_262)).toBe('full'); // 归一化
     expect(fidelityFor('totem_of_undying', '26.2', TYPES_262)).toBe('full');
     expect(fidelityFor('portal', '26.2', TYPES_262)).toBe('full');
+    // 26.2 全量入表（§10 证据清单：dust 系/firework 系/Drip 系/其余可干净建模）
+    expect(fidelityFor('dust', '26.2', TYPES_262)).toBe('full');
+    expect(fidelityFor('dust{Red:1f,Green:0f,Blue:0f,Size:1f}', '26.2', TYPES_262)).toBe('full'); // NBT 载荷不参与分级
+    expect(fidelityFor('dust_color_transition', '26.2', TYPES_262)).toBe('full');
+    expect(fidelityFor('firework', '26.2', TYPES_262)).toBe('full');
+    expect(fidelityFor('flash', '26.2', TYPES_262)).toBe('full');
+    expect(fidelityFor('bubble', '26.2', TYPES_262)).toBe('full');
+    expect(fidelityFor('bubble_pop', '26.2', TYPES_262)).toBe('full');
+    expect(fidelityFor('dripping_lava', '26.2', TYPES_262)).toBe('full');
+    expect(fidelityFor('falling_honey', '26.2', TYPES_262)).toBe('full');
+    expect(fidelityFor('crit', '26.2', TYPES_262)).toBe('full');
+    expect(fidelityFor('cloud', '26.2', TYPES_262)).toBe('full');
+    expect(fidelityFor('dragon_breath', '26.2', TYPES_262)).toBe('full');
+    expect(fidelityFor('explosion', '26.2', TYPES_262)).toBe('full');
+    expect(fidelityFor('spit', '26.2', TYPES_262)).toBe('full');
+    expect(fidelityFor('reset_mob_growth', '26.2', TYPES_262)).toBe('full');
   });
 
-  it('注册表内但运动学未逐条核对 → approx（dust 按类型名近似；NBT 载荷不参与分级）', () => {
-    expect(fidelityFor('dust', '26.2', TYPES_262)).toBe('approx');
-    expect(fidelityFor('dust{Red:1f,Green:0f,Blue:0f,Size:1f}', '26.2', TYPES_262)).toBe('approx');
+  it('注册表内但运动学未逐条核对 → approx（approx 清单类型）', () => {
+    expect(fidelityFor('block', '26.2', TYPES_262)).toBe('approx');
+    expect(fidelityFor('sweep_attack', '26.2', TYPES_262)).toBe('approx');
+    expect(fidelityFor('vibration', '26.2', TYPES_262)).toBe('approx');
+    expect(fidelityFor('geyser_base', '26.2', TYPES_262)).toBe('approx'); // NoRender 发射器种子粒子
   });
 
   it('注册表外 → unknown', () => {
     expect(fidelityFor('not_a_particle', '26.2', TYPES_262)).toBe('unknown');
+  });
+
+  it('ambient_entity_effect：粒子数据表内有名但 26.2 注册表未注册（type map 无条目，命令走报错路径）→ 按数据表分级为 approx（保守口径，运动学无证据）', () => {
+    expect(fidelityFor('ambient_entity_effect', '26.2', TYPES_262)).toBe('approx');
   });
 
   it('版本分区：1.21.11 仅 end_rod 是 full（§10 证据边界：不臆想跨版本一致）', () => {
@@ -35,6 +57,7 @@ describe('fidelityFor（26.2）', () => {
 
   it('types 缺省（空）时跳过注册表检查，不产生 unknown', () => {
     expect(fidelityFor('end_rod', '26.2')).toBe('full');
-    expect(fidelityFor('dust', '26.2')).toBe('approx');
+    expect(fidelityFor('dust', '26.2')).toBe('full');
+    expect(fidelityFor('block', '26.2')).toBe('approx');
   });
 });

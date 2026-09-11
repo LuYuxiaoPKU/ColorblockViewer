@@ -167,13 +167,13 @@ export class SimEngine {
    *  age=0 时不覆写 → 保持「构造器默认」。构造器默认 = 原版寿命公式
    *  （「原版运动学」开启且类型有表项时，公式在共享 vanillaRand 上求值，
    *  公式里的 F/I 依次消费，顺序逐字节码），否则走预览默认寿命。 */
-  private resolveLifetime(cmdAge: number, name: string): number {
+  private resolveLifetime(cmdAge: number, name: string, scale: number): number {
     if (cmdAge > 0) return cmdAge;
     if (cmdAge === -1) return INT_MAX;
     // cmdAge == 0
     if (this.config.nativeKinematics) {
       const formula = nativeLifetimeFor(name, this.config.mcVersion);
-      if (formula) return formula(this.vanillaRand);
+      if (formula) return formula(this.vanillaRand, { scale });
     }
     return this.config.defaultLifetime;
   }
@@ -216,7 +216,7 @@ export class SimEngine {
       ...(req.nbtTint ? { nbtTint: true } : {}),
       ...(req.sizeMul !== undefined ? { sizeMul: req.sizeMul } : {}),
     };
-    p.lifetime = this.resolveLifetime(req.age, req.name);
+    p.lifetime = this.resolveLifetime(req.age, req.name, p.sizeMul ?? 1);
     // campfire 出生初速：构造器里 yd = cmdVy + 500.0f/F（FLOAT 除法；F = 寿命
     // nextInt 之后的下一个 nextFloat —— 消费顺序逐字节码）。Java 侧是粒子私有
     // 随机（不可复现），预览从共享 vanillaRand 取（分布一致，可复现）。
@@ -226,6 +226,20 @@ export class SimEngine {
       if (spec?.campfireRise) {
         p.vy += Math.fround(500 / this.vanillaRand.nextFloat());
       }
+    }
+    // 构造器里的出生初速修正（Java 侧无条件、与年龄无关 —— 命令 age 不影响
+    // 构造器速度路径，故不 gate age）：
+    //   spawnVelocityMul：v *= 常量（dust ×0.1d、crit ×0.4d、bubble ×0.2d …；
+    //   0 = 零速构造，见 kinematics.ts 近似清单）。
+    //   spawnVelOffsetY：SimpleVertical yd += ±0.03d。
+    if (this.config.nativeKinematics) {
+      const spec = nativeSpecFor(req.name, this.config.mcVersion);
+      if (spec?.spawnVelocityMul !== undefined) {
+        p.vx *= spec.spawnVelocityMul;
+        p.vy *= spec.spawnVelocityMul;
+        p.vz *= spec.spawnVelocityMul;
+      }
+      if (spec?.spawnVelOffsetY !== undefined) p.vy += spec.spawnVelOffsetY;
     }
     this.groups.add(req.group, p.id); // null/"null"/空 在 GroupIndex.add 内跳过
     this.pending.push(p);

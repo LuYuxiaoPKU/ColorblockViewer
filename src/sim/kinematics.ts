@@ -14,7 +14,7 @@
 //   在 double 域先乘后减；自管 tick = 其 tick 里的实际 yd 增量）。
 //   例外：SuspendedTown 系 friction 是字节码里的 double 常量 0.99d（非 f2d）。
 //
-// 自管 tick 的类型（不复用通用管道）：
+// 自管 tick 的类型（不复用通用管道，表内值 = 其 tick 的逐 tick 实际效果）：
 //   - water_drop/splash：WaterDrop.tick —— yd −= gravity（直接，无 0.04 系数）、
 //     move 后三轴 ×0.98、lifetime--（≡ age++）。无碰撞/落地分支（预览无世界）。
 //   - suspended_town 系：SuspendedTown.tick —— move 后三轴 ×0.99，无重力。
@@ -26,15 +26,59 @@
 //   - portal：位置绝对式 x = xStart + xd·e(t) 等（e = 3t²−2t³ 的浮点计算，
 //     t = age/lifetime，fdiv）；y 另加 (1−t)。xStart = 命令位置。
 //   - reverse_portal：位置增量式 每 tick x += xd·t（t = age/lifetime，fdiv）。
+//   - dripping_*（hang 系）：DripHang.tick —— lifetime--（≡ age++）、
+//     yd −= f2d(gravity)（直接）、move、postMoveUpdate 三轴 ×0.02d（drip 悬挂
+//     的黏滞）、三轴 ×0.9800000190734863d（DripParticle.tick 尾部恒有）。
+//     ≡ 引擎 base 管道（friction=0.02 + postFriction=[0.98×3]，顺序一致）。
+//   - falling_* / landing_*：Drip 系 tick 同 dripping_* 但无 postMove 0.02d
+//     （FallAndLand.postMoveUpdate = onGround 移除 + 落地粒子，预览无世界）。
+//   - bubble / bubble_column_up / bubble_pop / dragon_breath / fishing /
+//     crit 系 / explosion / sonic_boom / gust / spit / poof：自管 tick，但
+//     逐 tick 增量与 base 管道同构（或 = 常量 friction），表内值即逐 tick
+//     实际效果；差异分支（气泡出水平移、dragon_breath 落地弹跳、crit 构造器
+//     末尾多 tick() 一次的 off-by-one、gust 系自管 age++/sprite）预览不建模。
+//
+// 出生初速（spawn 时一次性应用；预览共享 vanillaRand 可复现）：
+//   - spawnVelocityMul：Java 构造器里无条件的 v *= 常量（dust 0.1d、crit 0.4d、
+//     bubble 0.2d、scrape/wax 0.01d、spark 0.25d；Java 侧先 ×常量 再 ±抖动/
+//     加 cmdV —— 常量因子与加法可交换，预览对模组 cmdV 整体 ×常量，见下方
+//     近似清单）。0 = Java 侧零速构造（explosion/sonic_boom/flash/gust 系）。
+//   - spawnVelOffsetY：SimpleVertical 构造器 yd += up?0.03d:−0.03d（确定性）。
+//   - campfireRise：见上。
 //
 // 构造器随机消费约定（与 end_rod 先例一致）：预览共享 vanillaRand 只消费
 // 「寿命公式本身」的随机数（+ campfire 的初速 float）。构造器里寿命公式之前的
 // 随机（粒子私有 RandomSource.create()，种子不可复现）不消费 —— 与 Java 的
 // 绝对值不同，但分布一致，且同种子可复现。
 //
+// 出生初速的近似（构造器里的 per-particle 随机/选项依赖抖动，预览不消费、不建模）：
+//   - dust/dust_color_transition：Java ×0.1d 后无附加（精确）；颜色 F 抖动不建模。
+//   - glow：Java 速度 = (0.5−D, cmdVy, 0.5−D)（D = nextDouble×2 次）+ 条件
+//     x/z×0.1d（仅 cmdVx==0 && cmdVz==0）+ yd×0.2d —— 预览只近似 yd×0.2d
+//     （spawnVelocityMul）；x/z 的 (0.5−D) 替换与条件缩放不建模。
+//   - crit 系：Java = cmdV×0.4d + 0.1d（构造器先零速 super 再叠加 —— 预览
+//     对模组 cmdV ×0.4d，缺 +0.1d 常数项，量级小）。
+//   - bubble / bubble_column_up：Java = cmdV×0.2d + (2F−1)×0.02f 三轴抖动。
+//   - spit / poof：Java = cmdV + (2F−1)×0.05f 三轴抖动。
+//   - wax_on：x/z 轴 cmdV×0.01d/2.0d（÷2 不建模）；wax_off：x、z 同 ÷2。
+//   - fishing：Java 构造器对 cmdV 直接赋值后 yd = f2d(F·0.2f+0.1f) 覆写 ——
+//     预览 y 初速 = cmdVy（分布近似）。
+//   - cloud/sneeze：Java 零速构造，无初速。
+//
 // 未建模（文档化为近似）：speedUpWhenYMotionIsBlocked（需碰撞）、onGround、
 // 每 tick 的随机（lava 烟生成、campfire 漂移、rain 落地 50% 移除）、
-// 构造器位置抖动（flame/soul 6F）、逐粒子随机种子。
+// 构造器位置抖动（flame/soul 6F）、逐粒子随机种子、geyser_base 寿命用的
+// 流体 level 随机（世界状态）。
+//
+// 近似收录（注册表内、无干净 base 模型）：block/block_crumble/block_marker、
+// cherry/pale_oak/tinted_leaves（FallAndLand 落地分支 + 位置抖动）、current_down
+// （水流块检查）、dust_pillar/dust_plume、elder_guardian、enchant、firefly、
+// falling_dust（post-move 重力 + 速度钳制）、geyser 系（发射器；GeyserBase
+// 寿命用流体 level 随机）、gust_emitter_*、nautilus、noxious_gas(_cloud)、
+// ominous_spawning、sulfur_bubbles、trail、vault_connection、vibration、
+// sweep_attack、explosion_emitter（NoRender 种子粒子）。
+// ambient_entity_effect：粒子数据表里有名字，但 26.2 注册表未注册（type map
+// 无条目）——命令用它会走模组报错路径，不进本表。
 //
 // 版本分区：本表证据仅来自 26.2 字节码 → 新类型只进 '26.2'；'1.21.11' 保留
 // end_rod（1.21.1 反编译核对）。1.21.1 未逐类型核对，不臆测（八荣八耻 #1）。
@@ -48,10 +92,14 @@ export interface NativeKinematics {
   friction: number;
   /** 每 tick 先于位移施加的 y 方向加速度（blocks/tick²；motion != base 时忽略） */
   gravityY: number;
-  /** super.tick() 摩擦步之后的逐轴附加阻尼（snowflake：0.95/0.9/0.95，float→double） */
+  /** super.tick() 摩擦步之后的逐轴附加阻尼（snowflake 0.95/0.9/0.95、dripping 0.98×3） */
   postFriction?: [number, number, number];
   /** spawn 时叠加出生初速 yd += fround(500/F)（campfire；F = 下一个 vanillaRand nextFloat） */
   campfireRise?: boolean;
+  /** spawn 时三轴初速 ×= 常量（Java 构造器无条件乘法因子，见文件头） */
+  spawnVelocityMul?: number;
+  /** spawn 时 y 初速 += 常量（SimpleVertical：pause −0.03 / reset +0.03） */
+  spawnVelOffsetY?: number;
 }
 
 export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>> = {
@@ -73,7 +121,7 @@ export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>>
       gravityY: -0.008999999761581421, // −0.04d×fround(0.225f)
       postFriction: [0.949999988079071, 0.8999999761581421, 0.949999988079071], // 0.95f/0.9f/0.95f → double
     },
-    glow: { friction: 0.9599999785423279, gravityY: 0 }, // Glow：friction 0.96f
+    glow: { friction: 0.9599999785423279, gravityY: 0, spawnVelocityMul: 0.20000000298023224 }, // GlowParticle：friction 0.96f；GlowSquidProvider yd×0.2d
     flame: { friction: 0.9599999785423279, gravityY: 0 }, // Rising：friction 0.96f
     small_flame: { friction: 0.9599999785423279, gravityY: 0 },
     copper_fire_flame: { friction: 0.9599999785423279, gravityY: 0 },
@@ -116,6 +164,60 @@ export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>>
     reverse_portal: { motion: 'reverse_portal', friction: 1, gravityY: 0 },
     campfire_cosy_smoke: { friction: 1.0, gravityY: -0.000003000000106112566, campfireRise: true }, // yd −= f2d(gravity)，gravity 3.0E-6f
     campfire_signal_smoke: { friction: 1.0, gravityY: -0.000003000000106112566, campfireRise: true },
+    // —— dust 系（DustParticleBase：friction 0.96f、无重力、spawn 三轴 ×0.1d）——
+    dust: { friction: 0.9599999785423279, gravityY: 0, spawnVelocityMul: 0.10000000149011612 },
+    dust_color_transition: { friction: 0.9599999785423279, gravityY: 0, spawnVelocityMul: 0.10000000149011612 }, // 同 Base
+    // —— firework 系 ——
+    // firework：Spark 构造器先 SimpleAnimated(0.1f 重力) 再 cmdV 覆盖；Flash = Overlay（零速、寿命 4）
+    firework: { friction: 0.9100000262260437, gravityY: -0.004000000059604645 }, // SimpleAnimated：friction 0.91f；gravity 0.1f
+    flash: { friction: 1.0, gravityY: 0, spawnVelocityMul: 0 }, // Overlay：无速度覆写、无摩擦/重力
+    // —— crit 系（CritParticle：friction 0.7f、gravity 0.5f；构造器末尾 tick() 一次 = off-by-one 不建模）——
+    crit: { friction: 0.699999988079071, gravityY: -0.02, spawnVelocityMul: 0.4 }, // cmdV×0.4d（+0.1d 常数项见近似清单）
+    damage_indicator: { friction: 0.699999988079071, gravityY: -0.02, spawnVelocityMul: 0.4 }, // Provider 传 (cmdVx, cmdVy+1, cmdVz)
+    enchanted_hit: { friction: 0.699999988079071, gravityY: -0.02, spawnVelocityMul: 0.4 }, // MagicProvider：cmdV
+    // —— bubble 系（自管 tick：yd += 0.002d / −f2d(gravity) / +f2d(0.005d)；×0.85d 或无摩擦）——
+    bubble: { friction: 0.8500000238418579, gravityY: 0.002, spawnVelocityMul: 0.20000000298023224 }, // 自管 yd += 0.002d、×0.85d
+    bubble_column_up: { friction: 0.8500000238418579, gravityY: 0.005, spawnVelocityMul: 0.20000000298023224 }, // base 管道：−0.04d×fround(−0.125f)
+    bubble_pop: { friction: 1.0, gravityY: -0.00800000037997961 }, // 自管 yd −= f2d(0.008f)、无摩擦
+    // —— Drip 系（DripParticle 自管 tick；hang = postMove ×0.02d + 恒 ×0.98d）——
+    falling_lava: { friction: 0.9800000190734863, gravityY: -0.05999999865889549 }, // 默认 gravity 0.06f
+    falling_water: { friction: 0.9800000190734863, gravityY: -0.05999999865889549 },
+    falling_dripstone_water: { friction: 0.9800000190734863, gravityY: -0.05999999865889549 },
+    falling_dripstone_lava: { friction: 0.9800000190734863, gravityY: -0.05999999865889549 },
+    falling_honey: { friction: 0.9800000190734863, gravityY: -0.009999999776482582 }, // 0.01f
+    falling_obsidian_tear: { friction: 0.9800000190734863, gravityY: -0.009999999776482582 },
+    falling_nectar: { friction: 0.9800000190734863, gravityY: -0.007000000216066837 }, // 0.007f
+    falling_spore_blossom: { friction: 0.9800000190734863, gravityY: -0.004999999888241291 }, // 0.005f
+    dripping_lava: { friction: 0.02, gravityY: -0.0011999999405816197, postFriction: [0.9800000190734863, 0.9800000190734863, 0.9800000190734863] }, // hang：gravity·0.02f（0.06f 链）
+    dripping_dripstone_lava: { friction: 0.02, gravityY: -0.0011999999405816197, postFriction: [0.9800000190734863, 0.9800000190734863, 0.9800000190734863] },
+    dripping_dripstone_water: { friction: 0.02, gravityY: -0.0011999999405816197, postFriction: [0.9800000190734863, 0.9800000190734863, 0.9800000190734863] },
+    dripping_water: { friction: 0.02, gravityY: -0.0011999999405816197, postFriction: [0.9800000190734863, 0.9800000190734863, 0.9800000190734863] }, // WaterHang→DripHang
+    dripping_honey: { friction: 0.02, gravityY: -0.000011999999514955562, postFriction: [0.9800000190734863, 0.9800000190734863, 0.9800000190734863] }, // hang：0.01f 基 ×0.01f
+    dripping_obsidian_tear: { friction: 0.02, gravityY: -0.000011999999514955562, postFriction: [0.9800000190734863, 0.9800000190734863, 0.9800000190734863] },
+    landing_lava: { friction: 0.9800000190734863, gravityY: -0.05999999865889549 }, // DripLand
+    landing_honey: { friction: 0.9800000190734863, gravityY: -0.05999999865889549 },
+    landing_obsidian_tear: { friction: 0.9800000190734863, gravityY: -0.05999999865889549 },
+    // —— 其余可干净建模 ——
+    sculk_charge: { friction: 0.9599999785423279, gravityY: 0 }, // friction 0.96f；无 gravity 覆写
+    sculk_charge_pop: { friction: 0.9599999785423279, gravityY: 0 },
+    cloud: { friction: 0.9599999785423279, gravityY: 0 }, // PlayerCloud：friction 0.96f；零速构造
+    sneeze: { friction: 0.9599999785423279, gravityY: 0 }, // SneezeProvider→PlayerCloud
+    fishing: { friction: 0.9800000190734863, gravityY: 0 }, // Wake 自管：gravity 0f、×0.98d
+    trial_spawner_detection: { friction: 0.9599999785423279, gravityY: 0.004000000059604645 }, // gravity −0.1f
+    trial_spawner_detection_ominous: { friction: 0.9599999785423279, gravityY: 0.004000000059604645 },
+    dragon_breath: { friction: 1.0, gravityY: 0, postFriction: [0.9599999785423279, 1.0, 0.9599999785423279] }, // 自管 tick：x/z ×f2d(0.96f)、y 无摩擦（落地分支不建模）
+    scrape: { friction: 0.9599999785423279, gravityY: 0, spawnVelocityMul: 0.01 }, // ScrapeProvider：cmdV×0.01d
+    wax_on: { friction: 0.9599999785423279, gravityY: 0, spawnVelocityMul: 0.01 }, // x/z ÷2.0d 不建模
+    wax_off: { friction: 0.9599999785423279, gravityY: 0, spawnVelocityMul: 0.01 },
+    electric_spark: { friction: 0.9599999785423279, gravityY: 0, spawnVelocityMul: 0.25 }, // cmdV×0.25d
+    explosion: { friction: 1.0, gravityY: 0, spawnVelocityMul: 0 }, // HugeExplosion：零速自管 tick
+    sonic_boom: { friction: 1.0, gravityY: 0, spawnVelocityMul: 0 }, // →HugeExplosion（无速度覆写）
+    gust: { friction: 1.0, gravityY: 0, spawnVelocityMul: 0 }, // GustParticle：零速自管 tick
+    small_gust: { friction: 1.0, gravityY: 0, spawnVelocityMul: 0 }, // SmallProvider → 同构造器
+    spit: { friction: 0.8999999761581421, gravityY: -0.02 }, // Explode(−0.1f/0.9f) 再覆写 gravity 0.5f；±0.05f 抖动见近似清单
+    poof: { friction: 0.8999999761581421, gravityY: 0.004000000059604645 }, // Explode 原样
+    pause_mob_growth: { friction: 0.9800000190734863, gravityY: 0, spawnVelOffsetY: -0.03 }, // SimpleVertical up=false
+    reset_mob_growth: { friction: 0.9800000190734863, gravityY: 0, spawnVelOffsetY: 0.03 }, // SimpleVertical up=true
     // water_current_down 未收录：tick 含水流块检查（移除/速度分支依赖世界状态）。
   },
 };
@@ -123,43 +225,75 @@ export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>>
 // ---------- 寿命公式（构造器字节码逐式复刻；F = 下一个 nextFloat，I(n) = 下一个 nextInt(n)）----------
 
 /**
- * 公式求值：返回 (r) => ticks。消费顺序 = 字节码里的调用顺序（公式内单次 F 只消费一次）。
- * 精度逐字复刻：double 常量用 double 运算；float 常量先 Math.fround；
- * (int) = Math.trunc（Java 浮点转 int 截断向零）。
+ * 公式求值上下文：scale = 该粒子的 sizeMul（dust 系 NBT Scale；缺省 1）。
+ * Java 构造器里 scale 来自 options.getScale() —— 预览按同值传入。
  */
-export type NativeLifetimeFormula = (r: { nextFloat(): number; nextInt(bound: number): number }) => number;
-type RngLike = { nextFloat(): number; nextInt(bound: number): number };
+export interface NativeLifetimeContext {
+  scale: number;
+}
+
+/**
+ * 公式求值：返回 (r, ctx) => ticks。消费顺序 = 字节码里的调用顺序（公式内
+ * 单次 F/D 只消费一次）。精度逐字复刻：double 常量用 double 运算；
+ * float 常量先 Math.fround；(int) = Math.trunc（Java 浮点转 int 截断向零）。
+ */
+export type NativeLifetimeFormula = (r: RngLike, ctx: NativeLifetimeContext) => number;
+type RngLike = {
+  nextFloat(): number;
+  nextDouble(): number;
+  nextInt(bound: number): number;
+};
 
 const L = {
   /** (int)(N/(F·0.8d+0.2d)) —— double 家族（lava/water_drop/suspended/town/scale 基底）。
    *  字节码顺序 nextFloat→f2d→0.8d dmul→0.2d dadd→ddiv：F 先乘 0.8（曾误写成
    *  N/(0.8+0.2F)，分母被压窄，2026-09-08 审查后按 javap 更正，ProbeLifetime2 实测） */
-  div: (n: number) => (r: RngLike) => Math.trunc(n / (r.nextFloat() * 0.8 + 0.2)),
+  div: (n: number) => (r: RngLike, _c: NativeLifetimeContext) => Math.trunc(n / (r.nextFloat() * 0.8 + 0.2)),
+  /** (int)(N/(D·0.8d+0.2d)) —— double 家族 nextDouble 变体（glow 26.2） */
+  doubleDiv: (n: number) => (r: RngLike, _c: NativeLifetimeContext) => Math.trunc(n / (r.nextDouble() * 0.8 + 0.2)),
+  /** (int)max(f32((int)(N/(D·0.8d+0.2d)))·scale, 1.0f) —— dust 系
+   *  （DustParticleBase 字节码：d2i→i2f→fmul scale→fmax 1.0f→f2i；
+   *  scale = options.getScale()，预览 = ctx.scale） */
+  dust: (n: number) => (r: RngLike, c: NativeLifetimeContext) =>
+    Math.trunc(Math.max(Math.fround(Math.trunc(n / (r.nextDouble() * 0.8 + 0.2)) * Math.fround(c.scale)), 1.0)),
   /** (int)(6.0d/(F·0.8d+0.6d)) —— crit（同 div 顺序，crit 用 0.6d） */
-  crit: (r: RngLike) => Math.max(Math.trunc(6.0 / (r.nextFloat() * 0.8 + 0.6)), 1),
+  crit: (r: RngLike, _c: NativeLifetimeContext) => Math.max(Math.trunc(6.0 / (r.nextFloat() * 0.8 + 0.6)), 1),
   /** max((int)((N/(F·0.8d+0.2d))·f2d(scale)),1) —— BaseAshSmoke（javap 1:1：
    *  除法结果为 double，乘 f2d(float scale)，**末尾单次** d2i 截断） */
-  ashScale: (n: number, scale: number) => (r: RngLike) =>
+  ashScale: (n: number, scale: number) => (r: RngLike, _c: NativeLifetimeContext) =>
     Math.max(Math.trunc((n / (r.nextFloat() * 0.8 + 0.2)) * Math.fround(scale)), 1),
-  /** (int)(N/(F·0.8d+0.2d)) + K —— snowflake(+2) / flame(+4) */
-  divPlus: (n: number, k: number) => (r: RngLike) => Math.trunc(n / (r.nextFloat() * 0.8 + 0.2)) + k,
-  /** (int)(4.0f/(0.9f·F+0.1f)) —— BaseParticle 默认（item/glow；全程 float，
+  /** (int)(N/(F·0.8d+0.2d)) + K —— snowflake(+2) / flame(+4) / explode(+2) */
+  divPlus: (n: number, k: number) => (r: RngLike, _c: NativeLifetimeContext) => Math.trunc(n / (r.nextFloat() * 0.8 + 0.2)) + k,
+  /** (int)(4.0f/(0.9f·F+0.1f)) —— BaseParticle 默认（item 系；全程 float，
    *  每步 Java 浮点运算都舍入：fmul→fround(0.9f·F)（0.9f 用 fround 取精确
    *  float 值，0.9d≠0.9f）、fadd→fround(·+0.1f)、fdiv→fround；(int) 截断。
    *  全 2^24 域直方图与 JDK21 逐桶一致（ProbeScan） */
-  base: (r: RngLike) => Math.trunc(Math.fround(4.0 / Math.fround(Math.fround(Math.fround(0.9) * r.nextFloat()) + Math.fround(0.1)))),
+  base: (r: RngLike, _c: NativeLifetimeContext) => Math.trunc(Math.fround(4.0 / Math.fround(Math.fround(Math.fround(0.9) * r.nextFloat()) + Math.fround(0.1)))),
   /** (int)((12.0f·0.5f)/(0.8f·F+0.2f)) —— SquidInk（同 base 的 float 链；
    *  12.0f·0.5f=6.0f 精确） */
-  squid: (r: RngLike) => Math.trunc(Math.fround(6.0 / Math.fround(Math.fround(Math.fround(0.8) * r.nextFloat()) + Math.fround(0.2)))),
+  squid: (r: RngLike, _c: NativeLifetimeContext) => Math.trunc(Math.fround(6.0 / Math.fround(Math.fround(Math.fround(0.8) * r.nextFloat()) + Math.fround(0.2)))),
   /** 40 + (int)(10.0f·F) —— portal */
-  portal: (r: RngLike) => 40 + Math.trunc(Math.fround(10.0 * r.nextFloat())),
+  portal: (r: RngLike, _c: NativeLifetimeContext) => 40 + Math.trunc(Math.fround(10.0 * r.nextFloat())),
   /** 60 + (int)(2.0f·F) —— reverse_portal：F<0.5→60、F≥0.5→61（各半；
    *  曾误读为 2·(int)F 恒 60，2026-09-08 按 javap `fmul fconst_2 → f2i` 更正） */
-  reversePortal: (r: RngLike) => 60 + Math.trunc(Math.fround(2.0 * r.nextFloat())),
-  /** min + nextInt(extra) —— end_rod/totem/campfire */
-  int: (min: number, extra: number) => (r: RngLike) => min + r.nextInt(extra),
-  /** 常量 —— heart 16 / note 6 / shriek 30 */
+  reversePortal: (r: RngLike, _c: NativeLifetimeContext) => 60 + Math.trunc(Math.fround(2.0 * r.nextFloat())),
+  /** min + nextInt(extra) —— end_rod/totem/campfire/firework/scrape/spark 等 */
+  int: (min: number, extra: number) => (r: RngLike, _c: NativeLifetimeContext) => min + r.nextInt(extra),
+  /** 常量 —— heart 16 / note 6 / shriek 30 / flash 4 / pause 8 等 */
   const: (n: number) => () => n,
+  /** (int)(64.0f/(0.9f·F+0.1f)) —— falling_spore_blossom（SporeBlossomFall
+   *  provider：f2i(fdiv(64.0f, randomBetween(F, 0.1f, 0.9f))；
+   *  randomBetween = fround(fround(F·0.8f)+0.1f)） */
+  sporeBlossom: (r: RngLike, _c: NativeLifetimeContext) =>
+    Math.trunc(Math.fround(64.0 / Math.fround(Math.fround(Math.fround(0.8) * r.nextFloat()) + Math.fround(0.1)))),
+  /** (int)max(f32((int)(8.0d/(f2d(F)·0.8d+0.3d)))·2.5f, 1.0f) —— PlayerCloud
+   *  （cloud/sneeze；注意分母 0.3d 非 0.2d） */
+  cloud: (r: RngLike, _c: NativeLifetimeContext) =>
+    Math.trunc(Math.max(Math.fround(Math.trunc(8.0 / (r.nextFloat() * 0.8 + 0.3)) * Math.fround(2.5)), 1.0)),
+  /** max(f2i(fdiv(8.0f, randomBetween(F, 0.5f, 1.0f))·1.5f), 1) ——
+   *  TrialSpawnerDetection（provider scale 参数 1.5f；randomBetween 逐字节码） */
+  trialSpawner: (r: RngLike, _c: NativeLifetimeContext) =>
+    Math.max(Math.trunc(Math.fround(Math.fround(8.0 / Math.fround(Math.fround(Math.fround(0.5) * r.nextFloat()) + Math.fround(0.5))) * Math.fround(1.5))), 1),
 };
 
 export const NATIVE_LIFETIME: Record<string, Record<string, NativeLifetimeFormula>> = {
@@ -174,7 +308,7 @@ export const NATIVE_LIFETIME: Record<string, Record<string, NativeLifetimeFormul
     angry_villager: L.const(16),
     note: L.const(6),
     snowflake: L.divPlus(16, 2),
-    glow: L.base,
+    glow: L.doubleDiv(8), // GlowSquidProvider：(int)(8.0d/(D·0.8d+0.2d))（nextDouble；无 max）
     flame: L.divPlus(8, 4), // Rising：(int)(8.0d/(0.8d·F+0.2d)) + 4
     small_flame: L.divPlus(8, 4),
     copper_fire_flame: L.divPlus(8, 4),
@@ -217,6 +351,52 @@ export const NATIVE_LIFETIME: Record<string, Record<string, NativeLifetimeFormul
     reverse_portal: L.reversePortal,
     campfire_cosy_smoke: L.int(280, 50),
     campfire_signal_smoke: L.int(80, 50),
+    dust: L.dust(8), // DustParticleBase：nextDouble 域
+    dust_color_transition: L.dust(8), // 同 Base
+    firework: L.int(48, 12), // Spark：48 + I(12)
+    flash: L.const(4), // Overlay：4
+    damage_indicator: L.const(20), // DamageIndicatorProvider：setLifetime(20)
+    enchanted_hit: L.crit, // MagicProvider 不覆写 → 构造器默认
+    bubble: L.div(8), // (int)(8.0d/(f2d(F)·0.8d+0.2d))
+    bubble_column_up: L.div(40), // (int)(40.0d/…)
+    bubble_pop: L.const(4),
+    falling_lava: L.div(64), // FallAndLand 构造器默认
+    falling_water: L.div(64),
+    falling_dripstone_water: L.div(64), // DripstoneFallAndLand = 纯子类
+    falling_dripstone_lava: L.div(64),
+    falling_honey: L.div(64), // HoneyFallAndLand
+    falling_obsidian_tear: L.div(64),
+    falling_nectar: L.div(16), // NectarFall provider 覆写
+    falling_spore_blossom: L.sporeBlossom, // provider 覆写：float 链 64.0f/(0.9f·F+0.1f)
+    dripping_lava: L.const(40), // DripHang 构造器默认
+    dripping_dripstone_lava: L.const(40),
+    dripping_dripstone_water: L.const(40),
+    dripping_water: L.const(40),
+    dripping_honey: L.const(100), // HoneyHang provider：100
+    dripping_obsidian_tear: L.const(100),
+    landing_lava: L.div(16), // DripLand 构造器默认
+    landing_honey: L.div(128), // HoneyLand provider 覆写
+    landing_obsidian_tear: L.div(28), // TearLand provider 覆写
+    sculk_charge: L.int(8, 12), // Provider：8 + I(12)
+    sculk_charge_pop: L.int(6, 4), // Provider：I(4) + 6
+    cloud: L.cloud, // PlayerCloud 构造器
+    sneeze: L.cloud,
+    fishing: L.div(8), // Wake：(int)(8.0d/(f2d(F)·0.8d+0.2d))
+    trial_spawner_detection: L.trialSpawner,
+    trial_spawner_detection_ominous: L.trialSpawner,
+    dragon_breath: L.div(20), // (int)(20.0d/(f2d(F)·0.8d+0.2d))
+    scrape: L.int(10, 30), // I(30) + 10
+    wax_on: L.int(10, 30),
+    wax_off: L.int(10, 30),
+    electric_spark: L.int(2, 2), // I(2) + 2
+    explosion: L.int(6, 4), // HugeExplosion：I(4) + 6
+    sonic_boom: L.const(16), // SonicBoom 覆写
+    gust: L.int(12, 4), // I(4) + 12
+    small_gust: L.int(12, 4),
+    spit: L.divPlus(16, 2), // Explode：(int)(16.0d/(f2d(F)·0.8d+0.2d)) + 2
+    poof: L.divPlus(16, 2),
+    pause_mob_growth: L.const(8), // SimpleVertical：8
+    reset_mob_growth: L.const(8),
   },
 };
 
@@ -260,4 +440,3 @@ export function fidelityFor(
   if (nativeSpecFor(key, version)) return 'full';
   return 'approx';
 }
-
