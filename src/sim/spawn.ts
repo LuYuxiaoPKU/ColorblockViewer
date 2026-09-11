@@ -16,7 +16,7 @@ import type { CompiledBlock } from '../engine';
 import { ParticleStruct } from '../engine/struct';
 import type { ParticleCommand } from '../command/types';
 import { parseCompound } from '../nbt/parse';
-import { OPTION_FIELDS, parseColorField } from '../nbt/particleOptions';
+import { OPTION_FIELDS, NESTED_OPTION_FIELDS, parseColorField } from '../nbt/particleOptions';
 import {
   computeSpawnStep,
   fillConditionalPoint,
@@ -57,6 +57,10 @@ export interface SpawnRequest {
   nbtTint?: boolean;
   /** 点大小倍数（dust 的 scale，缺省 1） */
   sizeMul?: number;
+  /** trail{NBT} 的 target（绝对坐标终点；引擎每 tick lerp 归位，TrailParticle.tick 字节码） */
+  trailTarget?: { x: number; y: number; z: number };
+  /** trail{NBT} 的 duration（寿命覆写；仅 age=0 路径生效，命令显式 age 优先） */
+  trailDuration?: number;
 }
 
 /** 命令执行上下文：engine 注入的生成回调与结果收集 */
@@ -133,22 +137,51 @@ function stepGuard(prev: number, next: number, iters: number): void {
 
 // ---------- type{NBT} 载荷 → 渲染色/大小倍数（schema 见 nbt/particleOptions.ts）----------
 
+/** trail 的 NBT 附加消费：target（Vec3 终点，**绝对坐标**——TrailParticle.tick
+ *  每 tick `Mth.lerp(age/lifetime, 当前位置, target)`，与出生点同坐标系）与
+ *  duration（寿命覆写 = setLifetime，仅 age=0 路径；命令显式 age 与模组
+ *  语义一致地优先）。解析层已校验形状，此处防御性 try。 */
+function nbtTrailExtra(nbt: string): {
+  target?: { x: number; y: number; z: number };
+  duration?: number;
+} {
+  const out: { target?: { x: number; y: number; z: number }; duration?: number } = {};
+  let fields;
+  try {
+    fields = parseCompound(nbt);
+  } catch {
+    return out;
+  }
+  const t = fields.find(f => f.key === 'target');
+  if (t && Array.isArray(t.val) && t.val.length === 3 && t.val.every(v => typeof v === 'number')) {
+    out.target = { x: t.val[0] as number, y: t.val[1] as number, z: t.val[2] as number };
+  }
+  const d = fields.find(f => f.key === 'duration');
+  if (d && typeof d.val === 'number' && Number.isInteger(d.val) && d.val >= 1) out.duration = d.val;
+  return out;
+}
+
 /** type{NBT} 载荷 → 渲染色/大小倍数（schema 见 nbt/particleOptions.ts，
  *  逐类型字节码取证）。消费规则：
  *  - 渲染色：dust 的 color（DustParticle 构造器把 getColor() 写入 rCol/gCol/bCol；
  *    **逐粒子 ±20% 抖动** randomizeColor —— 预览不抖动，用基准色，已知近似）
  *    与 ARGB 类型（entity_effect/tinted_leaves/flash）的 color；
- *    dust_color_transition 取 from_color 作为出生色（age 插值不模拟，取动画起点）。
+ *    dust_color_transition 取 from_color 作为出生色（age 插值不模拟，取动画起点）；
+ *    trail 的 color（TrailParticle 构造器 scaleRGB(color, 0.875+0.25·jitter) 三轴各自
+ *    抖动——预览不抖动且亮度取 1.0，已知近似）。
  *  - 点大小倍数：scale（仅 dust/dust_color_transition 有该字段，
  *    ScalableParticleOptionsBase 构造器 Mth.clamp 0.01-4）。
  *  - power/roll/delay 不影响可见外观（power 只影响亮度/衰减距离、roll 是旋转、
  *    delay 是延迟）→ 不消费。
+ *  - 嵌套 8 类其余字段：block_state/item 选贴图、destination 定波源（预览无注册表
+ *    → 不消费，近似清单见 kinematics）；trail 的 target/duration 由 execVanilla
+ *    经 nbtTrailExtra 消费。
  *  非收录类型或空载荷 → 全缺省（白 + 1）。 */
 function nbtVisuals(name: string, nbt: string | null): { nbtTint: boolean; sizeMul: number; r: number; g: number; b: number } {
   const def = { nbtTint: false, sizeMul: 1, r: 1, g: 1, b: 1 };
   if (nbt === null) return def;
   const base = name.replace(/^minecraft:/i, '').toLowerCase();
-  const schema = OPTION_FIELDS[base];
+  const schema = OPTION_FIELDS[base] ?? NESTED_OPTION_FIELDS[base];
   if (!schema) return def;
   let fields;
   try {
@@ -372,6 +405,8 @@ export function execVanilla(cmd: ParticleCommand & { kind: 'vanilla' }, sink: Sp
   const count = cmd.count ?? 0;
   // 收录类型的 NBT 颜色/尺寸消费（其余类型 NBT 不消费 → 白 + 1）
   const vis = nbtVisuals(cmd.name, cmd.nbt);
+  const trailBase = cmd.name.replace(/^minecraft:/i, '').toLowerCase();
+  const trailExtra = trailBase === 'trail' && cmd.nbt !== null ? nbtTrailExtra(cmd.nbt) : {};
   if (count === 0) {
     // 单粒子：精确位置 + 确定速度 speed×delta
     spawnOne(sink, {
@@ -385,6 +420,8 @@ export function execVanilla(cmd: ParticleCommand & { kind: 'vanilla' }, sink: Sp
       vanilla: true,
       nbtTint: vis.nbtTint,
       sizeMul: vis.sizeMul,
+      trailTarget: trailExtra.target,
+      trailDuration: trailExtra.duration,
     });
     return;
   }
@@ -407,6 +444,8 @@ export function execVanilla(cmd: ParticleCommand & { kind: 'vanilla' }, sink: Sp
       vanilla: true,
       nbtTint: vis.nbtTint,
       sizeMul: vis.sizeMul,
+      trailTarget: trailExtra.target,
+      trailDuration: trailExtra.duration,
     });
   }
 }

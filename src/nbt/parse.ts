@@ -45,10 +45,24 @@ export function parseCompound(body: string): NbtField[] {
       key = buf;
       part = part.slice(i + 1);
     } else {
-      const ci = findTop(part, ':');
+      // SNBT 裸 key 可含冒号（命名空间分隔，如 minecraft:food）→ 取**最后一个**
+      // 顶层冒号作 key/value 分隔（值域为数值/布尔/列表/compound，裸值不含冒号）
+      let ci = -1, d2 = 0, q2: string | null = null;
+      for (let i2 = 0; i2 < part.length; i2++) {
+        const c2 = part[i2];
+        if (q2) {
+          if (c2 === q2) {
+            if (i2 + 1 < part.length && part[i2 + 1] === q2) i2++;
+            else q2 = null;
+          }
+        } else if (c2 === '"' || c2 === "'") q2 = c2;
+        else if (c2 === '[' || c2 === '{') d2++;
+        else if (c2 === ']' || c2 === '}') d2--;
+        else if (c2 === ':' && d2 === 0) ci = i2;
+      }
       if (ci < 0) throw new NbtParseError(`字段 "${part}" 缺少冒号`);
       key = part.slice(0, ci);
-      if (!/^[a-zA-Z0-9_]+$/.test(key)) throw new NbtParseError(`字段名无效："${key}"`);
+      if (!/^[a-zA-Z0-9_:\-.]+$/.test(key)) throw new NbtParseError(`字段名无效："${key}"`);
       part = part.slice(ci + 1);
     }
     out.push({ key, val: parseVal(part) });
@@ -78,26 +92,6 @@ function splitTop(s: string, sep: string): string[] {
   if (d !== 0) throw new NbtParseError('花括号/方括号不配对');
   out.push(s.slice(st));
   return out;
-}
-
-/** 找第一个不在 [ ] { } 内、不在引号内的 ch；未找到 → -1。 */
-function findTop(s: string, ch: string): number {
-  let d = 0, q: string | null = null;
-  for (let i = 0; i < s.length; i++) {
-    const c = s[i];
-    if (q) {
-      if (c === q) {
-        if (i + 1 < s.length && s[i + 1] === q) i++;
-        else q = null;
-      }
-      continue;
-    }
-    if (c === '"' || c === "'") q = c;
-    else if (c === '[' || c === '{') d++;
-    else if (c === ']' || c === '}') d--;
-    else if (c === ch && d === 0) return i;
-  }
-  return -1;
 }
 
 function parseVal(s: string): NbtVal {
@@ -130,7 +124,16 @@ function parseVal(s: string): NbtVal {
     return buf;
   }
   if (s === 'true' || s === 'false') return s === 'true';
-  return parseNum(s);
+  try {
+    return parseNum(s);
+  } catch (e) {
+    // 未加引号的字符串（SnbtGrammar unquotedString = PLAIN_STRING_CHUNK+，
+    // 首字符不得为数字类——isAllowedToStartUnquotedString = !canStartNumber；
+    // 数字类开头先走 numeric literal 规则）→ 裸块名 stone 是合法字符串值，
+    // 而 0xZZ/1abc 仍按数值规则报错
+    if (e instanceof NbtParseError && !/^[+-.0-9]/.test(s)) return s;
+    throw e;
+  }
 }
 
 /** 解析 SNBT 数值：

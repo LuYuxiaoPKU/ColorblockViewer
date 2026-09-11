@@ -48,6 +48,8 @@ export interface SimParticle {
   nbtTint?: boolean;
   /** 点大小倍数（dust 的 scale，默认 1；原版 quadSize = 0.75·scale，预览按相对倍数） */
   sizeMul?: number;
+  /** trail{NBT} 的 target（绝对坐标终点；每 tick lerp 归位，TrailParticle.tick 字节码） */
+  trailTarget?: { x: number; y: number; z: number };
   /** 命令位置 = 中心 */
   cx: number; cy: number; cz: number;
   /** 速度表达式（customMove 路径） */

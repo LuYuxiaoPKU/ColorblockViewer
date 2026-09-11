@@ -242,7 +242,7 @@ describe('serialize round-trip', () => {
     'particle dust ~ ~1 ~-2',
     'particle dust{color:0xFF0000,scale:1f} 1 2 3 0.1 0.2 0.3 0 5',
     'particle dust{color:[1.0,0.0,0.0],scale:1.0f} 1 2 3',
-    'particle block{BlockState:123} 1 2 3',
+    'particle block{block_state:"stone"} 1 2 3',
     'particle flame 1 2 3 0 0 0 0.5 42',
     'particle flame ~ ~ ~ 0 0 0 0.5 42 normal',
   ];
@@ -303,7 +303,7 @@ describe('原版 /particle（MC 26.2）', () => {
 
   it('type{NBT}：剥离 NBT 保留类型名（含命名空间前缀）', () => {
     expect(V('particle dust{color:0xFF0000,scale:1f}').name).toBe('dust');
-    expect(V('particle minecraft:block{BlockState:1}').name).toBe('minecraft:block');
+    expect(V('particle minecraft:block{block_state:stone}').name).toBe('minecraft:block');
   });
 
   it('type{NBT}：dust 载荷记录到 nbt 字段（取证：1.21.11 ls.class CODEC = color/scale）', () => {
@@ -313,9 +313,9 @@ describe('原版 /particle（MC 26.2）', () => {
   });
 
   it('type{NBT}：非收录类型只校验语法、记录载荷不消费', () => {
-    const c = V('particle minecraft:block{BlockState:123}');
-    expect(c.name).toBe('minecraft:block');
-    expect(c.nbt).toBe('BlockState:123');
+    const c = V('particle minecraft:smoke{Red:1f}');
+    expect(c.name).toBe('minecraft:smoke');
+    expect(c.nbt).toBe('Red:1f');
   });
 
   it('dust NBT 缺 color/scale → 报错（游戏内 Can\'t parse particle options）', () => {
@@ -426,5 +426,90 @@ describe('原版 /particle（MC 26.2）', () => {
 
   it('name 空（裸 {NBT}）报错', () => {
     expect(() => V('particle {Red:1f}')).toThrow(/粒子名不能为空/);
+  });
+
+  // ---------- 嵌套 8 类（26.2 CODEC 取证，见 nbt/particleOptions.ts 头注）----------
+
+  it('block 系：block_state 必填；裸块名（SNBT unquotedString）或引号字符串', () => {
+    for (const t of ['block', 'block_crumble', 'block_marker', 'dust_pillar', 'falling_dust']) {
+      expect(V(`particle ${t}{block_state:stone}`).nbt).toBe('block_state:stone');
+      expect(V(`particle ${t}{block_state:"stone"}`).nbt).toBe('block_state:"stone"');
+      expect(() => V(`particle ${t}{}`)).toThrow(/缺字段 "block_state"/);
+      expect(() => V(`particle ${t}{BlockState:stone}`)).toThrow(/缺字段 "block_state"/);
+      expect(() => V(`particle ${t}{block_state:stone,Red:1}`)).toThrow(/不应含字段 "Red"/);
+    }
+  });
+
+  it('block 系：{Name:…[,Properties:…]} map 形式；Name 缺失/非字符串 → 拒绝', () => {
+    expect(V('particle block{block_state:{Name:"stone"}}').nbt).toBe('block_state:{Name:"stone"}');
+    expect(V('particle block{block_state:{Name:"stone",Properties:{lit:true}}}').nbt)
+      .toBe('block_state:{Name:"stone",Properties:{lit:true}}');
+    expect(() => V('particle block{block_state:{Name:123}}')).toThrow(/应为方块状态/);
+    expect(() => V('particle block{block_state:{Properties:{}}}}')).toThrow(/不配对/);
+    expect(() => V('particle block{block_state:{Properties:{lit:true}}}')).toThrow(/应为方块状态/);
+    expect(() => V('particle block{block_state:123}')).toThrow(/应为方块状态/);
+  });
+
+  it('item：item 必填；物品名（SNBT 字符串，裸写或引号）或 {id[,count 1-99][,components]}', () => {
+    expect(V('particle item{item:stick}').nbt).toBe('item:stick');
+    expect(V('particle item{item:"stick"}').nbt).toBe('item:"stick"');
+    expect(V('particle item{item:{id:stick}}').nbt).toBe('item:{id:stick}');
+    expect(V('particle item{item:{id:stick,count:5}}').nbt).toBe('item:{id:stick,count:5}');
+    expect(V('particle item{item:{id:stick,components:{minecraft:food:{nutrition:4}}}}').nbt)
+      .toBe('item:{id:stick,components:{minecraft:food:{nutrition:4}}}');
+    expect(() => V('particle item{}')).toThrow(/缺字段 "item"/);
+    expect(() => V('particle item{item:{count:5}}')).toThrow(/应为物品堆（含 id 字段）/);
+    expect(() => V('particle item{item:{id:stick,count:100}}')).toThrow(/count 应为整数（范围 \[1, 99\]）/);
+    expect(() => V('particle item{item:{id:stick,count:0}}')).toThrow(/count 应为整数（范围 \[1, 99\]）/);
+    expect(() => V('particle item{item:{id:stick,count:2.5f}}')).toThrow(/count 应为整数（范围 \[1, 99\]）/);
+    expect(() => V('particle item{item:1}')).toThrow(/应为物品堆/);
+  });
+
+  it('trail：target(Vec3)/color(RGB)/duration(POSITIVE_INT) 全必填，字节码序 target→color→duration', () => {
+    expect(V('particle trail{target:[1,2,3],color:0xFF0000,duration:20}').nbt)
+      .toBe('target:[1,2,3],color:0xFF0000,duration:20');
+    expect(V('particle trail{target:[0.5,1.5,2.5],color:[1,0,0],duration:1}').nbt)
+      .toBe('target:[0.5,1.5,2.5],color:[1,0,0],duration:1');
+    // 缺字段按字节码序报首个
+    expect(() => V('particle trail{color:0xFF0000,duration:20}')).toThrow(/缺字段 "target"/);
+    expect(() => V('particle trail{target:[1,2,3],duration:20}')).toThrow(/缺字段 "color"/);
+    expect(() => V('particle trail{target:[1,2,3],color:0xFF0000}')).toThrow(/缺字段 "duration"/);
+    expect(() => V('particle trail{target:[1,2,3],color:0xFF0000,duration:20,Red:1}')).toThrow(/不应含字段 "Red"/);
+    // vec3：恰 3 元素（Util.fixedSize）
+    expect(() => V('particle trail{target:[1,2],color:0xFF0000,duration:20}')).toThrow(/Input is not a list of 3 elements/);
+    expect(() => V('particle trail{target:[1,2,3,4],color:0xFF0000,duration:20}')).toThrow(/Input is not a list of 3 elements/);
+    expect(() => V('particle trail{target:1,color:0xFF0000,duration:20}')).toThrow(/应为\[x,y,z\] 三元素列表/);
+    // color：RGB（int 或 [r,g,b] 0-1）
+    expect(() => V('particle trail{target:[1,2,3],color:0x1FF0000,duration:20}')).toThrow(/"color" 应为RGB 颜色/);
+    expect(() => V('particle trail{target:[1,2,3],color:[1,0],duration:20}')).toThrow(/"color" 应为RGB 颜色/);
+    // duration：POSITIVE_INT
+    expect(() => V('particle trail{target:[1,2,3],color:0xFF0000,duration:0}')).toThrow(/"duration" 应为正整数/);
+    expect(() => V('particle trail{target:[1,2,3],color:0xFF0000,duration:1.5f}')).toThrow(/"duration" 应为整数/);
+  });
+
+  it('vibration：destination(SAFE_POSITION_SOURCE)/arrival_in_ticks(INT) 全必填', () => {
+    expect(V('particle vibration{destination:{block:{pos:[1,2,3]}},arrival_in_ticks:20}').nbt)
+      .toBe('destination:{block:{pos:[1,2,3]}},arrival_in_ticks:20');
+    expect(V('particle vibration{destination:{block:{pos:[-1,64,0]}},arrival_in_ticks:-5}').nbt)
+      .toBe('destination:{block:{pos:[-1,64,0]}},arrival_in_ticks:-5');
+    expect(() => V('particle vibration{arrival_in_ticks:20}')).toThrow(/缺字段 "destination"/);
+    expect(() => V('particle vibration{destination:{block:{pos:[1,2,3]}}}')).toThrow(/缺字段 "arrival_in_ticks"/);
+    expect(() => V('particle vibration{destination:{entity:{pos:[1,2,3]}},arrival_in_ticks:20}'))
+      .toThrow(/Entity position sources are not allowed/);
+    expect(() => V('particle vibration{destination:{foo:{pos:[1,2,3]}},arrival_in_ticks:20}'))
+      .toThrow(/应为位置源/);
+    expect(() => V('particle vibration{destination:{block:{pos:[1,2]}},arrival_in_ticks:20}'))
+      .toThrow(/pos 应为恰 3 个整数的列表/);
+    expect(() => V('particle vibration{destination:{block:{pos:[1.5,2,3]}},arrival_in_ticks:20}'))
+      .toThrow(/pos 应为恰 3 个整数的列表/);
+    expect(() => V('particle vibration{destination:{block:{pos:[1,2,3],Red:1}},arrival_in_ticks:20}'))
+      .toThrow(/应为\{block:\{pos:\[x,y,z\]\}\}/);
+    expect(() => V('particle vibration{destination:{block:{pos:[1,2,3]}},arrival_in_ticks:1.5f}'))
+      .toThrow(/"arrival_in_ticks" 应为整数/);
+  });
+
+  it('嵌套 8 类：命名空间前缀不影响 schema 校验', () => {
+    expect(V('particle minecraft:block{block_state:"stone"}').nbt).toBe('block_state:"stone"');
+    expect(() => V('particle minecraft:trail{target:[1,2,3]}')).toThrow(/缺字段 "color"/);
   });
 });
