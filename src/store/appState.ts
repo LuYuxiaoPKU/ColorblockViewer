@@ -216,6 +216,13 @@ export function removeCommand(i: number): void {
   set({ commands, input: serializeAll(commands) });
 }
 
+/** 追加多条命令（模板库「载入」用；解析由调用方负责 —— 模板文本已过格式检查） */
+export function appendCommands(cmds: ParticleCommand[]): void {
+  if (cmds.length === 0) return;
+  const commands = [...state.commands, ...cmds];
+  set({ commands, input: serializeAll(commands) });
+}
+
 /** 粘贴框编辑（仅暂存文本，不动命令真源） */
 export function setInputText(text: string): void {
   set({ input: text });

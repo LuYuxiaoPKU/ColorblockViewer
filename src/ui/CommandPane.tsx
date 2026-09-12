@@ -24,6 +24,7 @@ import type { ParticleCommand } from '../command/types';
 import { CommandForm } from './CommandForm';
 import { SettingsDrawer } from './SettingsDrawer';
 import { StatusToast } from './StatusToast';
+import { TemplateGallery } from './TemplateGallery';
 
 // 类型 tabs（新增命令用；parameter 家族 8 变体收进一个 tab 展开）
 const TABS: { label: string; make: () => ParticleCommand }[] = [
@@ -155,6 +156,7 @@ export function CommandPane({ onRun }: { onRun: () => void }) {
       </section>
 
       <SettingsDrawer />
+      <TemplateGallery onRun={onRun} />
       <StatusToast toasts={toasts} />
     </div>
   );
