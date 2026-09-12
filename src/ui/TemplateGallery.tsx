@@ -10,8 +10,8 @@
 // 可解析 + 过游戏内格式检查 + 引擎实跑零错误），复制出去可直接粘进游戏。
 
 import { useEffect, useMemo, useState } from 'react';
-import { TEMPLATES, featuredTemplates, templateText, type Template } from '../templates/library';
-import { appendCommands, pushToast, replaceCommands, useAppState } from '../store/appState';
+import { TEMPLATES, templateText, type Template } from '../templates/library';
+import { appendCommands, pushToast, replaceCommands } from '../store/appState';
 import { templateUrl } from '../share/bootstrap';
 import { parseCommands } from '../command/parser';
 import { copyText } from './clipboard';
@@ -42,39 +42,6 @@ export function loadTemplateFresh(t: Template, onRunFresh: () => void): boolean 
     pushToast(`模板「${t.name}」载入失败：${(err as Error).message}`);
     return false;
   }
-}
-
-/** 精选入口：常驻一行 chips；命令列表为空时变成「从模板开始」引导 */
-export function FeaturedTemplates({
-  onOpenAll,
-  onRunFresh,
-}: {
-  onOpenAll: () => void;
-  onRunFresh: () => void;
-}) {
-  const { commands } = useAppState();
-  const picks = featuredTemplates();
-  const empty = commands.length === 0;
-  return (
-    <div className={empty ? 'template-featured empty' : 'template-featured'}>
-      <span className="template-featured-label">
-        {empty ? '从模板开始（点一下即载入并执行）：' : '精选模板：'}
-      </span>
-      {picks.map((t) => (
-        <button
-          key={t.id}
-          className="chip"
-          title={`${t.desc}（清空现有命令与粒子后执行）`}
-          onClick={() => loadTemplateFresh(t, onRunFresh)}
-        >
-          {t.name.replace(/（.*$/, '')}
-        </button>
-      ))}
-      <button className="chip ghost" onClick={onOpenAll}>
-        全部 {TEMPLATES.length} 个 →
-      </button>
-    </div>
-  );
 }
 
 /** 模板库面板（覆盖式）：展示 + 复制命令 + 载入/载入并执行 */

@@ -524,39 +524,6 @@ button.small {
   white-space: pre;
   overflow-x: auto;
 }
-/* 精选模板入口（命令区常驻一行 chips）：命令列表为空时作为「从模板开始」引导 */
-.template-featured {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  margin: 6px 0;
-  font-size: 12px;
-}
-.template-featured-label {
-  color: var(--muted);
-}
-.template-featured.empty {
-  border: 1px dashed var(--border);
-  border-radius: 4px;
-  padding: 8px;
-  background: var(--bg);
-}
-.chip {
-  padding: 3px 9px;
-  font-size: 12px;
-  border-radius: 999px;
-  background: var(--bg);
-  color: var(--fg);
-  border: 1px solid var(--border);
-}
-.chip:hover {
-  border-color: var(--accent);
-}
-.chip.ghost {
-  color: var(--accent);
-}
-
 /* 模板库：覆盖式面板（右侧 sheet，盖在 viewport 上；画布左侧保持可见） */
 .gallery-overlay {
   position: fixed;

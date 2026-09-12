@@ -126,17 +126,9 @@ export const TEMPLATES: Template[] = [
   },
 ];
 
-/** 精选模板（入口 chips 与「从模板开始」引导用）：几何直观、一眼看懂效果 */
-export const FEATURED_IDS = ['ripple', 'ring', 'spiral', 'heart'] as const;
-
 /** 按 id 查模板（分享链接/测试用） */
 export function templateById(id: string): Template | undefined {
   return TEMPLATES.find((t) => t.id === id);
-}
-
-/** 精选模板对象（顺序 = FEATURED_IDS；id 写错会被过滤掉） */
-export function featuredTemplates(): Template[] {
-  return FEATURED_IDS.map(templateById).filter((t): t is Template => t !== undefined);
 }
 
 /** 模板命令文本（多行用 \n 连接），即「复制」按钮写进剪贴板的内容 */

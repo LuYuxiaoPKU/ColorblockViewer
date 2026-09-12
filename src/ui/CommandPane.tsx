@@ -10,6 +10,8 @@ import {
   insertCommandAfter,
   setInputText,
   applyInputText,
+  replaceCommands,
+  pushToast,
 } from '../store/appState';
 import {
   DEFAULT_NORMAL,
@@ -24,7 +26,7 @@ import type { ParticleCommand } from '../command/types';
 import { CommandForm } from './CommandForm';
 import { SettingsDrawer } from './SettingsDrawer';
 import { StatusToast } from './StatusToast';
-import { FeaturedTemplates, TemplateGallery } from './TemplateGallery';
+import { TemplateGallery } from './TemplateGallery';
 
 // 类型 tabs（新增命令用；parameter 家族 8 变体收进一个 tab 展开）
 const TABS: { label: string; make: () => ParticleCommand }[] = [
@@ -41,7 +43,15 @@ const PARAM_VARIANTS = [
   'rgbaparameter', 'rgbapolarparameter', 'rgbatickparameter', 'rgbatickpolarparameter',
 ];
 
-export function CommandPane({ onRun, onRunFresh }: { onRun: () => void; onRunFresh: () => void }) {
+export function CommandPane({
+  onRun,
+  onRunFresh,
+  onReset,
+}: {
+  onRun: () => void;
+  onRunFresh: () => void;
+  onReset: () => void;
+}) {
   const { commands, input, toasts } = useAppState();
   const [inputDirty, setInputDirty] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
@@ -53,18 +63,36 @@ export function CommandPane({ onRun, onRunFresh }: { onRun: () => void; onRunFre
 
   const add = (cmd: ParticleCommand) => insertCommandAfter(commands.length - 1, cmd);
 
+  /** 「一键清空」：清空命令真源（→ 粘贴框文本自动变空 + 命令列表清空）
+   *  + 回放重置（清掉画面上正在显示的粒子/生成器/tick）。
+   *  注意顺序：onReset 会 clearToasts，toast 必须在其后推。 */
+  const clearAll = () => {
+    replaceCommands([]);
+    setInputDirty(false);
+    setApplyError(null);
+    onReset();
+    pushToast('已清空命令输入框与画面粒子（可粘贴新命令或从模板库载入）');
+  };
+
   return (
     <div className="command-pane">
       <section className="pane-section">
         <div className="pane-section-head">
           <span>命令（多行，每行一条）</span>
+          <button className="primary small" onClick={onRun}>执行</button>
+        </div>
+        <div className="btn-row">
           <button className="small" onClick={() => setGalleryOpen(true)} title="模板展示：复制命令 / 载入">
             📚 模板库
           </button>
-          <button className="primary small" onClick={onRun}>执行</button>
+          <button
+            className="small"
+            onClick={clearAll}
+            title="清空命令输入框与命令列表，并清掉画面上正在显示的粒子"
+          >
+            🗑 一键清空
+          </button>
         </div>
-        {/* 精选入口（常驻）：命令列表为空时是「从模板开始」引导 */}
-        <FeaturedTemplates onOpenAll={() => setGalleryOpen(true)} onRunFresh={onRunFresh} />
         <textarea
           className="cmd-input"
           rows={6}
