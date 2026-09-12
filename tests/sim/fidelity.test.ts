@@ -43,10 +43,18 @@ describe('fidelityFor（26.2）', () => {
     expect(fidelityFor('block_marker', '26.2', TYPES_262)).toBe('full');
     expect(fidelityFor('block_marker{block_state:"minecraft:stone"}', '26.2', TYPES_262)).toBe('full'); // NBT 载荷不参与分级
     expect(fidelityFor('elder_guardian', '26.2', TYPES_262)).toBe('full'); // 零速构造 + gravity 0f + lifetime 30
+    // 2026-09-12 第四轮核对入表：Terrain 方块族 + 位置式飞行曲线
+    expect(fidelityFor('block', '26.2', TYPES_262)).toBe('full');
+    expect(fidelityFor('block_crumble', '26.2', TYPES_262)).toBe('full');
+    expect(fidelityFor('block{block_state:"minecraft:stone"}', '26.2', TYPES_262)).toBe('full'); // NBT 载荷不参与分级
+    expect(fidelityFor('enchant', '26.2', TYPES_262)).toBe('full');
+    expect(fidelityFor('nautilus', '26.2', TYPES_262)).toBe('full');
+    expect(fidelityFor('vault_connection', '26.2', TYPES_262)).toBe('full');
+    expect(fidelityFor('ominous_spawning', '26.2', TYPES_262)).toBe('full');
   });
 
   it('注册表内但运动学未逐条核对 → approx（approx 清单类型）', () => {
-    expect(fidelityFor('block', '26.2', TYPES_262)).toBe('approx');
+    expect(fidelityFor('firefly', '26.2', TYPES_262)).toBe('approx'); // 逐 tick 随机位置抖动
     expect(fidelityFor('geyser_base', '26.2', TYPES_262)).toBe('approx'); // NoRender 发射器种子粒子
     expect(fidelityFor('noxious_gas_cloud', '26.2', TYPES_262)).toBe('approx'); // NoRender 发射器：tick 每 2 tick 用 level 随机向可达 sulfur 方块吐 gas（世界状态）
   });
@@ -68,6 +76,6 @@ describe('fidelityFor（26.2）', () => {
   it('types 缺省（空）时跳过注册表检查，不产生 unknown', () => {
     expect(fidelityFor('end_rod', '26.2')).toBe('full');
     expect(fidelityFor('dust', '26.2')).toBe('full');
-    expect(fidelityFor('block', '26.2')).toBe('approx');
+    expect(fidelityFor('block', '26.2')).toBe('full');
   });
 });
