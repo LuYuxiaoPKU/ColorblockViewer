@@ -787,6 +787,10 @@ describe('原版运动学：26.2 逐类型寿命 golden（age=0，seed=1 → van
     // —— 2026-09-12 第五轮入表（ProbePlume 同序列 JDK21 实测）——
     ['dust_plume', [8, 16, 7]], // BaseAshSmoke：max((int)(7/(F·0.8d+0.2d)·f2d(1.0f)),1)
     ['dust_pillar', [27, 34, 22]], // Provider：20+I(20)（每粒子前有三个 nextGaussian，交错流）
+    // —— 2026-09-12 第五轮入表（ProbeLeaves 同序列 JDK21 实测）——
+    ['cherry_leaves', [300, 300, 300]], // 构造器常量（sipush 300；倒计时语义）
+    ['pale_oak_leaves', [300, 300, 300]],
+    ['tinted_leaves', [300, 300, 300]],
   ];
   for (const [name, seq] of goldens) {
     it(`${name}：寿命序列 = JDK21 golden`, () => {
@@ -1049,6 +1053,49 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
     p = snap(en)[0];
     expect(p.y).toBe(2.903487787795043);
     expect(p.vy).toBe(0.5878958109551095);
+  });
+
+  it('cherry_leaves：flowAway 曲线（pow(f2,1.25d)）+ 构造器一次 nextFloat 定 flow 方向（JDK21 ProbeLeaves golden）', () => {
+    const en = eng1('cherry_leaves');
+    const p0 = snap(en)[0];
+    expect(p0.lifetime).toBe(300); // 构造器 sipush 300（倒计时语义 = 存活 300 tick）
+    expect(p0.vy).toBe(-0); // yd = −(double)0.0f；命令速度被位置型构造器丢弃
+    expect(p0.vx).toBe(0);
+    en.tickOnce();
+    let p = snap(en)[0];
+    expect(p.x).toBe(2.8870916447145926e-6);
+    expect(p.y).toBe(-7.50000006519258e-4);
+    expect(p.z).toBe(2.7752854927776993e-6);
+    en.tickOnce();
+    p = snap(en)[0];
+    expect(p.x).toBe(1.2640883140548189e-5);
+    expect(p.y).toBe(-0.002250000019557774);
+    expect(p.z).toBe(1.2151349493905544e-5);
+    en.tickOnce();
+    p = snap(en)[0];
+    expect(p.x).toBe(3.3793552832743166e-5);
+    expect(p.y).toBe(-0.004500000039115548);
+    expect(p.z).toBe(3.2484856203932605e-5);
+  });
+
+  it('pale_oak_leaves：swirl 曲线（f2·cos/sin(f2·period)·windBig）+ 构造器 yd = −0.021f（JDK21 ProbeLeaves golden）', () => {
+    const en = eng1('pale_oak_leaves');
+    expect(snap(en)[0].vy).toBe(-0.020999999716877937); // −(double)0.021f
+    en.tickOnce();
+    let p = snap(en)[0];
+    expect(p.x).toBe(8.189926745897585e-5);
+    expect(p.y).toBe(-0.021209999729762785);
+    expect(p.z).toBe(1.5393325176765624e-5);
+    en.tickOnce();
+    p = snap(en)[0];
+    expect(p.x).toBe(3.1909138783635746e-4);
+    expect(p.y).toBe(-0.04262999947241042);
+    expect(p.z).toBe(9.130034891609164e-5);
+    en.tickOnce();
+    p = snap(en)[0];
+    expect(p.x).toBe(7.684470507791882e-4);
+    expect(p.y).toBe(-0.0642599992279429);
+    expect(p.z).toBe(2.9944437813476005e-4);
   });
 
   it('dust_pillar：Provider 三次 nextGaussian 覆写初速（x/z 命令速度被赋值覆写）+ setLifetime(20+I(20))（JDK21 ProbePlume golden）', () => {

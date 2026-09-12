@@ -97,11 +97,10 @@
 // 流体 level 随机（世界状态）。
 //
 // 近似收录（注册表内、无干净模型）：
-// cherry/pale_oak/tinted_leaves（自管 tick 的 wind/swirl/flowAway 曲线 +
-// 落地分支 + 构造器随机消费）、current_down（水流块检查）、dust_pillar
-// （provider 速度走 nextGaussian）、explosion_emitter/geyser 系/
+// current_down（水流块检查）、
+// explosion_emitter/geyser 系/
 // gust_emitter_*（NoRender 发射器种子粒子；geyser_base 寿命用 level 随机）、
-// firefly（构造器三轴 ×0.8d 后每 tick 随机位置抖动）、
+// firefly（tick 内 level.getBlockState(...).isAir() 世界检查 + 逐 tick 随机重设速度）、
 // sulfur_bubbles
 // （自管 tick：yEnd 目标式 + 逐 tick 随机漂移/碰撞分支 + 出生随机消费）、
 // noxious_gas_cloud（NoRender 发射器，tick 每 2 tick 用 level 随机向可达
@@ -109,7 +108,15 @@
 // 2026-09-12 第五轮核对入表：dust_plume（DustPlumeParticle.tick 的
 // gravity *= 0.88f / friction *= 0.92f —— 每 tick 起点**常量**衰减，与世界无关，
 // 用 gravityF + gravityDecay + frictionDecay 精确建模；此前的「变参数管道」
-// 判定过严：该管道只比 base 多两个确定性乘子）。
+// 判定过严：该管道只比 base 多两个确定性乘子）、dust_pillar（provider 三次
+// nextGaussian + setLifetime 覆写：随机源是 provider 收到的 RandomSource =
+// 预览共享 vanillaRand，方块态只决定是否生成 → 新增 providerSpawn 字段）、
+// cherry/pale_oak/tinted_leaves（FallingLeavesParticle.tick **无任何随机调用**、
+// 曲线参数全部来自 Provider 常量：flowAway 的 pow(f2,1.25d) 与 swirl 的
+// f2·cos/sin(f2·period)·windBig 都是确定性链；唯一随机 = 构造器一次 nextFloat
+// 定 flow 方向/swirl 周期 → 预览从共享 vanillaRand 消费一次 → 新增
+// motion='leaves' + leaves 参数组；onGround 落地分支不建模（预览无世界，
+// 恒 false 与 Java 空中行为一致））。
 // 2026-09-11 本轮核对后从近似升级入表的类型：vibration（motion='vibration'
 // 绝对式 lerp 归位，destination 为 block 时 = 方块中心）、trail（既有）。
 // 2026-09-12 第二轮核对入表：noxious_gas（BaseAshSmoke base 管道 +
@@ -139,7 +146,7 @@
 // 版本分区：本表证据仅来自 26.2 字节码 → 新类型只进 '26.2'；'1.21.11' 保留
 // end_rod（1.21.1 反编译核对）。1.21.1 未逐类型核对，不臆测（八荣八耻 #1）。
 
-export type MotionKind = 'base' | 'portal' | 'reverse_portal' | 'vibration' | 'fly_straight' | 'fly_towards';
+export type MotionKind = 'base' | 'portal' | 'reverse_portal' | 'vibration' | 'fly_straight' | 'fly_towards' | 'leaves';
 
 export interface NativeKinematics {
   /** 运动模型：base = 通用管道；portal/reverse_portal = 自管位置式（无摩擦/重力） */
@@ -186,6 +193,18 @@ export interface NativeKinematics {
     r: RngLike,
     cmd: { x: number; y: number; z: number },
   ) => { x: number; y: number; z: number; lifetime: number };
+  /** 落叶曲线（FallingLeavesParticle，motion='leaves'）——三个类型只差这些 Provider 常量：
+   *  cherry (0.25f, windBig 2.0f, swirl=false, flowAway=true, yd 0.0f)、
+   *  pale_oak/tinted (0.07f, 10.0f, true, false, 0.021f)。
+   *  gravityF = Java gravity 字段（构造器 float 链 param9·1.2f·0.0025f）；
+   *  yd0 = −(double)param14（构造器直接赋值，命令速度被丢弃）；lifetime 恒 300。 */
+  leaves?: {
+    gravityF: number;
+    windBig: number;
+    swirl: boolean;
+    flowAway: boolean;
+    yd0: number;
+  };
 }
 
 export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>> = {
@@ -355,6 +374,31 @@ export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>>
         const g3 = r.nextGaussian();
         return { x: g1 / 30, y: c.y + g2 / 2, z: g3 / 30, lifetime: 20 + r.nextInt(20) };
       },
+    },
+    // —— 第五轮核对（2026-09-12，落叶曲线：tick 无随机、参数全为 Provider 常量）——
+    // FallingLeavesParticle：位置型 3 参 super（速度 0）→ yd = −param14；friction 1.0f；
+    // lifetime 恒 300（**倒计时语义**：tick 开头 lifetime−−、≤0 移除 → 存活 300 tick，
+    // 与引擎 age++ >= lifetime 等价）；tick 的 xa/za 由 Provider 常量与 ctor 预计算量
+    // 决定（flowAway 的 pow(f2,1.25) 曲线 / swirl 的 f2·cos/sin(f2·period)·windBig），
+    // 唯一随机 = 构造器一次 nextFloat（flow 角度 + swirl 周期）→ 预览从共享 vanillaRand
+    // 消费一次（曲线本身是世界无关的确定性链）。tick 尾 `v *= f2d(friction)` = 1.0f 恒等。
+    cherry_leaves: {
+      motion: 'leaves',
+      friction: 1.0,
+      gravityY: 0, // 重力走 leaves.gravityF（tick 内现算，非表值管道）
+      leaves: { gravityF: 0.000750000006519258, windBig: 2.0, swirl: false, flowAway: true, yd0: -0 }, // 0.25f·1.2f·0.0025f（fround 链）
+    },
+    pale_oak_leaves: {
+      motion: 'leaves',
+      friction: 1.0,
+      gravityY: 0,
+      leaves: { gravityF: 0.00021000001288484782, windBig: 10.0, swirl: true, flowAway: false, yd0: -0.020999999716877937 }, // 0.07f·1.2f·0.0025f
+    },
+    tinted_leaves: {
+      motion: 'leaves',
+      friction: 1.0,
+      gravityY: 0,
+      leaves: { gravityF: 0.00021000001288484782, windBig: 10.0, swirl: true, flowAway: false, yd0: -0.020999999716877937 },
     },
     // —— 第三轮核对（2026-09-12，静态类型：零速构造 + 恒定寿命 + tick 无位移）——
     // 判定共同点：① 构造器速度参数为 dconst_0（或位置型构造器不带速度）；
@@ -598,6 +642,10 @@ export const NATIVE_LIFETIME: Record<string, Record<string, NativeLifetimeFormul
     falling_dust: L.fallingDust, // (int)max(f32(f32((int)(32.0d/(F·0.8d+0.2d)))·0.9f),1.0f)
     // —— 第五轮核对（2026-09-12，JDK21 ProbePlume golden）——
     dust_plume: L.ashScale(7, 1), // BaseAshSmoke：max((int)(7/(F·0.8d+0.2d)·f2d(1.0f)),1)（slot20=7、slot17=1.0f）
+    // —— 第五轮核对（2026-09-12，落叶恒 300；构造器直接覆写，公式路径无随机消费）——
+    cherry_leaves: L.const(300), // FallingLeavesParticle：sipush 300
+    pale_oak_leaves: L.const(300),
+    tinted_leaves: L.const(300),
     // —— 第三轮核对（2026-09-12，恒定寿命；构造器直接覆写，公式路径无随机消费）——
     sweep_attack: L.const(4), // AttackSweepParticle：iconst_4 覆写（颜色 nextFloat 私有随机不消费）
     block_marker: L.const(80), // BlockMarker：bipush 80 覆写
