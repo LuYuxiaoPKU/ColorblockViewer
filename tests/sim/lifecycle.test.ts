@@ -1130,6 +1130,22 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
     expect(snap(en).length).toBe(0);
   });
 
+  it('elder_guardian：零速构造 + gravity 0f + lifetime 30（继承 Particle.tick 但速度恒 0）', () => {
+    const en = eng1('elder_guardian');
+    const p0 = snap(en)[0];
+    expect(p0.vy).toBe(0); // cmdVy=1 ×0（Particle(level,x,y,z) 位置型构造器）
+    expect(p0.lifetime).toBe(30); // 26.2 构造器 bipush 30 覆写
+    for (let i = 0; i < 5; i++) en.tickOnce();
+    const p1 = snap(en)[0];
+    expect(p1.x).toBe(0);
+    expect(p1.y).toBe(0); // gravity 0f + 零速 → 位置恒定
+    expect(p1.z).toBe(0);
+    for (let i = 5; i < 29; i++) en.tickOnce();
+    expect(snap(en).length).toBe(1); // tick 29 仍存活（age 29 < 30）
+    en.tickOnce(); // age=30 = lifetime → 移除
+    expect(snap(en).length).toBe(0);
+  });
+
   it('nativeKinematics 关闭：新类型全部走模组匀速直线（无摩擦/重力/初速）', () => {
     const en = eng(); // 默认关闭
     en.runCommand(C('particleex normal minecraft:rain 0 0 0 1 1 1 1 0 1 0 0 0 0 1 0'));
@@ -1197,6 +1213,7 @@ describe('NATIVE_KINEMATICS 表值 = f2d 加宽精确值（防字面量回归）
     ['26.2', 'falling_dust', 1.0, -0.003000000026077032],
     ['26.2', 'sweep_attack', f(0.98), 0],
     ['26.2', 'block_marker', f(0.98), 0],
+    ['26.2', 'elder_guardian', f(0.98), 0],
   ];
   for (const [ver, name, fr, gy] of T) {
     it(`${ver} ${name}：friction=${fr} gravityY=${gy}（f2d 精确）`, () => {

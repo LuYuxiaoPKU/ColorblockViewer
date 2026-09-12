@@ -42,6 +42,7 @@ describe('fidelityFor（26.2）', () => {
     expect(fidelityFor('sweep_attack', '26.2', TYPES_262)).toBe('full');
     expect(fidelityFor('block_marker', '26.2', TYPES_262)).toBe('full');
     expect(fidelityFor('block_marker{block_state:"minecraft:stone"}', '26.2', TYPES_262)).toBe('full'); // NBT 载荷不参与分级
+    expect(fidelityFor('elder_guardian', '26.2', TYPES_262)).toBe('full'); // 零速构造 + gravity 0f + lifetime 30
   });
 
   it('注册表内但运动学未逐条核对 → approx（approx 清单类型）', () => {
