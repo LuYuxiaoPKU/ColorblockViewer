@@ -125,3 +125,43 @@ describe('applySharedSearch 引导', () => {
     expect(msg).toContain('分享链接无效');
   });
 });
+
+describe('模板直达链接 ?t=<id>', () => {
+  it('有效 ?t=ripple → load(模板命令 + 当前设置)', async () => {
+    const { applySharedSearch } = await import('../../src/share/bootstrap');
+    const { TEMPLATES, templateText } = await import('../../src/templates/library');
+    const tpl = TEMPLATES[0];
+    let loaded: SharePayload | null = null;
+    applySharedSearch('?t=' + tpl.id, SIM, p => { loaded = p; }, m => { throw new Error(m); });
+    expect(loaded).not.toBeNull();
+    expect(loaded!.commands).toHaveLength(tpl.cmds.length);
+    expect(loaded!.sim).toEqual(SIM); // 设置保持当前值（模板链接只带模板）
+    // 命令文本与模板一致（回显后逐字相同）
+    const { serialize } = await import('../../src/command/serialize');
+    expect(loaded!.commands.map(serialize).join('\n')).toBe(templateText(tpl));
+  });
+
+  it('未知 id → onInvalid（提示该 id 不存在）', async () => {
+    const { applySharedSearch } = await import('../../src/share/bootstrap');
+    let msg = '';
+    applySharedSearch('?t=not_a_template', SIM, () => { throw new Error('should not load'); }, m => { msg = m; });
+    expect(msg).toContain('模板链接无效');
+    expect(msg).toContain('not_a_template');
+  });
+
+  it('?s= 与 ?t= 同时出现 → ?s=（完整场景）优先', async () => {
+    const { applySharedSearch } = await import('../../src/share/bootstrap');
+    const tok = encodeShare({ commands: CMDS, sim: SIM });
+    let loaded: SharePayload | null = null;
+    applySharedSearch('?s=' + tok + '&t=ripple', SIM, p => { loaded = p; }, m => { throw new Error(m); });
+    expect(loaded!.commands).toEqual(CMDS);
+  });
+
+  it('templateUrl 拼 origin + pathname + ?t=<id>', async () => {
+    const { templateUrl } = await import('../../src/share/bootstrap');
+    const { TEMPLATES } = await import('../../src/templates/library');
+    expect(templateUrl(TEMPLATES[0], 'https://x.dev', '/ColorblockViewer/')).toBe(
+      `https://x.dev/ColorblockViewer/?t=${TEMPLATES[0].id}`,
+    );
+  });
+});

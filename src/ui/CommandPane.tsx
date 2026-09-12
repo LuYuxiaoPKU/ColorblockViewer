@@ -24,7 +24,7 @@ import type { ParticleCommand } from '../command/types';
 import { CommandForm } from './CommandForm';
 import { SettingsDrawer } from './SettingsDrawer';
 import { StatusToast } from './StatusToast';
-import { TemplateGallery } from './TemplateGallery';
+import { FeaturedTemplates, TemplateGallery } from './TemplateGallery';
 
 // 类型 tabs（新增命令用；parameter 家族 8 变体收进一个 tab 展开）
 const TABS: { label: string; make: () => ParticleCommand }[] = [
@@ -46,6 +46,7 @@ export function CommandPane({ onRun }: { onRun: () => void }) {
   const [inputDirty, setInputDirty] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
   const [paramOpen, setParamOpen] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   // 游戏内格式检查（实时）：文本参数按 brigadier 未加引号字符集判定 ——
   // 预览分词宽松（未加引号也能解析），但粘回游戏会被截断，这里如实标出。
   const formatIssues = useMemo(() => checkCommandsFormat(input), [input]);
@@ -57,8 +58,13 @@ export function CommandPane({ onRun }: { onRun: () => void }) {
       <section className="pane-section">
         <div className="pane-section-head">
           <span>命令（多行，每行一条）</span>
+          <button className="small" onClick={() => setGalleryOpen(true)} title="模板展示：复制命令 / 载入">
+            📚 模板库
+          </button>
           <button className="primary small" onClick={onRun}>执行</button>
         </div>
+        {/* 精选入口（常驻）：命令列表为空时是「从模板开始」引导 */}
+        <FeaturedTemplates onOpenAll={() => setGalleryOpen(true)} onRun={onRun} />
         <textarea
           className="cmd-input"
           rows={6}
@@ -156,8 +162,9 @@ export function CommandPane({ onRun }: { onRun: () => void }) {
       </section>
 
       <SettingsDrawer />
-      <TemplateGallery onRun={onRun} />
       <StatusToast toasts={toasts} />
+      {/* 模板库：右侧覆盖面板（画布保持可见，便于「载入并执行」边看边试） */}
+      <TemplateGallery open={galleryOpen} onClose={() => setGalleryOpen(false)} onRun={onRun} />
     </div>
   );
 }

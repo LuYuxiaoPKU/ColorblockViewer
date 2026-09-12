@@ -446,4 +446,69 @@ describe('M5 全流程', () => {
     setInputValue(search, '不存在的模板');
     expect(container.querySelectorAll('.template-card').length).toBe(0);
   });
+
+  it('模板库：复制链接 → ?t=<id> 直达链接', async () => {
+    click(button('模板库'));
+    const card = container.querySelectorAll('.template-card')[0];
+    click(buttonIn(card, '复制链接'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(clipboardText).toContain('?t=');
+    expect(clipboardText).toContain('ripple');
+    expect(getState().toasts.at(-1)).toContain('链接已复制到剪贴板');
+  });
+
+  it('模板库：入口在命令区头部；Esc 关闭、面板内点击不关闭', () => {
+    // 入口与「执行」同一行（不再沉在左栏底部）
+    const head = container.querySelector('.pane-section-head')!;
+    expect(buttonIn(head, '模板库')).toBeTruthy();
+    expect(buttonIn(head, '执行')).toBeTruthy();
+
+    click(buttonIn(head, '模板库'));
+    const sheet = container.querySelector('.gallery-sheet');
+    expect(sheet).toBeTruthy();
+
+    // 面板内点击（搜索框）不应关闭
+    act(() => {
+      (container.querySelector('.template-search') as HTMLElement).dispatchEvent(
+        new MouseEvent('click', { bubbles: true }),
+      );
+    });
+    expect(container.querySelector('.gallery-sheet')).toBeTruthy();
+
+    // Esc 关闭
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(container.querySelector('.gallery-sheet')).toBeNull();
+  });
+
+  it('精选模板入口：常驻一行 chips，「全部 N 个」打开面板；chip 一键载入并执行', () => {
+    const featured = container.querySelector('.template-featured')!;
+    expect(featured.className).not.toContain('empty');
+    expect(featured.textContent).toContain('精选模板');
+
+    click(buttonIn(featured, '全部'));
+    expect(container.querySelector('.gallery-sheet')).toBeTruthy();
+    click(buttonIn(container.querySelector('.gallery-sheet')!, '关闭'));
+
+    const before = getState().commands.length;
+    click(buttonIn(container.querySelector('.template-featured')!, '圆周环'));
+    expect(getState().commands.length).toBeGreaterThan(before);
+    expect(getState().toasts.at(-1)).toContain('已载入模板');
+  });
+
+  it('命令列表清空 → 精选入口变「从模板开始」引导', () => {
+    act(() => {
+      while (getState().commands.length > 0) removeCommand(0);
+    });
+    const featured = container.querySelector('.template-featured')!;
+    expect(featured.className).toContain('empty');
+    expect(featured.textContent).toContain('从模板开始');
+
+    click(buttonIn(featured, '螺旋上升'));
+    expect(getState().commands.length).toBeGreaterThan(0);
+    expect(checkCommandsFormat(getState().input)).toEqual([]);
+  });
 });
