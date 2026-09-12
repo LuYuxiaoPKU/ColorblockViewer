@@ -1098,6 +1098,22 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
     expect(p1.vy).toBe(0);
   });
 
+  it('sweep_attack：零速构造（tick 不调 move）+ 恒定寿命 iconst_4 → 命令速度被忽略、位置恒定', () => {
+    const en = eng1('sweep_attack');
+    const p0 = snap(en)[0];
+    expect(p0.vy).toBe(0); // cmdVy=1 ×0（SingleQuadParticle 零速构造：dconst_0×3）
+    expect(p0.lifetime).toBe(4); // 26.2 构造器末尾 iconst_4 覆写（无随机）
+    for (let i = 0; i < 3; i++) en.tickOnce();
+    const p1 = snap(en)[0];
+    // tick 本体只做 xo/yo/zo 记录 + age++/死亡 + setSpriteFromAge：不调 move → 位置恒定
+    expect(p1.x).toBe(0);
+    expect(p1.y).toBe(0);
+    expect(p1.z).toBe(0);
+    expect(p1.vy).toBe(0);
+    en.tickOnce(); // age=4 = lifetime → 移除
+    expect(snap(en).length).toBe(0);
+  });
+
   it('nativeKinematics 关闭：新类型全部走模组匀速直线（无摩擦/重力/初速）', () => {
     const en = eng(); // 默认关闭
     en.runCommand(C('particleex normal minecraft:rain 0 0 0 1 1 1 1 0 1 0 0 0 0 1 0'));
@@ -1161,6 +1177,9 @@ describe('NATIVE_KINEMATICS 表值 = f2d 加宽精确值（防字面量回归）
     ['26.2', 'glow_squid_ink', f(0.92), 0],
     ['26.2', 'campfire_cosy_smoke', 1.0, -f(3e-6)],
     ['26.2', 'campfire_signal_smoke', 1.0, -f(3e-6)],
+    ['26.2', 'noxious_gas', f(0.96), -0.04 * f(-0.02)],
+    ['26.2', 'falling_dust', 1.0, -0.003000000026077032],
+    ['26.2', 'sweep_attack', f(0.98), 0],
   ];
   for (const [ver, name, fr, gy] of T) {
     it(`${ver} ${name}：friction=${fr} gravityY=${gy}（f2d 精确）`, () => {

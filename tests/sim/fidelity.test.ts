@@ -38,11 +38,12 @@ describe('fidelityFor（26.2）', () => {
     expect(fidelityFor('noxious_gas', '26.2', TYPES_262)).toBe('full');
     expect(fidelityFor('falling_dust', '26.2', TYPES_262)).toBe('full');
     expect(fidelityFor('falling_dust{Red:1f,Green:1f,Blue:1f}', '26.2', TYPES_262)).toBe('full'); // NBT 载荷不参与分级
+    // 2026-09-12 第三轮核对入表：静态类型（零速构造 + 恒定寿命 + tick 无位移）
+    expect(fidelityFor('sweep_attack', '26.2', TYPES_262)).toBe('full');
   });
 
   it('注册表内但运动学未逐条核对 → approx（approx 清单类型）', () => {
     expect(fidelityFor('block', '26.2', TYPES_262)).toBe('approx');
-    expect(fidelityFor('sweep_attack', '26.2', TYPES_262)).toBe('approx');
     expect(fidelityFor('geyser_base', '26.2', TYPES_262)).toBe('approx'); // NoRender 发射器种子粒子
     expect(fidelityFor('noxious_gas_cloud', '26.2', TYPES_262)).toBe('approx'); // NoRender 发射器：tick 每 2 tick 用 level 随机向可达 sulfur 方块吐 gas（世界状态）
   });
