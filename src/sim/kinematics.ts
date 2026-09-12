@@ -88,7 +88,7 @@
 // 构造器位置抖动（flame/soul 6F）、逐粒子随机种子、geyser_base 寿命用的
 // 流体 level 随机（世界状态）。
 //
-// 近似收录（注册表内、无干净模型）：block/block_crumble/block_marker、
+// 近似收录（注册表内、无干净模型）：block/block_crumble、
 // cherry/pale_oak/tinted_leaves（自管 tick 的 wind/swirl/flowAway 曲线 +
 // 落地分支 + 构造器随机消费）、current_down（水流块检查）、dust_pillar/
 // dust_plume（dust_plume 每 tick 变摩擦/重力 = 变参数管道；dust_pillar 速度
@@ -108,7 +108,9 @@
 // friction=1.0 + 位移后 −0.003d + 终端速度钳制 −0.14d + 寿命公式 fallingDust）。
 // 2026-09-12 第三轮核对入表（静态类型：零速构造 + 恒定寿命 + tick 无位移）：
 // sweep_attack（SingleQuadParticle 零速构造 dconst_0×3、iconst_4 寿命、tick 只
-// 记录 pre + age++/死亡 + setSpriteFromAge —— 不调 move，位置恒定）。
+// 记录 pre + age++/死亡 + setSpriteFromAge —— 不调 move，位置恒定）、
+// block_marker（位置型构造器（provider 只传 level/x/y/z/blockState）、gravity 0f、
+// lifetime 80、hasPhysics=false、继承 Particle.tick 但速度恒 0 → 位置恒定）。
 // ambient_entity_effect：粒子数据表里有名字，但 26.2 注册表未注册（type map
 // 无条目）——命令用它会走模组报错路径，不进本表。
 //
@@ -288,6 +290,11 @@ export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>>
       friction: 0.9800000190734863, // 基类 Particle 构造器 fround(0.98f)，本类无覆写
       gravityY: 0, // 基类未赋值 gravity（字段默认 0f）；本类无覆写
       spawnVelocityMul: 0, // 零速构造：SingleQuadParticle(level,x,y,z,dconst_0×3,sprite)
+    },
+    block_marker: {
+      friction: 0.9800000190734863, // 基类 Particle 构造器 fround(0.98f)，本类无覆写
+      gravityY: 0, // 构造器 fconst_0 → gravity 0f
+      spawnVelocityMul: 0, // 零速构造：位置型构造器（provider 只传 level/x/y/z/blockState）
     },
   },
 };
@@ -485,6 +492,7 @@ export const NATIVE_LIFETIME: Record<string, Record<string, NativeLifetimeFormul
     falling_dust: L.fallingDust, // (int)max(f32(f32((int)(32.0d/(F·0.8d+0.2d)))·0.9f),1.0f)
     // —— 第三轮核对（2026-09-12，恒定寿命；构造器直接覆写，公式路径无随机消费）——
     sweep_attack: L.const(4), // AttackSweepParticle：iconst_4 覆写（颜色 nextFloat 私有随机不消费）
+    block_marker: L.const(80), // BlockMarker：bipush 80 覆写
   },
 };
 
