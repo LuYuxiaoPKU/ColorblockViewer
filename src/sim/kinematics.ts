@@ -52,11 +52,22 @@
 //     近似清单）。0 = Java 侧零速构造（explosion/sonic_boom/flash/gust 系）。
 //   - spawnVelOffsetY：SimpleVertical 构造器 yd += up?0.03d:−0.03d（确定性）。
 //   - campfireRise：见上。
+//   - noxious_gas：BaseAshSmoke 构造器 v×0.1f + 偏移 (0,−0.02,0)（确定性）
+//     —— 预览只应用 v×spawnVelocityMul(0.1)；y −0.02 常数偏移量级小，不建模
+//     （与 wax ÷2 同类近似）。
+//   - falling_dust：自管 tick（SingleQuadParticle 无默认 tick 实现；FallingDust
+//     本体 = save pre → age++/死亡 → setSpriteFromAge/roll 渲染更新 →
+//     move(xd,yd,zd) → yd −= 0.003d → yd = max(yd, −0.14d)）—— ≡ 引擎 base
+//     管道 friction=1.0 + gravityY=−0.003d（**位移后**施加，gravityPost）+
+//     terminalVy=−0.14d（顺序一致：先位移、再减重力、再终端速度钳制；
+//     无摩擦/碰撞分支）。
 //
 // 构造器随机消费约定（与 end_rod 先例一致）：预览共享 vanillaRand 只消费
 // 「寿命公式本身」的随机数（+ campfire 的初速 float）。构造器里寿命公式之前的
 // 随机（粒子私有 RandomSource.create()，种子不可复现）不消费 —— 与 Java 的
-// 绝对值不同，但分布一致，且同种子可复现。
+// 绝对值不同，但分布一致，且同种子可复现。例：noxious_gas 公式前的 3 个
+// nextFloat（基类 quadSize + BaseAshSmoke 颜色 + 第一寿命）、falling_dust
+// 公式前的 1 个（基类 quadSize）均不消费。
 //
 // 出生初速的近似（构造器里的 per-particle 随机/选项依赖抖动，预览不消费、不建模）：
 //   - dust/dust_color_transition：Java ×0.1d 后无附加（精确）；颜色 F 抖动不建模。
@@ -77,24 +88,24 @@
 // 构造器位置抖动（flame/soul 6F）、逐粒子随机种子、geyser_base 寿命用的
 // 流体 level 随机（世界状态）。
 //
-// 近似收录（注册表内、无干净 base 模型）：block/block_crumble/block_marker、
+// 近似收录（注册表内、无干净模型）：block/block_crumble/block_marker、
 // cherry/pale_oak/tinted_leaves（自管 tick 的 wind/swirl/flowAway 曲线 +
 // 落地分支 + 构造器随机消费）、current_down（水流块检查）、dust_pillar/
 // dust_plume（dust_plume 每 tick 变摩擦/重力 = 变参数管道；dust_pillar 速度
 // 走 nextGaussian）、elder_guardian（模型渲染、零速无位移）、enchant/nautilus/
 // vault_connection（绝对式曲线 + 颜色插值）、explosion_emitter/geyser 系/
 // gust_emitter_*（NoRender 发射器种子粒子；geyser_base 寿命用 level 随机）、
-// falling_dust（自管 tick：move 后 yd−=0.003d 再 max(yd,−0.14d) 钳制 + 旋转，
-// 非 base 管道）、firefly（构造器三轴 ×0.8d 后每 tick 随机位置抖动）、
+// firefly（构造器三轴 ×0.8d 后每 tick 随机位置抖动）、
 // ominous_spawning（绝对式线性 x = xStart + xd·(1−t)，xStart 非出生点）、
 // sweep_attack（构造器零速，Java 侧 tick 不推进位置）、sulfur_bubbles
 // （自管 tick：yEnd 目标式 + 逐 tick 随机漂移/碰撞分支 + 出生随机消费）、
-// noxious_gas(_cloud)（gas 的 BaseAshSmoke 管线本身可建但寿命 = 构造器后
-// 覆写 6.0d/(f2d(F)·0.5d+0.5d)·f2d(3.0f)——可建模候选见下方注释；cloud =
-// NoRender 发射器，tick 每 2 tick 用 level 随机向可达 sulfur 方块吐 gas，
-// 世界状态依赖）。
+// noxious_gas_cloud（NoRender 发射器，tick 每 2 tick 用 level 随机向可达
+// sulfur 方块吐 gas，世界状态依赖）。
 // 2026-09-11 本轮核对后从近似升级入表的类型：vibration（motion='vibration'
 // 绝对式 lerp 归位，destination 为 block 时 = 方块中心）、trail（既有）。
+// 2026-09-12 第二轮核对入表：noxious_gas（BaseAshSmoke base 管道 +
+// spawnVelocityMul 0.1 + 寿命公式 gas）、falling_dust（自管 tick ≡ base 管道
+// friction=1.0 + 位移后 −0.003d + 终端速度钳制 −0.14d + 寿命公式 fallingDust）。
 // ambient_entity_effect：粒子数据表里有名字，但 26.2 注册表未注册（type map
 // 无条目）——命令用它会走模组报错路径，不进本表。
 //
@@ -118,6 +129,12 @@ export interface NativeKinematics {
   spawnVelocityMul?: number;
   /** spawn 时 y 初速 += 常量（SimpleVertical：pause −0.03 / reset +0.03） */
   spawnVelOffsetY?: number;
+  /** 位移后的 y 终端速度钳制：vy = max(vy, terminalVy)（falling_dust：
+   *  move 后 yd −= 0.003d 再 yd = max(yd, −0.14d)） */
+  terminalVy?: number;
+  /** true = gravityY 在位移**之后**施加（falling_dust 自管 tick：move →
+   *  yd −= 0.003d → max(yd, −0.14d)；默认 = base 管道的位移之前） */
+  gravityPost?: boolean;
 }
 
 export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>> = {
@@ -246,6 +263,19 @@ export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>>
       // 可正可负）；每 tick 位置式推进后 p.stop 回滚被撤销（零速构造 stop 恒 true
       // → 自定义 lerp 放在 !stop 门外，见 engine.animate）。
     // water_current_down 未收录：tick 含水流块检查（移除/速度分支依赖世界状态）。
+    // —— 第二轮核对（2026-09-12，JDK21 ProbeAsh/ProbeTerminal golden）——
+    noxious_gas: {
+      friction: 0.9599999785423279, // BaseAshSmoke：friction fround(0.96f)
+      gravityY: 0.0007999999821186066, // gravity 参数 −0.02f（smoke 同传）→ −0.04d×fround(−0.02f)（烟雾微升）
+      spawnVelocityMul: 0.10000000149011612, // BaseAshSmoke 构造器 v×f2d(0.1f)
+    },
+    falling_dust: {
+      friction: 1.0, // 自管 tick 无摩擦步
+      gravityY: -0.003000000026077032, // move 后 yd −= 0.003d（逐 tick 实际效果）
+      gravityPost: true, // 字节码顺序：move → −=0.003d → max（区别于 base 管道先减后移）
+      terminalVy: -0.14000000059604645, // yd = max(yd, −0.14d) 终端速度钳制
+      spawnVelocityMul: 0.10000000149011612, // SingleQuadParticle 基类 v×f2d(0.1f)
+    },
   },
 };
 
@@ -321,6 +351,19 @@ const L = {
    *  TrialSpawnerDetection（provider scale 参数 1.5f；randomBetween 逐字节码） */
   trialSpawner: (r: RngLike, _c: NativeLifetimeContext) =>
     Math.max(Math.trunc(Math.fround(Math.fround(8.0 / Math.fround(Math.fround(Math.fround(0.5) * r.nextFloat()) + Math.fround(0.5))) * Math.fround(1.5))), 1),
+  /** (int)(6.0d/(f2d(F)·0.5d+0.5d)·f2d(3.0f)) —— NoxiousGas 构造器**末尾**
+   *  对 BaseAshSmoke 已算寿命的覆写（provider gravityFloat = 3.0f 常量；
+   *  字节码栈序：6.0d, F, f2d, 0.5d dmul, 0.5d dadd, ddiv, f2d(3.0f), dmul, d2i）。
+   *  分布 = [1, 18]：F→0⁺ 时 →18，F→1⁻ 时 →(int)2.0。构造器内寿命公式之前的
+   *  粒子私有随机（基类/颜色/第一寿命）按约定不消费（end_rod 先例）。 */
+  gas: (r: RngLike, _c: NativeLifetimeContext) =>
+    Math.trunc((6.0 / (r.nextFloat() * 0.5 + 0.5)) * Math.fround(3.0)),
+  /** (int)max(f32(f32((int)(32.0d/(f2d(F)·0.8d+0.2d)))·0.9f), 1.0f) ——
+   *  FallingDust 构造器（字节码栈序：32.0d, F, f2d, 0.8d dmul, 0.2d dadd,
+   *  ddiv, d2i, i2f, 0.9f fmul, fmax 1.0f, f2i）。分布 = [1, 28]：F→0⁺ 时
+   *  (int)32·0.9f=28，F→1⁻ 时 (int)4·0.9f=3。 */
+  fallingDust: (r: RngLike, _c: NativeLifetimeContext) =>
+    Math.trunc(Math.max(Math.fround(Math.fround(Math.trunc(32.0 / (r.nextFloat() * 0.8 + 0.2))) * Math.fround(0.9)), 1.0)),
 };
 
 export const NATIVE_LIFETIME: Record<string, Record<string, NativeLifetimeFormula>> = {
@@ -424,6 +467,9 @@ export const NATIVE_LIFETIME: Record<string, Record<string, NativeLifetimeFormul
     poof: L.divPlus(16, 2),
     pause_mob_growth: L.const(8), // SimpleVertical：8
     reset_mob_growth: L.const(8),
+    // —— 第二轮核对（2026-09-12，JDK21 ProbeAsh golden）——
+    noxious_gas: L.gas, // 构造器末尾覆写：(int)(6.0d/(F·0.5d+0.5d)·f2d(3.0f))
+    falling_dust: L.fallingDust, // (int)max(f32(f32((int)(32.0d/(F·0.8d+0.2d)))·0.9f),1.0f)
   },
 };
 

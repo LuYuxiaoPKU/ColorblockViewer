@@ -774,6 +774,9 @@ describe('原版运动学：26.2 逐类型寿命 golden（age=0，seed=1 → van
     ['reverse_portal', [61, 60, 61]], // 60+(int)(2.0f·F)：F≥0.5→61
     ['campfire_signal_smoke', [88, 120, 119]], // 80+I(50)；交错流：寿命/初速 float 交替消费
     ['campfire_cosy_smoke', [288, 320, 319]], // 280+I(50)；同上
+    // —— 2026-09-12 第二轮入表（ProbeAsh 同序列 JDK21 实测；end_rod 先例无 preConsume）——
+    ['noxious_gas', [20, 27, 18]], // gas 公式 (int)(6.0d/(F·0.5d+0.5d)·f2d(3.0f))（Provider gravityFloat=3.0f 常量）
+    ['falling_dust', [36, 65, 30]], // (int)max(f32(f32((int)(32.0d/(F·0.8d+0.2d)))·0.9f),1.0f)
   ];
   for (const [name, seq] of goldens) {
     it(`${name}：寿命序列 = JDK21 golden`, () => {
@@ -1017,6 +1020,49 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
     expect(snap(en)[0].vy).toBe(1); // 模组 cmdVy 原样（无 × 常量）
     en.tickOnce();
     expect(snap(en)[0].vy).toBeCloseTo(fr(0.96), 12);
+  });
+
+  it('noxious_gas：BaseAshSmoke 管道（摩擦 0.96f、重力 −0.04d×fround(−0.02f) 微升）+ 出生初速 ×0.1f（y −0.02f 偏移量级小不建模）', () => {
+    const en = eng1('noxious_gas');
+    expect(snap(en)[0].vy).toBe(f(0.1)); // cmdVy=1 ×f2d(0.1f)
+    en.tickOnce();
+    const p1 = snap(en)[0];
+    const gravY = -0.04 * fr(-0.02); // −0.04d×fround(−0.02f)（表值精确 double）
+    expect(p1.y).toBeCloseTo(f(0.1) + gravY, 12); // 重力先于位移
+    expect(p1.vy).toBeCloseTo((f(0.1) + gravY) * fr(0.96), 12);
+  });
+
+  it('falling_dust：自管 tick ≡ base 管道 + 位移后 −0.003d + max(vy,−0.14d)（初始无摩擦、重力后于位移）+ 出生初速 ×0.1f', () => {
+    const en = eng1('falling_dust');
+    expect(snap(en)[0].vy).toBe(f(0.1)); // cmdVy=1 ×f2d(0.1f)（0.1f 精确 → f(0.1)）
+    en.tickOnce();
+    const p1 = snap(en)[0];
+    expect(p1.y).toBeCloseTo(f(0.1), 12); // 位移 = 摩擦前 vy（0.003 在位移之后）
+    expect(p1.vy).toBeCloseTo(f(0.1) - 0.003000000026077032, 12); // move 后 −= 0.003d
+  });
+
+  it('falling_dust：下抛（cmdVy=−1）tick 13 仍未触顶、tick 14 首触终端钳制、之后恒住（age=-1）', () => {
+    const en = eng({ seed: 1, nativeKinematics: true });
+    en.runCommand(C('particleex normal minecraft:falling_dust 0 0 0 1 1 1 1 0 -1 0 0 0 0 1 -1'));
+    for (let i = 0; i < 13; i++) en.tickOnce();
+    expect(snap(en)[0].vy).not.toBe(-0.14000000059604645); // tick 13 尚未触顶
+    en.tickOnce();
+    expect(snap(en)[0].vy).toBe(-0.14000000059604645); // tick 14：max 首次生效 → 精确 −0.14d
+    for (let i = 0; i < 50; i++) en.tickOnce();
+    expect(snap(en)[0].vy).toBe(-0.14000000059604645); // 不动点：恒住
+  });
+
+  it('falling_dust：上抛（cmdVy=1）tick 33 仍 +、tick 34 过零、tick 79 差 3 ULP、tick 80 首触终端钳制（age=-1）', () => {
+    const en = eng({ seed: 1, nativeKinematics: true });
+    en.runCommand(C('particleex normal minecraft:falling_dust 0 0 0 1 1 1 1 0 1 0 0 0 0 1 -1'));
+    for (let i = 0; i < 33; i++) en.tickOnce();
+    expect(snap(en)[0].vy).toBeGreaterThan(0); // tick 33 仍上抛
+    en.tickOnce();
+    expect(snap(en)[0].vy).toBeLessThan(0); // tick 34 翻负
+    for (let i = 34; i < 79; i++) en.tickOnce();
+    expect(snap(en)[0].vy).toBe(-0.13700000056996942); // tick 79：fround(0.1)−79×0.003d（仍未触顶）
+    en.tickOnce();
+    expect(snap(en)[0].vy).toBe(-0.14000000059604645); // tick 80：max 首次生效 → 精确 −0.14d
   });
 
   it('spawnVelocityMul 与显式 age 无关（Java 构造器无条件；campfire 例外仍 age=0）', () => {

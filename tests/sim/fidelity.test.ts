@@ -34,12 +34,17 @@ describe('fidelityFor（26.2）', () => {
     expect(fidelityFor('reset_mob_growth', '26.2', TYPES_262)).toBe('full');
     expect(fidelityFor('vibration', '26.2', TYPES_262)).toBe('full'); // 2026-09-11 核对入表：motion='vibration' 绝对式 lerp 归位
     expect(fidelityFor('vibration{destination:{block:{pos:[1,2,3]}},arrival_in_ticks:20}', '26.2', TYPES_262)).toBe('full'); // NBT 载荷不参与分级
+    // 2026-09-12 第二轮核对入表：BaseAshSmoke base 管道 / 自管 tick ≡ base+终端钳制
+    expect(fidelityFor('noxious_gas', '26.2', TYPES_262)).toBe('full');
+    expect(fidelityFor('falling_dust', '26.2', TYPES_262)).toBe('full');
+    expect(fidelityFor('falling_dust{Red:1f,Green:1f,Blue:1f}', '26.2', TYPES_262)).toBe('full'); // NBT 载荷不参与分级
   });
 
   it('注册表内但运动学未逐条核对 → approx（approx 清单类型）', () => {
     expect(fidelityFor('block', '26.2', TYPES_262)).toBe('approx');
     expect(fidelityFor('sweep_attack', '26.2', TYPES_262)).toBe('approx');
     expect(fidelityFor('geyser_base', '26.2', TYPES_262)).toBe('approx'); // NoRender 发射器种子粒子
+    expect(fidelityFor('noxious_gas_cloud', '26.2', TYPES_262)).toBe('approx'); // NoRender 发射器：tick 每 2 tick 用 level 随机向可达 sulfur 方块吐 gas（世界状态）
   });
 
   it('注册表外 → unknown', () => {
