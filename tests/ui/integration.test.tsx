@@ -46,6 +46,8 @@ vi.mock('../../src/render/sync', () => {
 
 let container: HTMLDivElement;
 let root: Root;
+/** 剪贴板替身（happy-dom 不提供 writeText）：记录最后一次写入内容 */
+let clipboardText = '';
 
 afterEach(() => {
   act(() => {
@@ -55,6 +57,16 @@ afterEach(() => {
 });
 
 beforeEach(async () => {
+  clipboardText = '';
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: {
+      writeText: (t: string) => {
+        clipboardText = t;
+        return Promise.resolve();
+      },
+    },
+  });
   // store 是模块单例：每个用例前回到单条 normal 命令的确定状态
   while (getState().commands.length > 0) removeCommand(0);
   setCommand(0, {
@@ -101,6 +113,22 @@ function button(text: string): HTMLButtonElement {
   const btn = [...container.querySelectorAll('button')].find((b) => b.textContent?.trim().includes(text));
   if (!btn) throw new Error('button not found: ' + text);
   return btn as HTMLButtonElement;
+}
+
+/** 某个容器内的按钮（模板卡片等局部查找） */
+function buttonIn(scope: Element, text: string): HTMLButtonElement {
+  const btn = [...scope.querySelectorAll('button')].find((b) => b.textContent?.trim().includes(text));
+  if (!btn) throw new Error('button not found in scope: ' + text);
+  return btn as HTMLButtonElement;
+}
+
+/** input 元素输入（React 受控组件需要原生 setter + input 事件） */
+function setInputValue(el: HTMLInputElement, v: string): void {
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!;
+  act(() => {
+    setter.call(el, v);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
 }
 
 function click(el: Element): void {
@@ -378,5 +406,44 @@ describe('M5 全流程', () => {
     expect(getState().input).toContain("'(abs(y-0.5)<0.05)&(sqrt(x^2+z^2)<8)'");
     expect(getState().input).toContain("'vy=0.05'");
     expect(checkCommandsFormat(getState().input)).toEqual([]); // 回显本身即游戏内合法格式
+  });
+
+  // 模板库（模板展示 + 复制/载入）
+  it('模板库：展开列出模板，复制命令写剪贴板并 toast', async () => {
+    click(button('模板库'));
+    const cards = container.querySelectorAll('.template-card');
+    expect(cards.length).toBeGreaterThanOrEqual(10);
+
+    click(buttonIn(cards[0], '复制命令'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(clipboardText).toContain('/particleex');
+    expect(getState().toasts.at(-1)).toContain('已复制到剪贴板');
+  });
+
+  it('模板库：载入到命令列表 → 真源追加 + 粘贴框文本同步', () => {
+    click(button('模板库'));
+    const card = container.querySelectorAll('.template-card')[0];
+    const before = getState().commands.length;
+    click(buttonIn(card, '载入到命令列表'));
+    expect(getState().commands.length).toBeGreaterThan(before);
+    expect(ta().value).toContain('/particleex');
+    expect(getState().toasts.at(-1)).toContain('已载入模板');
+    // 追加的命令自身必须是游戏内合法格式
+    expect(checkCommandsFormat(getState().input)).toEqual([]);
+  });
+
+  it('模板库：搜索按名称/标签过滤', () => {
+    click(button('模板库'));
+    const search = container.querySelector('.template-search') as HTMLInputElement;
+    setInputValue(search, '落叶');
+    const cards = container.querySelectorAll('.template-card');
+    expect(cards.length).toBe(1);
+    expect(cards[0].textContent).toContain('落叶飘落');
+    setInputValue(search, '原版 /particle');
+    expect(container.querySelectorAll('.template-card').length).toBeGreaterThanOrEqual(3);
+    setInputValue(search, '不存在的模板');
+    expect(container.querySelectorAll('.template-card').length).toBe(0);
   });
 });

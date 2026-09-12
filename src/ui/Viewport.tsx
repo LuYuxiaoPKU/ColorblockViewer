@@ -2,8 +2,9 @@
 // + HudStatus（tick / 粒子数 / 丢弃）。播放状态镜像在 store（按钮高亮），
 // rAF 热路径读 App 的 ref。
 
-import { useAppState, setPlaying, setSpeed, getState, pushToast } from '../store/appState';
+import { useAppState, setPlaying, setSpeed, getState } from '../store/appState';
 import { encodeShare, shareUrl } from '../share/encoding';
+import { copyText } from './clipboard';
 
 const SPEEDS = [0.125, 0.25, 0.5, 1, 2, 4, 8];
 
@@ -15,14 +16,7 @@ function copyShareUrl(): void {
     window.location.origin,
     window.location.pathname,
   );
-  if (navigator.clipboard?.writeText) {
-    navigator.clipboard.writeText(url).then(
-      () => pushToast('分享链接已复制到剪贴板'),
-      () => pushToast('复制失败：' + url),
-    );
-  } else {
-    pushToast('分享链接：' + url);
-  }
+  copyText(url, '分享链接已复制到剪贴板');
 }
 
 interface PlaybackHandlers {
