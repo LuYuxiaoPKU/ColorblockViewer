@@ -41,7 +41,7 @@ const PARAM_VARIANTS = [
   'rgbaparameter', 'rgbapolarparameter', 'rgbatickparameter', 'rgbatickpolarparameter',
 ];
 
-export function CommandPane({ onRun }: { onRun: () => void }) {
+export function CommandPane({ onRun, onRunFresh }: { onRun: () => void; onRunFresh: () => void }) {
   const { commands, input, toasts } = useAppState();
   const [inputDirty, setInputDirty] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
@@ -64,7 +64,7 @@ export function CommandPane({ onRun }: { onRun: () => void }) {
           <button className="primary small" onClick={onRun}>执行</button>
         </div>
         {/* 精选入口（常驻）：命令列表为空时是「从模板开始」引导 */}
-        <FeaturedTemplates onOpenAll={() => setGalleryOpen(true)} onRun={onRun} />
+        <FeaturedTemplates onOpenAll={() => setGalleryOpen(true)} onRunFresh={onRunFresh} />
         <textarea
           className="cmd-input"
           rows={6}
@@ -164,7 +164,11 @@ export function CommandPane({ onRun }: { onRun: () => void }) {
       <SettingsDrawer />
       <StatusToast toasts={toasts} />
       {/* 模板库：右侧覆盖面板（画布保持可见，便于「载入并执行」边看边试） */}
-      <TemplateGallery open={galleryOpen} onClose={() => setGalleryOpen(false)} onRun={onRun} />
+      <TemplateGallery
+        open={galleryOpen}
+        onClose={() => setGalleryOpen(false)}
+        onRunFresh={onRunFresh}
+      />
     </div>
   );
 }

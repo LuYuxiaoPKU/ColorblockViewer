@@ -216,10 +216,16 @@ export function removeCommand(i: number): void {
   set({ commands, input: serializeAll(commands) });
 }
 
-/** 追加多条命令（模板库「载入」用；解析由调用方负责 —— 模板文本已过格式检查） */
+/** 追加多条命令（模板库「载入到命令列表」用；解析由调用方负责 —— 模板文本已过格式检查） */
 export function appendCommands(cmds: ParticleCommand[]): void {
   if (cmds.length === 0) return;
   const commands = [...state.commands, ...cmds];
+  set({ commands, input: serializeAll(commands) });
+}
+
+/** 整体替换命令列表（模板库「载入并执行」用：换模板 = 干净重来，不叠加旧命令） */
+export function replaceCommands(cmds: ParticleCommand[]): void {
+  const commands = cmds.slice();
   set({ commands, input: serializeAll(commands) });
 }
 

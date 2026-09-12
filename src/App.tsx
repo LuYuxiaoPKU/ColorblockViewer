@@ -166,6 +166,14 @@ export default function App() {
     refresh();
   };
 
+  // 「清空并执行」（模板库「载入并执行」用）：先清空现有粒子/生成器/tick
+  // （→ 回放重置），再按已替换好的命令真源跑一遍 —— 换模板 = 干净重来，
+  // 不叠加旧命令与旧粒子。
+  const runFresh = () => {
+    reset();
+    run();
+  };
+
   return (
     <div className="app-layout">
       <aside className="pane">
@@ -173,7 +181,7 @@ export default function App() {
         <p className="muted">
           AnotherColorBlock 粒子效果预览（默认启用原版运动学：end_rod 等类型的摩擦/重力/淡出/随机寿命按 1.21.1 反编译值，可在设置中关闭回退匀速直线）
         </p>
-        <CommandPane onRun={run} />
+        <CommandPane onRun={run} onRunFresh={runFresh} />
       </aside>
       <Viewport containerRef={containerRef} renderCapacity={renderCapacity} onStep={step} onReset={reset} />
     </div>
