@@ -1056,6 +1056,13 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
   });
 
   it('cherry_leaves：flowAway 曲线（pow(f2,1.25d)）+ 构造器一次 nextFloat 定 flow 方向（JDK21 ProbeLeaves golden）', () => {
+    // 跨 JS 引擎注意事项（CI 实测）：本类型是表内唯一用 Math.pow 的运动曲线，
+    // V8(Node 22) 与 V8(Node 24) 的 Math.pow(x,1.25d) 差 1 ulp
+    // （CI: 2.8870916447145918e-6 vs 本地/Java: 2.8870916447145926e-6），
+    // 其余链路（cos/sin/sqrt/log、float 逐步 fround、double 加减乘）逐位一致。
+    // → pow 参与的 x/z 用 ≤1e-14 相对容差（≈50 ulp，覆盖跨引擎 ≤2 ulp 偏差），
+    //    y（纯加减链）仍逐位断言。
+    const ulpClose = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThanOrEqual(Math.abs(b) * 1e-14);
     const en = eng1('cherry_leaves');
     const p0 = snap(en)[0];
     expect(p0.lifetime).toBe(300); // 构造器 sipush 300（倒计时语义 = 存活 300 tick）
@@ -1063,19 +1070,19 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
     expect(p0.vx).toBe(0);
     en.tickOnce();
     let p = snap(en)[0];
-    expect(p.x).toBe(2.8870916447145926e-6);
+    ulpClose(p.x, 2.8870916447145926e-6);
     expect(p.y).toBe(-7.50000006519258e-4);
-    expect(p.z).toBe(2.7752854927776993e-6);
+    ulpClose(p.z, 2.7752854927776993e-6);
     en.tickOnce();
     p = snap(en)[0];
-    expect(p.x).toBe(1.2640883140548189e-5);
+    ulpClose(p.x, 1.2640883140548189e-5);
     expect(p.y).toBe(-0.002250000019557774);
-    expect(p.z).toBe(1.2151349493905544e-5);
+    ulpClose(p.z, 1.2151349493905544e-5);
     en.tickOnce();
     p = snap(en)[0];
-    expect(p.x).toBe(3.3793552832743166e-5);
+    ulpClose(p.x, 3.3793552832743166e-5);
     expect(p.y).toBe(-0.004500000039115548);
-    expect(p.z).toBe(3.2484856203932605e-5);
+    ulpClose(p.z, 3.2484856203932605e-5);
   });
 
   it('pale_oak_leaves：swirl 曲线（f2·cos/sin(f2·period)·windBig）+ 构造器 yd = −0.021f（JDK21 ProbeLeaves golden）', () => {
