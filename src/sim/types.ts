@@ -55,6 +55,10 @@ export interface SimParticle {
   vibrationTarget?: { x: number; y: number; z: number };
   /** 命令位置 = 中心 */
   cx: number; cy: number; cz: number;
+  /** 逐 tick 衰减的 float gravity/friction 状态（dust_plume 的
+   *  `DustPlumeParticle.tick`：每 tick 起点 `gravity *= 0.88f; friction *= 0.92f`
+   *  再走 base 管道；仅当表项声明 gravityDecay/frictionDecay 时存在） */
+  gf?: number; ff?: number;
   /** 速度表达式（customMove 路径） */
   exe: CompiledBlock | null;
   speedStep: number;

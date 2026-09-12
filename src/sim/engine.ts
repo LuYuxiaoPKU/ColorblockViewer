@@ -235,6 +235,16 @@ export class SimEngine {
       if (spec?.campfireRise) {
         p.vy += Math.fround(500 / this.vanillaRand.nextFloat());
       }
+      // provider 侧初速/寿命覆写（dust_pillar：3×nextGaussian + setLifetime(20+I(20))）——
+      // Java 侧在构造器之后无条件执行；预览与「构造器默认寿命」同门：命令 age 或
+      // NBT 寿命显式覆写时不求值（随机流与既有约定一致，见 kinematics.ts 字段注释）。
+      if (req.age === 0 && req.trailDuration === undefined && req.vibrationArrival === undefined && spec?.providerSpawn) {
+        const o = spec.providerSpawn(this.vanillaRand, { x: p.vx, y: p.vy, z: p.vz });
+        p.vx = o.x;
+        p.vy = o.y;
+        p.vz = o.z;
+        p.lifetime = o.lifetime;
+      }
     }
     // 构造器里的出生初速修正（Java 侧无条件、与年龄无关 —— 命令 age 不影响
     // 构造器速度路径，故不 gate age）：
@@ -263,6 +273,10 @@ export class SimEngine {
         }
         if (spec?.spawnVelOffsetY !== undefined) p.vy += spec.spawnVelOffsetY;
       }
+      // 逐 tick 衰减的 float 字段初值（dust_plume：gravity 0.5f、friction 0.96f；
+      // 每 tick 起点由 animate 里的 gravityDecay/frictionDecay 逐步 fround）
+      if (spec?.gravityDecay !== undefined) p.gf = spec.gravityF ?? 0;
+      if (spec?.frictionDecay !== undefined) p.ff = spec.friction;
       // 位置式飞行曲线（FlyStraightTowards / FlyTowardsPosition）：构造器里
       // xo = x + xd 后 x = xo —— 出生位置即「命令位置 + 一个速度矢量」
       // （Java 侧起点偏移，非零速构造的零位移）。
@@ -421,8 +435,13 @@ export class SimEngine {
           p.y = p.cy + p.vy * f1 - Math.fround(q * Math.fround(1.2));
         }
       } else {
+        // dust_plume：DustPlumeParticle.tick 在 super.tick() **之前**先衰减 float 字段
+        // （gravity *= 0.88f; friction *= 0.92f）—— 逐步 fround，迭代舍入 ≠ 幂次一次舍入
+        if (spec?.gravityDecay !== undefined) p.gf = Math.fround((p.gf ?? 0) * spec.gravityDecay);
+        if (spec?.frictionDecay !== undefined) p.ff = Math.fround((p.ff ?? 0) * spec.frictionDecay);
         if (spec && !spec.gravityPost) {
-          p.vy += spec.gravityY; // 重力：位移**之前**（Particle.tick 顺序）
+          // 重力：位移**之前**（Particle.tick 顺序）；衰减型每 tick 用 −0.04d×(double)g 现算
+          p.vy -= spec.gravityDecay !== undefined ? 0.04 * (p.gf ?? 0) : -spec.gravityY;
         }
         p.x += p.vx;
         p.y += p.vy;
@@ -432,9 +451,10 @@ export class SimEngine {
             // falling_dust 自管 tick：move **之后** yd −= 0.003d
             p.vy += spec.gravityY;
           }
-          p.vx *= spec.friction; // 摩擦：位移**之后**
-          p.vy *= spec.friction;
-          p.vz *= spec.friction;
+          const fric = spec.frictionDecay !== undefined ? (p.ff ?? 0) : spec.friction;
+          p.vx *= fric; // 摩擦：位移**之后**
+          p.vy *= fric;
+          p.vz *= fric;
           if (spec.postFriction) {
             // snowflake：super.tick() 之后逐轴附加阻尼（0.95f/0.9f/0.95f → double）
             p.vx *= spec.postFriction[0];

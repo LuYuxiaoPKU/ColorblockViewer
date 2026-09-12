@@ -784,6 +784,9 @@ describe('原版运动学：26.2 逐类型寿命 golden（age=0，seed=1 → van
     ['vault_connection', [37, 32, 39]],
     ['block', [5, 10, 4]], // TerrainParticle → Particle 3 参基类公式 (int)(4.0f/(0.9f·F+0.1f))（与 item 同链）
     ['block_crumble', [5, 10, 4]],
+    // —— 2026-09-12 第五轮入表（ProbePlume 同序列 JDK21 实测）——
+    ['dust_plume', [8, 16, 7]], // BaseAshSmoke：max((int)(7/(F·0.8d+0.2d)·f2d(1.0f)),1)
+    ['dust_pillar', [27, 34, 22]], // Provider：20+I(20)（每粒子前有三个 nextGaussian，交错流）
   ];
   for (const [name, seq] of goldens) {
     it(`${name}：寿命序列 = JDK21 golden`, () => {
@@ -1029,6 +1032,45 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
     expect(snap(en)[0].vy).toBeCloseTo(fr(0.96), 12);
   });
 
+  it('dust_plume：BaseAshSmoke 管道 + 每 tick 起点 gravity×0.88f / friction×0.92f（float 逐步舍入，JDK21 ProbePlume golden）', () => {
+    const en = eng1('dust_plume');
+    const p0 = snap(en)[0];
+    expect(p0.vy).toBe(1.1500000059604645); // cmdVy 1 + DustPlume 的 +0.15d（确定性偏移）
+    // Java 管道：g *= 0.88f; fr *= 0.92f; yd -= 0.04d×(double)g; move; v *= (double)fr
+    en.tickOnce();
+    let p = snap(en)[0];
+    expect(p.y).toBe(1.132400006055832);
+    expect(p.vy).toBe(1.0001356737931442);
+    en.tickOnce();
+    p = snap(en)[0];
+    expect(p.y).toBe(2.1170476799328997);
+    expect(p.vy).toBe(0.8000695479313422);
+    en.tickOnce();
+    p = snap(en)[0];
+    expect(p.y).toBe(2.903487787795043);
+    expect(p.vy).toBe(0.5878958109551095);
+  });
+
+  it('dust_pillar：Provider 三次 nextGaussian 覆写初速（x/z 命令速度被赋值覆写）+ setLifetime(20+I(20))（JDK21 ProbePlume golden）', () => {
+    const en = eng1('dust_pillar');
+    const p0 = snap(en)[0];
+    expect(p0.lifetime).toBe(27); // 20 + I(20)（seed=1 → vanillaRand=2）
+    expect(p0.vx).toBe(0.009192816383546697); // g1/30.0d（cmdVx=0 被覆写）
+    expect(p0.vy).toBe(1.239486256590585); // cmdVy 1 + g2/2.0d
+    expect(p0.vz).toBe(-7.376780498278438e-5); // g3/30.0d（cmdVz=0 被覆写）
+    // TerrainParticle 基类管道：friction 0.98f、gravity 1.0f → −0.04d
+    en.tickOnce();
+    let p = snap(en)[0];
+    expect(p.x).toBe(0.009192816383546697);
+    expect(p.y).toBe(1.199486256590585);
+    expect(p.vy).toBe(1.175496554337158);
+    en.tickOnce();
+    p = snap(en)[0];
+    expect(p.x).toBe(0.01820177661476152);
+    expect(p.y).toBe(2.334982810927743);
+    expect(p.vy).toBe(1.1127866449082928);
+  });
+
   it('damage_indicator：Provider 传 cmdVy+1.0d 后统一 ×0.4d → vy = (1+1)·0.4 = 0.8（精确式子，非 mul+offset）', () => {
     const en = eng1('damage_indicator');
     expect(snap(en)[0].vy).toBe(0.8); // (cmdVy 1 + 1)·0.4d
@@ -1267,6 +1309,7 @@ describe('NATIVE_KINEMATICS 表值 = f2d 加宽精确值（防字面量回归）
     ['26.2', 'campfire_signal_smoke', 1.0, -f(3e-6)],
     ['26.2', 'noxious_gas', f(0.96), -0.04 * f(-0.02)],
     ['26.2', 'falling_dust', 1.0, -0.003000000026077032],
+    ['26.2', 'dust_plume', f(0.96), -0.04 * f(0.5)], // 首 tick 前的 gravityY；之后逐 tick ×0.88f 衰减
     ['26.2', 'sweep_attack', f(0.98), 0],
     ['26.2', 'block_marker', f(0.98), 0],
     ['26.2', 'elder_guardian', f(0.98), 0],

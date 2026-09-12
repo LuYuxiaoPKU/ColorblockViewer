@@ -98,15 +98,18 @@
 //
 // 近似收录（注册表内、无干净模型）：
 // cherry/pale_oak/tinted_leaves（自管 tick 的 wind/swirl/flowAway 曲线 +
-// 落地分支 + 构造器随机消费）、current_down（水流块检查）、dust_pillar/
-// dust_plume（dust_plume 每 tick 变摩擦/重力 = 变参数管道；dust_pillar 速度
-// 走 nextGaussian）、explosion_emitter/geyser 系/
+// 落地分支 + 构造器随机消费）、current_down（水流块检查）、dust_pillar
+// （provider 速度走 nextGaussian）、explosion_emitter/geyser 系/
 // gust_emitter_*（NoRender 发射器种子粒子；geyser_base 寿命用 level 随机）、
 // firefly（构造器三轴 ×0.8d 后每 tick 随机位置抖动）、
 // sulfur_bubbles
 // （自管 tick：yEnd 目标式 + 逐 tick 随机漂移/碰撞分支 + 出生随机消费）、
 // noxious_gas_cloud（NoRender 发射器，tick 每 2 tick 用 level 随机向可达
 // sulfur 方块吐 gas，世界状态依赖）。
+// 2026-09-12 第五轮核对入表：dust_plume（DustPlumeParticle.tick 的
+// gravity *= 0.88f / friction *= 0.92f —— 每 tick 起点**常量**衰减，与世界无关，
+// 用 gravityF + gravityDecay + frictionDecay 精确建模；此前的「变参数管道」
+// 判定过严：该管道只比 base 多两个确定性乘子）。
 // 2026-09-11 本轮核对后从近似升级入表的类型：vibration（motion='vibration'
 // 绝对式 lerp 归位，destination 为 block 时 = 方块中心）、trail（既有）。
 // 2026-09-12 第二轮核对入表：noxious_gas（BaseAshSmoke base 管道 +
@@ -165,6 +168,24 @@ export interface NativeKinematics {
   /** true = gravityY 在位移**之后**施加（falling_dust 自管 tick：move →
    *  yd −= 0.003d → max(yd, −0.14d)；默认 = base 管道的位移之前） */
   gravityPost?: boolean;
+  /** 每 tick 起点（super.tick 之前）的 float gravity 字段初值（dust_plume 0.5f）。
+   *  与 gravityDecay 配合：gravityY 不再固定，逐 tick 用 −0.04d×(double)g 计算。 */
+  gravityF?: number;
+  /** 每 tick 起点 float gravity 衰减乘子（dust_plume：`gravity *= 0.88f`）——
+   *  float 域逐步 Math.fround，不能合并成幂次（迭代舍入 ≠ 一次舍入）。 */
+  gravityDecay?: number;
+  /** 每 tick 起点 float friction 衰减乘子（dust_plume：`friction *= 0.92f`） */
+  frictionDecay?: number;
+  /** provider 在构造器之后覆写初速/寿命（Java：`setParticleSpeed` + `setLifetime`；
+   *  内部随机消费顺序逐字节码）。求值点 = 构造器默认寿命公式之后，且仅在命令 age /
+   *  NBT 寿命未显式覆写时（与 campfireRise 同门；Java 侧显式 age 时 provider 仍会
+   *  消费随机 → 该场景为已知近似）。
+   *  dust_pillar：`DustPillarProvider` 三次 `nextGaussian` 后 `nextInt(20)`；
+   *  x/z 命令速度被 setParticleSpeed **赋值覆写**、y 保留命令速度再叠加 g2/2。 */
+  providerSpawn?: (
+    r: RngLike,
+    cmd: { x: number; y: number; z: number },
+  ) => { x: number; y: number; z: number; lifetime: number };
 }
 
 export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>> = {
@@ -314,6 +335,27 @@ export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>>
       spawnVelocityMul: 0, // 零速构造：3 参 SingleQuadParticle(level,x,y,z,sprite) +
       // provider 不传速度（FallingDustParticle 构造器签名无速度参数）→ 命令速度被丢弃
     },
+    // —— 第五轮核对（2026-09-12，逐 tick 常量衰减管道 + provider 初速覆写）——
+    dust_plume: {
+      friction: 0.9599999785423279, // BaseAshSmoke：friction fround(0.96f)
+      gravityY: -0.02, // 首 tick **衰减前**的 −0.04d×fround(0.5f)（0.5 精确）；之后由 gravityF/gravityDecay 逐 tick 计算
+      gravityF: 0.5, // BaseAshSmoke 构造器第 21 槽（DustPlume 传 ldc 0.5f）
+      gravityDecay: 0.8799999952316284, // DustPlumeParticle.tick：gravity *= 0.88f（super.tick 之前）
+      frictionDecay: 0.9200000166893005, // 同处 tick 开头：friction *= 0.92f
+      spawnVelOffsetY: 0.15000000596046448, // DustPlume 把 (cmdVy + 0.15d) 传给 BaseAshSmoke（确定性加法）
+    },
+    dust_pillar: {
+      friction: 0.9800000190734863, // TerrainParticle → Particle 构造器 fround(0.98f)
+      gravityY: -0.04, // TerrainParticle 基类 gravity 1.0f → −0.04d×1.0f（恰精确）
+      // Provider 覆写（构造器之后）：setParticleSpeed(g1/30.0d, cmdVy + g2/2.0d, g3/30.0d)
+      // → setLifetime(20 + I(20))。x/z 命令速度被赋值覆写（setParticleSpeed 语义）。
+      providerSpawn: (r, c) => {
+        const g1 = r.nextGaussian(); // 抽取顺序逐字节码：g1 → g2 → g3 → I(20)
+        const g2 = r.nextGaussian();
+        const g3 = r.nextGaussian();
+        return { x: g1 / 30, y: c.y + g2 / 2, z: g3 / 30, lifetime: 20 + r.nextInt(20) };
+      },
+    },
     // —— 第三轮核对（2026-09-12，静态类型：零速构造 + 恒定寿命 + tick 无位移）——
     // 判定共同点：① 构造器速度参数为 dconst_0（或位置型构造器不带速度）；
     // ② 基类 Particle 构造器不赋值 gravity（字段默认 0f）且子类无覆写；
@@ -375,6 +417,9 @@ type RngLike = {
   nextFloat(): number;
   nextDouble(): number;
   nextInt(bound: number): number;
+  /** Jupiter/LegacyRandomSource.nextGaussian（Marsaglia 极坐标 + 暂存第二值；
+   *  dust_pillar 的 provider 初速用；`SimRandom` 已实现同一序列） */
+  nextGaussian(): number;
 };
 
 const L = {
@@ -551,6 +596,8 @@ export const NATIVE_LIFETIME: Record<string, Record<string, NativeLifetimeFormul
     // —— 第二轮核对（2026-09-12，JDK21 ProbeAsh golden）——
     noxious_gas: L.gas, // 构造器末尾覆写：(int)(6.0d/(F·0.5d+0.5d)·f2d(3.0f))
     falling_dust: L.fallingDust, // (int)max(f32(f32((int)(32.0d/(F·0.8d+0.2d)))·0.9f),1.0f)
+    // —— 第五轮核对（2026-09-12，JDK21 ProbePlume golden）——
+    dust_plume: L.ashScale(7, 1), // BaseAshSmoke：max((int)(7/(F·0.8d+0.2d)·f2d(1.0f)),1)（slot20=7、slot17=1.0f）
     // —— 第三轮核对（2026-09-12，恒定寿命；构造器直接覆写，公式路径无随机消费）——
     sweep_attack: L.const(4), // AttackSweepParticle：iconst_4 覆写（颜色 nextFloat 私有随机不消费）
     block_marker: L.const(80), // BlockMarker：bipush 80 覆写
