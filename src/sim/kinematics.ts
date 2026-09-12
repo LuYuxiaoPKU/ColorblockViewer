@@ -97,7 +97,7 @@
 // gust_emitter_*（NoRender 发射器种子粒子；geyser_base 寿命用 level 随机）、
 // firefly（构造器三轴 ×0.8d 后每 tick 随机位置抖动）、
 // ominous_spawning（绝对式线性 x = xStart + xd·(1−t)，xStart 非出生点）、
-// sweep_attack（构造器零速，Java 侧 tick 不推进位置）、sulfur_bubbles
+// sulfur_bubbles
 // （自管 tick：yEnd 目标式 + 逐 tick 随机漂移/碰撞分支 + 出生随机消费）、
 // noxious_gas_cloud（NoRender 发射器，tick 每 2 tick 用 level 随机向可达
 // sulfur 方块吐 gas，世界状态依赖）。
@@ -106,6 +106,9 @@
 // 2026-09-12 第二轮核对入表：noxious_gas（BaseAshSmoke base 管道 +
 // spawnVelocityMul 0.1 + 寿命公式 gas）、falling_dust（自管 tick ≡ base 管道
 // friction=1.0 + 位移后 −0.003d + 终端速度钳制 −0.14d + 寿命公式 fallingDust）。
+// 2026-09-12 第三轮核对入表（静态类型：零速构造 + 恒定寿命 + tick 无位移）：
+// sweep_attack（SingleQuadParticle 零速构造 dconst_0×3、iconst_4 寿命、tick 只
+// 记录 pre + age++/死亡 + setSpriteFromAge —— 不调 move，位置恒定）。
 // ambient_entity_effect：粒子数据表里有名字，但 26.2 注册表未注册（type map
 // 无条目）——命令用它会走模组报错路径，不进本表。
 //
@@ -275,6 +278,16 @@ export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>>
       gravityPost: true, // 字节码顺序：move → −=0.003d → max（区别于 base 管道先减后移）
       terminalVy: -0.14000000059604645, // yd = max(yd, −0.14d) 终端速度钳制
       spawnVelocityMul: 0.10000000149011612, // SingleQuadParticle 基类 v×f2d(0.1f)
+    },
+    // —— 第三轮核对（2026-09-12，静态类型：零速构造 + 恒定寿命 + tick 无位移）——
+    // 判定共同点：① 构造器速度参数为 dconst_0（或位置型构造器不带速度）；
+    // ② 基类 Particle 构造器不赋值 gravity（字段默认 0f）且子类无覆写；
+    // ③ tick 不调 move（AttackSweep 自管 tick / 其余继承 Particle.tick 但速度为 0）
+    // → 位置恒定，命令速度被忽略（模组侧 cmdV 只进 provider，Java 构造器丢弃）。
+    sweep_attack: {
+      friction: 0.9800000190734863, // 基类 Particle 构造器 fround(0.98f)，本类无覆写
+      gravityY: 0, // 基类未赋值 gravity（字段默认 0f）；本类无覆写
+      spawnVelocityMul: 0, // 零速构造：SingleQuadParticle(level,x,y,z,dconst_0×3,sprite)
     },
   },
 };
@@ -470,6 +483,8 @@ export const NATIVE_LIFETIME: Record<string, Record<string, NativeLifetimeFormul
     // —— 第二轮核对（2026-09-12，JDK21 ProbeAsh golden）——
     noxious_gas: L.gas, // 构造器末尾覆写：(int)(6.0d/(F·0.5d+0.5d)·f2d(3.0f))
     falling_dust: L.fallingDust, // (int)max(f32(f32((int)(32.0d/(F·0.8d+0.2d)))·0.9f),1.0f)
+    // —— 第三轮核对（2026-09-12，恒定寿命；构造器直接覆写，公式路径无随机消费）——
+    sweep_attack: L.const(4), // AttackSweepParticle：iconst_4 覆写（颜色 nextFloat 私有随机不消费）
   },
 };
 
