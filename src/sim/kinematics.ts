@@ -92,7 +92,7 @@
 // cherry/pale_oak/tinted_leaves（自管 tick 的 wind/swirl/flowAway 曲线 +
 // 落地分支 + 构造器随机消费）、current_down（水流块检查）、dust_pillar/
 // dust_plume（dust_plume 每 tick 变摩擦/重力 = 变参数管道；dust_pillar 速度
-// 走 nextGaussian）、elder_guardian（模型渲染、零速无位移）、enchant/nautilus/
+// 走 nextGaussian）、enchant/nautilus/
 // vault_connection（绝对式曲线 + 颜色插值）、explosion_emitter/geyser 系/
 // gust_emitter_*（NoRender 发射器种子粒子；geyser_base 寿命用 level 随机）、
 // firefly（构造器三轴 ×0.8d 后每 tick 随机位置抖动）、
@@ -110,7 +110,9 @@
 // sweep_attack（SingleQuadParticle 零速构造 dconst_0×3、iconst_4 寿命、tick 只
 // 记录 pre + age++/死亡 + setSpriteFromAge —— 不调 move，位置恒定）、
 // block_marker（位置型构造器（provider 只传 level/x/y/z/blockState）、gravity 0f、
-// lifetime 80、hasPhysics=false、继承 Particle.tick 但速度恒 0 → 位置恒定）。
+// lifetime 80、hasPhysics=false、继承 Particle.tick 但速度恒 0 → 位置恒定）、
+// elder_guardian（Particle(level,x,y,z) 零速构造、gravity 0f、lifetime 30、
+// 继承 Particle.tick 但速度恒 0 → 位置恒定；实体模型渲染差异见 §10）。
 // ambient_entity_effect：粒子数据表里有名字，但 26.2 注册表未注册（type map
 // 无条目）——命令用它会走模组报错路径，不进本表。
 //
@@ -295,6 +297,11 @@ export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>>
       friction: 0.9800000190734863, // 基类 Particle 构造器 fround(0.98f)，本类无覆写
       gravityY: 0, // 构造器 fconst_0 → gravity 0f
       spawnVelocityMul: 0, // 零速构造：位置型构造器（provider 只传 level/x/y/z/blockState）
+    },
+    elder_guardian: {
+      friction: 0.9800000190734863, // 基类 Particle 构造器 fround(0.98f)，本类无覆写
+      gravityY: 0, // 构造器 fconst_0 → gravity 0f
+      spawnVelocityMul: 0, // 零速构造：Particle(level,x,y,z) 位置型（provider 只传 level/x/y/z）
     },
   },
 };
@@ -493,6 +500,7 @@ export const NATIVE_LIFETIME: Record<string, Record<string, NativeLifetimeFormul
     // —— 第三轮核对（2026-09-12，恒定寿命；构造器直接覆写，公式路径无随机消费）——
     sweep_attack: L.const(4), // AttackSweepParticle：iconst_4 覆写（颜色 nextFloat 私有随机不消费）
     block_marker: L.const(80), // BlockMarker：bipush 80 覆写
+    elder_guardian: L.const(30), // ElderGuardianParticle：bipush 30 覆写
   },
 };
 
