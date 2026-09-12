@@ -11,13 +11,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { TEMPLATES, featuredTemplates, templateText, type Template } from '../templates/library';
-import { appendCommands, pushToast, useAppState } from '../store/appState';
+import { appendCommands, pushToast, replaceCommands, useAppState } from '../store/appState';
 import { templateUrl } from '../share/bootstrap';
 import { parseCommands } from '../command/parser';
 import { copyText } from './clipboard';
 
-/** 载入模板：解析 → 追加到命令真源（粘贴框文本自动对齐）。模板自身的问题由
- *  tests/templates/library.test.ts 提前拦住，这里的 catch 只是兜底。 */
+/** 载入模板（追加）：解析 → 追加到命令真源（粘贴框文本自动对齐）。模板自身的
+ *  问题由 tests/templates/library.test.ts 提前拦住，这里的 catch 只是兜底。 */
 export function loadTemplate(t: Template): boolean {
   try {
     appendCommands(parseCommands(templateText(t)));
@@ -29,8 +29,29 @@ export function loadTemplate(t: Template): boolean {
   }
 }
 
+/** 「载入并执行」：**清空原有命令**（替换）→ 通知调用方清空粒子并重跑。
+ *  换模板 = 干净重来，不叠加旧命令与旧粒子（onRunFresh = 引擎回放重置 + 执行）。 */
+export function loadTemplateFresh(t: Template, onRunFresh: () => void): boolean {
+  try {
+    replaceCommands(parseCommands(templateText(t)));
+    // 注意顺序：onRunFresh 内含「回放重置」（会 clearToasts）→ toast 必须在其后推
+    onRunFresh();
+    pushToast(`已清空原有命令与粒子，载入模板「${t.name}」并执行`);
+    return true;
+  } catch (err) {
+    pushToast(`模板「${t.name}」载入失败：${(err as Error).message}`);
+    return false;
+  }
+}
+
 /** 精选入口：常驻一行 chips；命令列表为空时变成「从模板开始」引导 */
-export function FeaturedTemplates({ onOpenAll, onRun }: { onOpenAll: () => void; onRun: () => void }) {
+export function FeaturedTemplates({
+  onOpenAll,
+  onRunFresh,
+}: {
+  onOpenAll: () => void;
+  onRunFresh: () => void;
+}) {
   const { commands } = useAppState();
   const picks = featuredTemplates();
   const empty = commands.length === 0;
@@ -43,10 +64,8 @@ export function FeaturedTemplates({ onOpenAll, onRun }: { onOpenAll: () => void;
         <button
           key={t.id}
           className="chip"
-          title={t.desc}
-          onClick={() => {
-            if (loadTemplate(t)) onRun();
-          }}
+          title={`${t.desc}（清空现有命令与粒子后执行）`}
+          onClick={() => loadTemplateFresh(t, onRunFresh)}
         >
           {t.name.replace(/（.*$/, '')}
         </button>
@@ -62,11 +81,11 @@ export function FeaturedTemplates({ onOpenAll, onRun }: { onOpenAll: () => void;
 export function TemplateGallery({
   open,
   onClose,
-  onRun,
+  onRunFresh,
 }: {
   open: boolean;
   onClose: () => void;
-  onRun: () => void;
+  onRunFresh: () => void;
 }) {
   const [q, setQ] = useState('');
 
@@ -101,7 +120,8 @@ export function TemplateGallery({
         <div className="gallery-head">
           <span className="gallery-title">📚 模板库（{TEMPLATES.length}）</span>
           <span className="gallery-hint muted">
-            「复制命令」= 游戏内可直接粘贴的文本；「载入」= 追加到左侧命令列表（画布在左侧，可边看边试）
+            「复制命令」= 游戏内可直接粘贴的文本；「载入到命令列表」= 追加（保留现有命令）；
+            「载入并执行」= 清空现有命令与粒子后执行（画布在左侧，可边看边试）
           </span>
           <button className="small" onClick={onClose}>
             ✕ 关闭
@@ -131,7 +151,11 @@ export function TemplateGallery({
                 >
                   📋 复制命令
                 </button>
-                <button className="small" onClick={() => loadTemplate(t)}>
+                <button
+                  className="small"
+                  onClick={() => loadTemplate(t)}
+                  title="追加到命令列表末尾（保留现有命令）"
+                >
                   载入到命令列表
                 </button>
                 <button
@@ -148,9 +172,8 @@ export function TemplateGallery({
                 </button>
                 <button
                   className="small primary"
-                  onClick={() => {
-                    if (loadTemplate(t)) onRun();
-                  }}
+                  onClick={() => loadTemplateFresh(t, onRunFresh)}
+                  title="清空现有命令与粒子，再载入该模板并执行"
                 >
                   载入并执行
                 </button>

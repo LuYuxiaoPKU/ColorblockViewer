@@ -8,7 +8,10 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import App from '../../src/App';
 import { getState, setCommand, removeCommand, setSim, DEFAULT_VANILLA } from '../../src/store/appState';
-import { serializeAll } from '../../src/command/serialize';
+import { serialize, serializeAll } from '../../src/command/serialize';
+import { parseCommands } from '../../src/command/parser';
+import { templateById, templateText } from '../../src/templates/library';
+import { SimEngine } from '../../src/sim/engine';
 import { checkCommandsFormat } from '../../src/command/gameFormat';
 import { SimViewport } from '../../src/render/sync';
 import { PARTICLE_DATA } from '../../src/render/particleData';
@@ -484,7 +487,7 @@ describe('M5 全流程', () => {
     expect(container.querySelector('.gallery-sheet')).toBeNull();
   });
 
-  it('精选模板入口：常驻一行 chips，「全部 N 个」打开面板；chip 一键载入并执行', () => {
+  it('精选模板入口：常驻一行 chips，「全部 N 个」打开面板；chip = 清空并载入执行', () => {
     const featured = container.querySelector('.template-featured')!;
     expect(featured.className).not.toContain('empty');
     expect(featured.textContent).toContain('精选模板');
@@ -493,10 +496,40 @@ describe('M5 全流程', () => {
     expect(container.querySelector('.gallery-sheet')).toBeTruthy();
     click(buttonIn(container.querySelector('.gallery-sheet')!, '关闭'));
 
-    const before = getState().commands.length;
     click(buttonIn(container.querySelector('.template-featured')!, '圆周环'));
-    expect(getState().commands.length).toBeGreaterThan(before);
-    expect(getState().toasts.at(-1)).toContain('已载入模板');
+    // chip 与「载入并执行」同语义：命令被**替换**成模板本身（不是追加）
+    const tpl = templateById('ring')!;
+    expect(getState().commands.map(serialize)).toEqual(
+      parseCommands(templateText(tpl)).map(serialize),
+    );
+    expect(getState().toasts.at(-1)).toContain('已清空原有命令与粒子');
+  });
+
+  it('「载入并执行」= 清空原有命令与粒子后执行（不叠加旧命令/旧粒子）', () => {
+    act(() => setSim({ seed: 1, nativeKinematics: true, playerPos: { x: 0, y: 0, z: 0 } }));
+    // 先跑默认命令 → 暂停在“有粒子”的状态
+    click(button('执行'));
+    const before = container.querySelector('.hud')!.textContent!;
+    expect(before).not.toContain('粒子 0');
+
+    const tpl = templateById('ring')!;
+    const ref = new SimEngine({ ...getState().sim, seed: 1, nativeKinematics: true });
+    let expected = 0;
+    for (const c of parseCommands(templateText(tpl))) expected += ref.runCommand(c).spawned;
+
+    click(button('模板库'));
+    const card = [...container.querySelectorAll('.template-card')].find((c) =>
+      c.textContent?.includes('圆周环'),
+    )!;
+    click(buttonIn(card, '载入并执行'));
+
+    // ① 命令列表 = 模板本身（旧的默认命令已清空）
+    expect(getState().commands.map(serialize)).toEqual(
+      parseCommands(templateText(tpl)).map(serialize),
+    );
+    // ② 粒子只剩模板生成的（引擎回放重置过：HUD 计数 = 模板单独跑的结果）
+    expect(container.querySelector('.hud')!.textContent).toContain(`粒子 ${expected}`);
+    expect(getState().toasts.at(-1)).toContain('已清空原有命令与粒子');
   });
 
   it('命令列表清空 → 精选入口变「从模板开始」引导', () => {

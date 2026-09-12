@@ -8,6 +8,8 @@ import {
   setCommand,
   insertCommandAfter,
   removeCommand,
+  appendCommands,
+  replaceCommands,
   setInputText,
   applyInputText,
   setSim,
@@ -17,6 +19,7 @@ import {
   DEFAULT_PARAMETER,
   DEFAULT_GROUP_REMOVE,
   DEFAULT_VANILLA,
+  DEFAULT_CONDITIONAL,
 } from '../../src/store/appState';
 import { parseCommands } from '../../src/command/parser';
 import { serialize } from '../../src/command/serialize';
@@ -64,6 +67,28 @@ describe('表单 → 文本（serialize 派生）', () => {
   it('vanilla 命令 → 文本为原版形式（无 particleex 前缀，带 / 前缀）', () => {
     setCommand(0, { ...structuredClone(DEFAULT_VANILLA), name: 'smoke' });
     expect(getState().input).toBe('/particle smoke');
+  });
+});
+
+describe('模板载入：追加 vs 替换', () => {
+  it('appendCommands：追加到末尾（保留现有命令）', () => {
+    setCommand(0, { ...structuredClone(DEFAULT_NORMAL), count: 3 });
+    appendCommands([structuredClone(DEFAULT_CONDITIONAL)]);
+    expect(getState().commands).toHaveLength(2);
+    expect(getState().input).toContain('particleex normal');
+    expect(getState().input).toContain('particleex conditional');
+  });
+
+  it('replaceCommands：整体替换（不追加）并重新派生文本 —— 「载入并执行」语义', () => {
+    appendCommands([structuredClone(DEFAULT_CONDITIONAL)]);
+    expect(getState().commands.length).toBeGreaterThanOrEqual(2);
+    const only = { ...structuredClone(DEFAULT_NORMAL), count: 7 };
+    replaceCommands([only]);
+    expect(getState().commands).toHaveLength(1);
+    expect(getState().commands[0]).toEqual(only);
+    expect(getState().input).toContain('particleex normal');
+    expect(getState().input).not.toContain('conditional'); // 旧命令不再残留
+    expect(parseCommands(getState().input)).toEqual([only]); // 文本 ↔ 真源一致
   });
 });
 
