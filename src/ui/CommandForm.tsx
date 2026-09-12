@@ -23,7 +23,7 @@ import {
 } from '../store/appState';
 import { ExprField } from './ExprField';
 import { NumField, Vec3Field, Vec3PlainField, RgbaField, TextField } from './fields';
-import { particleVersionData } from '../render/points';
+import { particleVersionData } from '../render/particleData'; // 纯数据模块（不经 points → 不拉 three 进首屏）
 import { fidelityFor, type Fidelity } from '../sim/kinematics';
 
 // 粒子名建议（渲染层 TWEAKS 覆盖的类型；MC 的 ParticleArgument 允许任意注册名，

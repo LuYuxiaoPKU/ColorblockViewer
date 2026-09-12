@@ -11,6 +11,13 @@ export interface ParticleVersionData {
   frames: Record<string, string[]>;
 }
 
+/** 游戏版本 → 粒子数据（类型全集/帧表）；未知版本 → undefined（上层用默认 '26.2'）。
+ *  放在本文件（**纯数据、不依赖 three**）以便 UI 侧直接引用 —— 免得经 points.ts
+ *  把 three 拉进首屏静态图（points.ts 里保留同名再导出，兼容既有调用点）。 */
+export function particleVersionData(version: string): ParticleVersionData | undefined {
+  return PARTICLE_DATA[version];
+}
+
 export const PARTICLE_DATA: Record<string, ParticleVersionData> = {
 
 

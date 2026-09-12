@@ -20,7 +20,7 @@
 // 无 document 时图集加载 resolve null → 全圆点），sync 逻辑有单测覆盖。
 
 import * as THREE from 'three';
-import { PARTICLE_DATA, type ParticleVersionData } from './particleData';
+import { PARTICLE_DATA } from './particleData';
 
 /** 基础点尺寸（**世界块单位**）：默认粒子 ≈ 0.1 block（MC 小粒子的典型观感）。
  *  像素换算在顶点着色器里做透视除法，换算常数 uScale = 视口物理高度·0.5 /
@@ -72,10 +72,10 @@ export function textureFor(name: string, version = '26.2'): string[] | null {
   return PARTICLE_DATA[version]?.frames[normName(name)] ?? null;
 }
 
-/** 游戏版本 → 粒子数据（类型全集/帧表）；未知版本 → undefined（上层用默认 '26.2'）。 */
-export function particleVersionData(version: string): ParticleVersionData | undefined {
-  return PARTICLE_DATA[version];
-}
+/** 游戏版本 → 粒子数据（类型全集/帧表）；未知版本 → undefined（上层用默认 '26.2'）。
+ *  实现在 particleData.ts（纯数据模块）；此处保留同名再导出以兼容既有调用点 ——
+ *  UI 侧请直接从 '../render/particleData' 引入，避免把 three 拉进首屏静态图。 */
+export { particleVersionData } from './particleData';
 
 /** 色相旋转（度）。s=0 的灰白色系不受影响。 */
 export function shiftHue(r: number, g: number, b: number, deg: number): [number, number, number] {
