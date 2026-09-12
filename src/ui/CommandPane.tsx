@@ -1,8 +1,9 @@
 // CommandPane（计划 §九）：粘贴框 + 类型 tabs（新增命令）+ 按 kind 的表单
 // （双向同步）+ 设置抽屉 + toast。文本框内容派生自 commands 真源。
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { serializeAll } from '../command/serialize';
+import { checkCommandsFormat } from '../command/gameFormat';
 import {
   useAppState,
   getState,
@@ -44,6 +45,9 @@ export function CommandPane({ onRun }: { onRun: () => void }) {
   const [inputDirty, setInputDirty] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
   const [paramOpen, setParamOpen] = useState(false);
+  // 游戏内格式检查（实时）：文本参数按 brigadier 未加引号字符集判定 ——
+  // 预览分词宽松（未加引号也能解析），但粘回游戏会被截断，这里如实标出。
+  const formatIssues = useMemo(() => checkCommandsFormat(input), [input]);
 
   const add = (cmd: ParticleCommand) => insertCommandAfter(commands.length - 1, cmd);
 
@@ -93,6 +97,28 @@ export function CommandPane({ onRun }: { onRun: () => void }) {
             <div className="expr-status-cn">无法结构化的行不会写入表单，请修正后重试。</div>
           </div>
         ) : null}
+        {/* 游戏内格式检查：文本参数（表达式/组名）必须满足 brigadier 未加引号字符集，
+            否则游戏里会被截断；表单回显/复制链接都按该规范输出（serialize 自动补 '…'） */}
+        <div className={formatIssues.length === 0 ? 'format-check ok' : 'format-check bad'}>
+          {formatIssues.length === 0 ? (
+            <span>
+              ✅ 格式检查：每行都符合游戏内 brigadier 格式（表达式已按需用 <code>'…'</code> 包住，可直接粘回游戏）
+            </span>
+          ) : (
+            <>
+              <span>
+                ⚠️ 格式检查：{formatIssues.length} 行的引号用法与游戏不符（预览仍会宽松解析，但粘回游戏会失败）：
+              </span>
+              <ul>
+                {formatIssues.slice(0, 5).map((r) => (
+                  <li key={r.line}>
+                    第 {r.line} 行：{r.issues.map((i) => i.message).join('；')}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
       </section>
 
       <section className="pane-section">

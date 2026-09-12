@@ -41,14 +41,17 @@ describe('表单 → 文本（serialize 派生）', () => {
     expect(parseCommands(getState().input)[0].kind).toBe('normal');
   });
 
-  it('改表达式字段（含空格）→ 文本带引号', () => {
+  it('改表达式字段 → 按 brigadier 未加引号字符集决定是否加单引号', () => {
     const c = { ...structuredClone(DEFAULT_NORMAL), speedExpression: 'x=1;y=2' };
     setCommand(0, c);
-    // 无空格表达式不加引号；带分号也没空格 → 原样
-    expect(getState().input).toContain('x=1;y=2');
+    // ';' '=' 不在未加引号字符集（0-9 A-Z a-z _ - . +）内 → 游戏内必须加引号
+    expect(getState().input).toContain("'x=1;y=2'");
     const c2 = { ...c, speedExpression: 'x = 1' };
     setCommand(0, c2);
-    expect(getState().input).toContain('"x = 1"');
+    expect(getState().input).toContain("'x = 1'"); // 空格同样需要引号
+    const c3 = { ...c, speedExpression: 'x_1.plus-2' };
+    setCommand(0, c3);
+    expect(getState().input).toContain(' x_1.plus-2 '); // 全在集合内 → 裸写
   });
 
   it('replace 命令 kind → 文本变体名正确', () => {
