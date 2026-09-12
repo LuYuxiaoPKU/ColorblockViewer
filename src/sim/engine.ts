@@ -238,9 +238,14 @@ export class SimEngine {
     }
     // 构造器里的出生初速修正（Java 侧无条件、与年龄无关 —— 命令 age 不影响
     // 构造器速度路径，故不 gate age）：
-    //   spawnVelocityMul：v *= 常量（dust ×0.1d、crit ×0.4d、bubble ×0.2d …；
-    //   0 = 零速构造，见 kinematics.ts 近似清单）。
+    //   spawnVelocityMul：v *= 常量（dust ×0.1d、crit ×0.4d、bubble ×0.2d、
+    //   noxious_gas/falling_dust 基类 ×0.1f …；0 = 零速构造，见 kinematics.ts
+    //   近似清单）。
     //   spawnVelOffsetY：SimpleVertical yd += ±0.03d。
+    //   noxious_gas 的 BaseAshSmoke y 速度偏移 −0.02f（确定性）量级小不建模
+    //   （与 wax ÷2 同类近似，见 kinematics.ts 头注释）。
+    // 注：基类构造器里的 (2F−1)×0.4f 抖动（Particle.<init> 7 参）与 campfire
+    // 的 +500.0f/F 上升初速同样不建模（构造器随机/特殊项，分布近似）。
     if (this.config.nativeKinematics) {
       const spec = nativeSpecFor(req.name, this.config.mcVersion);
       if (spec?.spawnVelocityMul !== undefined) {
@@ -381,13 +386,17 @@ export class SimEngine {
           p.z = p.z + (p.vibrationTarget.z - p.z) * t;
         }
       } else {
-        if (spec) {
+        if (spec && !spec.gravityPost) {
           p.vy += spec.gravityY; // 重力：位移**之前**（Particle.tick 顺序）
         }
         p.x += p.vx;
         p.y += p.vy;
         p.z += p.vz;
         if (spec) {
+          if (spec.gravityPost) {
+            // falling_dust 自管 tick：move **之后** yd −= 0.003d
+            p.vy += spec.gravityY;
+          }
           p.vx *= spec.friction; // 摩擦：位移**之后**
           p.vy *= spec.friction;
           p.vz *= spec.friction;
@@ -396,6 +405,11 @@ export class SimEngine {
             p.vx *= spec.postFriction[0];
             p.vy *= spec.postFriction[1];
             p.vz *= spec.postFriction[2];
+          }
+          if (spec.terminalVy !== undefined) {
+            // falling_dust：自管 tick 尾部 yd = max(yd, −0.14d)（终端速度钳制，
+            // 位移后、无摩擦步 —— 逐字节码顺序）
+            p.vy = Math.max(p.vy, spec.terminalVy);
           }
         }
       }
