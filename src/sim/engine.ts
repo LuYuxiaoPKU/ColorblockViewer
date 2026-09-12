@@ -254,6 +254,14 @@ export class SimEngine {
         p.vz *= spec.spawnVelocityMul;
       }
       if (spec?.spawnVelOffsetY !== undefined) p.vy += spec.spawnVelOffsetY;
+      // 位置式飞行曲线（FlyStraightTowards / FlyTowardsPosition）：构造器里
+      // xo = x + xd 后 x = xo —— 出生位置即「命令位置 + 一个速度矢量」
+      // （Java 侧起点偏移，非零速构造的零位移）。
+      if (spec?.motion === 'fly_straight' || spec?.motion === 'fly_towards') {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.z += p.vz;
+      }
     }
     this.groups.add(req.group, p.id); // null/"null"/空 在 GroupIndex.add 内跳过
     this.pending.push(p);
@@ -384,6 +392,24 @@ export class SimEngine {
           p.x = p.x + (p.vibrationTarget.x - p.x) * t;
           p.y = p.y + (p.vibrationTarget.y - p.y) * t;
           p.z = p.z + (p.vibrationTarget.z - p.z) * t;
+        }
+      } else if (spec?.motion === 'fly_straight' || spec?.motion === 'fly_towards') {
+        // FlyStraightTowards / FlyTowardsPosition.tick（逐字节码浮点顺序）：
+        // age++/死亡判定后 t = fdiv(i2f(age), i2f(lifetime)) → f1 = 1−t（float）；
+        //   三轴 x = xStart + vd·f2d(f1)（xStart = 命令位置 p.c*，vd = 命令速度）；
+        //   FlyTowards 另加 y −= f2d(f2⁴·1.2f)（f2 = 1−f1，平方两次 = f2⁴）；
+        // tick **不调 super**（无摩擦/重力/位移步）—— age=lifetime ⇒ f1=0 落到
+        // 命令位置；出生位置已在 spawn 侧偏移 +vd（见 trySpawnParticle）。
+        const t = Math.fround(p.age / p.lifetime);
+        const f1 = Math.fround(1 - t);
+        p.x = p.cx + p.vx * f1;
+        p.z = p.cz + p.vz * f1;
+        if (spec.motion === 'fly_straight') {
+          p.y = p.cy + p.vy * f1;
+        } else {
+          const f2 = Math.fround(1 - f1);
+          const q = Math.fround(Math.fround(f2 * f2) * Math.fround(f2 * f2));
+          p.y = p.cy + p.vy * f1 - Math.fround(q * Math.fround(1.2));
         }
       } else {
         if (spec && !spec.gravityPost) {

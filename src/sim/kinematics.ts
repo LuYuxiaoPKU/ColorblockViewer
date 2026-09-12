@@ -88,15 +88,13 @@
 // 构造器位置抖动（flame/soul 6F）、逐粒子随机种子、geyser_base 寿命用的
 // 流体 level 随机（世界状态）。
 //
-// 近似收录（注册表内、无干净模型）：block/block_crumble、
+// 近似收录（注册表内、无干净模型）：
 // cherry/pale_oak/tinted_leaves（自管 tick 的 wind/swirl/flowAway 曲线 +
 // 落地分支 + 构造器随机消费）、current_down（水流块检查）、dust_pillar/
 // dust_plume（dust_plume 每 tick 变摩擦/重力 = 变参数管道；dust_pillar 速度
-// 走 nextGaussian）、enchant/nautilus/
-// vault_connection（绝对式曲线 + 颜色插值）、explosion_emitter/geyser 系/
+// 走 nextGaussian）、explosion_emitter/geyser 系/
 // gust_emitter_*（NoRender 发射器种子粒子；geyser_base 寿命用 level 随机）、
 // firefly（构造器三轴 ×0.8d 后每 tick 随机位置抖动）、
-// ominous_spawning（绝对式线性 x = xStart + xd·(1−t)，xStart 非出生点）、
 // sulfur_bubbles
 // （自管 tick：yEnd 目标式 + 逐 tick 随机漂移/碰撞分支 + 出生随机消费）、
 // noxious_gas_cloud（NoRender 发射器，tick 每 2 tick 用 level 随机向可达
@@ -113,13 +111,17 @@
 // lifetime 80、hasPhysics=false、继承 Particle.tick 但速度恒 0 → 位置恒定）、
 // elder_guardian（Particle(level,x,y,z) 零速构造、gravity 0f、lifetime 30、
 // 继承 Particle.tick 但速度恒 0 → 位置恒定；实体模型渲染差异见 §10）。
+// 2026-09-12 第四轮核对入表：Terrain 方块族 block/block_crumble（friction
+// 0.98f + gravity 1.0f → −0.04、寿命走基类公式）与位置式飞行曲线
+// enchant/nautilus/vault_connection（motion='fly_towards'，y 带 f2⁴·1.2f 下坠）、
+// ominous_spawning（motion='fly_straight'）—— 出生位置 = 命令位置 + 速度矢量。
 // ambient_entity_effect：粒子数据表里有名字，但 26.2 注册表未注册（type map
 // 无条目）——命令用它会走模组报错路径，不进本表。
 //
 // 版本分区：本表证据仅来自 26.2 字节码 → 新类型只进 '26.2'；'1.21.11' 保留
 // end_rod（1.21.1 反编译核对）。1.21.1 未逐类型核对，不臆测（八荣八耻 #1）。
 
-export type MotionKind = 'base' | 'portal' | 'reverse_portal' | 'vibration';
+export type MotionKind = 'base' | 'portal' | 'reverse_portal' | 'vibration' | 'fly_straight' | 'fly_towards';
 
 export interface NativeKinematics {
   /** 运动模型：base = 通用管道；portal/reverse_portal = 自管位置式（无摩擦/重力） */
@@ -303,6 +305,24 @@ export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>>
       gravityY: 0, // 构造器 fconst_0 → gravity 0f
       spawnVelocityMul: 0, // 零速构造：Particle(level,x,y,z) 位置型（provider 只传 level/x/y/z）
     },
+    // —— 第四轮核对（2026-09-12，位置式飞行曲线 + Terrain 方块族）——
+    block: {
+      friction: 0.9800000190734863, // 基类 Particle 构造器 fround(0.98f)，TerrainParticle 无覆写
+      gravityY: -0.04, // TerrainParticle 构造器 fconst_1 → gravity 1.0f → −0.04d×fround(1.0f)（恰精确）
+    },
+    block_crumble: {
+      friction: 0.9800000190734863, // 同 TerrainParticle（CrumblingProvider → createTerrainParticle）
+      gravityY: -0.04,
+    },
+    // 位置式飞行（FlyStraightTowards / FlyTowardsPosition 系）：构造器零速 super 后
+    // 直接写 xd/yd/zd = 命令速度、xStart/yStart/zStart = 命令位置，位置 = xStart+vd
+    // （出生即偏移一个速度矢量）；tick = save pre → age++/死亡 → t = fdiv(age,lifetime)
+    // → f1 = 1−t(float) → 三轴 xStart + vd·f2d(f1)（FlyTowards 另有 y −= f2d(f2⁴·1.2f)，
+    // f2 = 1−f1 平方两次）；**不调 move** → 无摩擦/重力。
+    ominous_spawning: { motion: 'fly_straight', friction: 1, gravityY: 0 },
+    enchant: { motion: 'fly_towards', friction: 1, gravityY: 0 },
+    nautilus: { motion: 'fly_towards', friction: 1, gravityY: 0 },
+    vault_connection: { motion: 'fly_towards', friction: 1, gravityY: 0 },
   },
 };
 
@@ -361,6 +381,11 @@ const L = {
   /** 60 + (int)(2.0f·F) —— reverse_portal：F<0.5→60、F≥0.5→61（各半；
    *  曾误读为 2·(int)F 恒 60，2026-09-08 按 javap `fmul fconst_2 → f2i` 更正） */
   reversePortal: (r: RngLike, _c: NativeLifetimeContext) => 60 + Math.trunc(Math.fround(2.0 * r.nextFloat())),
+  /** base + (int)(F·mul)（float 乘法后 f2i 截断）—— FlyTowards（enchant/nautilus/
+   *  vault_connection：30 + f2i(F·10.0f)）与 FlyStraight（ominous_spawning：
+   *  25 + f2i(F·5.0f)）共用的寿命形态。 */
+  flyTo: (base: number, mul: number) => (r: RngLike, _c: NativeLifetimeContext) =>
+    base + Math.trunc(Math.fround(r.nextFloat() * Math.fround(mul))),
   /** min + nextInt(extra) —— end_rod/totem/campfire/firework/scrape/spark 等 */
   int: (min: number, extra: number) => (r: RngLike, _c: NativeLifetimeContext) => min + r.nextInt(extra),
   /** 常量 —— heart 16 / note 6 / shriek 30 / flash 4 / pause 8 等 */
@@ -501,6 +526,13 @@ export const NATIVE_LIFETIME: Record<string, Record<string, NativeLifetimeFormul
     sweep_attack: L.const(4), // AttackSweepParticle：iconst_4 覆写（颜色 nextFloat 私有随机不消费）
     block_marker: L.const(80), // BlockMarker：bipush 80 覆写
     elder_guardian: L.const(30), // ElderGuardianParticle：bipush 30 覆写
+    // —— 第四轮核对（2026-09-12）——
+    block: L.base, // TerrainParticle → Particle 3 参基类公式（与 item 同链）
+    block_crumble: L.base,
+    ominous_spawning: L.flyTo(25, 5), // FlyStraightTowards：25 + f2i(F·5.0f)
+    enchant: L.flyTo(30, 10), // FlyTowardsPosition：30 + f2i(F·10.0f)
+    nautilus: L.flyTo(30, 10),
+    vault_connection: L.flyTo(30, 10),
   },
 };
 

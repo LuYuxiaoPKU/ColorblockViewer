@@ -777,6 +777,13 @@ describe('原版运动学：26.2 逐类型寿命 golden（age=0，seed=1 → van
     // —— 2026-09-12 第二轮入表（ProbeAsh 同序列 JDK21 实测；end_rod 先例无 preConsume）——
     ['noxious_gas', [20, 27, 18]], // gas 公式 (int)(6.0d/(F·0.5d+0.5d)·f2d(3.0f))（Provider gravityFloat=3.0f 常量）
     ['falling_dust', [36, 65, 30]], // (int)max(f32(f32((int)(32.0d/(F·0.8d+0.2d)))·0.9f),1.0f)
+    // —— 2026-09-12 第四轮入表（ProbeFly 同序列 JDK21 实测）——
+    ['ominous_spawning', [28, 26, 29]], // FlyStraightTowards：25 + f2i(F·5.0f)
+    ['enchant', [37, 32, 39]], // FlyTowardsPosition：30 + f2i(F·10.0f)
+    ['nautilus', [37, 32, 39]],
+    ['vault_connection', [37, 32, 39]],
+    ['block', [5, 10, 4]], // TerrainParticle → Particle 3 参基类公式 (int)(4.0f/(0.9f·F+0.1f))（与 item 同链）
+    ['block_crumble', [5, 10, 4]],
   ];
   for (const [name, seq] of goldens) {
     it(`${name}：寿命序列 = JDK21 golden`, () => {
@@ -1146,6 +1153,41 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
     expect(snap(en).length).toBe(0);
   });
 
+  it('enchant（FlyTowardsPosition）：出生位置 = 命令位置 + 速度矢量，逐 tick 走绝对式 f1 曲线 + f2⁴·1.2f 下坠', () => {
+    const en = eng({ seed: 1, nativeKinematics: true });
+    en.runCommand(C('particleex normal minecraft:enchant 0 0 0 1 1 1 1 0 1 0 0 0 0 1 30'));
+    expect(snap(en)[0].y).toBe(1); // 构造器 xo = y + yd → 出生即偏移一个速度矢量
+    en.tickOnce(); // age=1：t=1/30 → f1=1−t
+    expect(snap(en)[0].y).toBe(0.9666651573645595); // ProbeFly（JDK21）同序列逐值
+    en.tickOnce();
+    expect(snap(en)[0].y).toBe(0.9333096336067683);
+    en.tickOnce();
+    expect(snap(en)[0].y).toBe(0.8998799760447582);
+  });
+
+  it('ominous_spawning（FlyStraightTowards）：绝对式线性 f1（无下坠项）+ 出生偏移', () => {
+    const en = eng({ seed: 1, nativeKinematics: true });
+    en.runCommand(C('particleex normal minecraft:ominous_spawning 0 0 0 1 1 1 1 1 0 0 0 0 0 1 25'));
+    expect(snap(en)[0].x).toBe(1); // xo = x + xd
+    en.tickOnce();
+    expect(snap(en)[0].x).toBe(0.9599999785423279); // f1 = 1 − 1/25
+    en.tickOnce();
+    expect(snap(en)[0].x).toBe(0.9200000166893005);
+    en.tickOnce();
+    expect(snap(en)[0].x).toBe(0.8799999952316284);
+  });
+
+  it('block / block_crumble：TerrainParticle base 管道（friction 0.98f + gravity 1.0f → −0.04）', () => {
+    const en = eng1('block');
+    en.tickOnce();
+    const p = snap(en)[0];
+    expect(p.y).toBeCloseTo(1 - 0.04, 12); // 重力先于位移（与 item 同族）
+    expect(p.vy).toBeCloseTo((1 - 0.04) * fr(0.98), 12);
+    const en2 = eng1('block_crumble');
+    en2.tickOnce();
+    expect(snap(en2)[0].y).toBeCloseTo(1 - 0.04, 12);
+  });
+
   it('nativeKinematics 关闭：新类型全部走模组匀速直线（无摩擦/重力/初速）', () => {
     const en = eng(); // 默认关闭
     en.runCommand(C('particleex normal minecraft:rain 0 0 0 1 1 1 1 0 1 0 0 0 0 1 0'));
@@ -1214,6 +1256,8 @@ describe('NATIVE_KINEMATICS 表值 = f2d 加宽精确值（防字面量回归）
     ['26.2', 'sweep_attack', f(0.98), 0],
     ['26.2', 'block_marker', f(0.98), 0],
     ['26.2', 'elder_guardian', f(0.98), 0],
+    ['26.2', 'block', f(0.98), -0.04 * f(1.0)],
+    ['26.2', 'block_crumble', f(0.98), -0.04 * f(1.0)],
   ];
   for (const [ver, name, fr, gy] of T) {
     it(`${ver} ${name}：friction=${fr} gravityY=${gy}（f2d 精确）`, () => {
