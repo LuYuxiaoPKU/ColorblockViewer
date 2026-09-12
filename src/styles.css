@@ -450,3 +450,24 @@ button.small {
   margin-top: 3px;
 }
 
+
+/* 游戏内格式检查（CommandPane 文本框下方）：ok = 可直接粘回游戏；bad = 引号用法与
+   brigadier 不符（预览宽松解析，但游戏会截断） */
+.format-check {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.format-check.ok {
+  color: var(--muted);
+}
+.format-check.bad {
+  color: #e8b06a;
+}
+.format-check ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.format-check code {
+  color: var(--accent);
+}

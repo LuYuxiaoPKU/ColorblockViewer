@@ -126,11 +126,13 @@ describe('引号', () => {
     expect(c.speedStep).toBe(1);
     expect(c.group).toBeNull();
     // 回显保留 / 前缀（粘贴→应用后斜杠不丢，可直接复制回游戏）。
-    // 注：规范文本数字去尾零（1.0→1）；表达式无空格/引号 → 不加引号（fmtStr 规则），
+    // 注：规范文本数字去尾零（1.0→1）；**表达式按 brigadier 未加引号字符集加单引号**
+    // （含 ( ) & ! | < = 等字符的表达式在游戏内必须加引号，否则参数被截断——
+    //  2026-09-12 用户报告「回显把引号吃掉」，见 tests/command/gameFormat.test.ts）；
     // parse(serialize(c)) 与 c 语义等价（round-trip 约定）。
     expect(serialize(c)).toBe(
       '/particleex conditional minecraft:end_rod ~1 ~2 ~ 1 0.95 0.89 1 0 0 0 0.5 0.5 0.5 ' +
-      '(abs(y)==0.5&!(abs(z)<0.5))|(abs(x)==0.5&(!(abs(z)<0.5)|!(abs(y)<0.5))) 0.1 20 vy=0.05 1 null',
+      "'(abs(y)==0.5&!(abs(z)<0.5))|(abs(x)==0.5&(!(abs(z)<0.5)|!(abs(y)<0.5)))' 0.1 20 'vy=0.05' 1 null",
     );
     expect(parseCommands(serialize(c))[0]).toEqual(c);
   });

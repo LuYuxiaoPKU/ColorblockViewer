@@ -3,7 +3,9 @@
 // 往返段）。
 // 策略：可选尾部参数（age/speedExpression/speedStep/group 等）一律显式写出（默认值也写），
 // 保证往返后对象字段完全一致；null 写作字面 `null`（与 MC 建议值一致，解析层
-// strOrNull 还原）。表达式/组名等文本字段含空白或引号时加引号（内部引号 `"` → `""`）。
+// strOrNull 还原）。**文本参数按 brigadier 未加引号字符集加单引号**（见 fmtStr）：
+// 表达式含 `( ) * ^ & < = ,` 等字符时游戏内必须加引号，否则参数被截断——回显
+// 必须保持「可直接粘回游戏」的格式（2026-09-12 用户报告：引号曾被吃掉）。
 // 行首带 `/`：与游戏内输入一致（解析层剥除 `/` 前缀，parseCommands 支持），
 // 粘贴→应用回显后斜杠不丢，用户可直接复制回游戏。
 
@@ -36,12 +38,26 @@ function fmtPlain3(p: { x: number; y: number; z: number }): string {
   return `${fmtNum(p.x)} ${fmtNum(p.y)} ${fmtNum(p.z)}`;
 }
 
-// 文本字段：含空白/引号 → 加引号（内部 " → ""）；其余原样
+// Brigadier StringReader.isAllowedInUnquotedString：未加引号的 `string()` 参数
+// **只允许** 0-9 A-Z a-z _ - . + —— 其余字符（( ) * ^ & < = , ; ! / 空格 …）会让
+// readUnquotedString 在此**停下**：游戏里表现为「参数被截断 / 后续参数错位」。
+// 所以表达式这类参数必须用引号包起来，否则复制回游戏就废了（用户报告：
+// 表单回显把引号吃掉 → 文本在游戏内非法）。
+const UNQUOTED_OK = /^[0-9A-Za-z_.+-]+$/;
+
+/** `string()` 文本参数（表达式 / 组名 / 条件表达式）：按 brigadier 规则加引号 ——
+ *  需要时用**单引号**（与用户游戏内习惯一致；词内 `'` → `''` 转义，与
+ *  readString 语义一致）。`null` 字面量本身符合未加引号字符集 → 保持裸写。 */
 export function fmtStr(s: string | null): string {
   if (s === null) return 'null';
-  if (/[ "\t]/.test(s) || s === '') {
-    return '"' + s.replace(/"/g, '""') + '"';
-  }
+  if (UNQUOTED_OK.test(s)) return s;
+  return "'" + s.replace(/'/g, "''") + "'";
+}
+
+/** 粒子名参数：**不加引号**。`minecraft:end_rod` 这类 resource location 由
+ *  标识符参数读取（允许 `:` `.` `_` `-` /），裸写在游戏内合法；加引号反而
+ *  会让标识符读取器读到 `'` 而报错。NBT 载荷（`type{…}`）同样裸写。 */
+export function fmtName(s: string): string {
   return s;
 }
 
@@ -50,11 +66,11 @@ function tailOf(c: { age: number; speedExpression: string | null; speedStep: num
 }
 
 function normal(c: NormalCmd): string {
-  return `particleex normal ${fmtStr(c.name)} ${fmtPos(c.pos)} ${fmtNum(c.color.r)} ${fmtNum(c.color.g)} ${fmtNum(c.color.b)} ${fmtNum(c.color.a)} ${fmtNum(c.speed.x)} ${fmtNum(c.speed.y)} ${fmtNum(c.speed.z)} ${fmtNum(c.range.x)} ${fmtNum(c.range.y)} ${fmtNum(c.range.z)} ${c.count}${tailOf(c)}`;
+  return `particleex normal ${fmtName(c.name)} ${fmtPos(c.pos)} ${fmtNum(c.color.r)} ${fmtNum(c.color.g)} ${fmtNum(c.color.b)} ${fmtNum(c.color.a)} ${fmtNum(c.speed.x)} ${fmtNum(c.speed.y)} ${fmtNum(c.speed.z)} ${fmtNum(c.range.x)} ${fmtNum(c.range.y)} ${fmtNum(c.range.z)} ${c.count}${tailOf(c)}`;
 }
 
 function conditional(c: ConditionalCmd): string {
-  return `particleex conditional ${fmtStr(c.name)} ${fmtPos(c.pos)} ${fmtNum(c.color.r)} ${fmtNum(c.color.g)} ${fmtNum(c.color.b)} ${fmtNum(c.color.a)} ${fmtNum(c.speed.x)} ${fmtNum(c.speed.y)} ${fmtNum(c.speed.z)} ${fmtNum(c.range.x)} ${fmtNum(c.range.y)} ${fmtNum(c.range.z)} ${fmtStr(c.expression)} ${fmtNum(c.step)}${tailOf(c)}`;
+  return `particleex conditional ${fmtName(c.name)} ${fmtPos(c.pos)} ${fmtNum(c.color.r)} ${fmtNum(c.color.g)} ${fmtNum(c.color.b)} ${fmtNum(c.color.a)} ${fmtNum(c.speed.x)} ${fmtNum(c.speed.y)} ${fmtNum(c.speed.z)} ${fmtNum(c.range.x)} ${fmtNum(c.range.y)} ${fmtNum(c.range.z)} ${fmtStr(c.expression)} ${fmtNum(c.step)}${tailOf(c)}`;
 }
 
 function parameter(c: ParameterCmd): string {
@@ -65,7 +81,7 @@ function parameter(c: ParameterCmd): string {
   // 非 tick 不写 cpt，否则往返解析时 age 会落入 cpt 槽
   const cpt = c.tick ? ` ${c.cpt}` : '';
   const color = c.color ? ` ${fmtNum(c.color.r)} ${fmtNum(c.color.g)} ${fmtNum(c.color.b)} ${fmtNum(c.color.a)}` : '';
-  return `particleex ${name} ${fmtStr(c.name)} ${fmtPos(c.pos)}${color} ${fmtNum(c.speed.x)} ${fmtNum(c.speed.y)} ${fmtNum(c.speed.z)} ${fmtNum(c.begin)} ${fmtNum(c.end)} ${fmtStr(c.expression)} ${fmtNum(c.step)}${cpt}${tailOf(c)}`;
+  return `particleex ${name} ${fmtName(c.name)} ${fmtPos(c.pos)}${color} ${fmtNum(c.speed.x)} ${fmtNum(c.speed.y)} ${fmtNum(c.speed.z)} ${fmtNum(c.begin)} ${fmtNum(c.end)} ${fmtStr(c.expression)} ${fmtNum(c.step)}${cpt}${tailOf(c)}`;
 }
 
 function group(c: GroupCmd): string {
@@ -82,7 +98,7 @@ function vanilla(c: VanillaCmd): string {
   // 槽位默认值（命令树缺省）
   const defPos = { x: { v: 0, rel: true }, y: { v: 0, rel: true }, z: { v: 0, rel: true } };
   // NBT 载荷：原样拼回（解析层已校验语法；含 `}`/空白由解析器按 SNBT 读回）
-  const nameTok = c.nbt !== null ? c.name + '{' + c.nbt + '}' : fmtStr(c.name);
+  const nameTok = c.nbt !== null ? c.name + '{' + c.nbt + '}' : fmtName(c.name);
   const parts = ['particle', nameTok];
   // pos
   if (c.pos !== null) parts.push(fmtPos(c.pos));

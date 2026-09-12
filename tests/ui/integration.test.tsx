@@ -9,6 +9,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import App from '../../src/App';
 import { getState, setCommand, removeCommand, setSim, DEFAULT_VANILLA } from '../../src/store/appState';
 import { serializeAll } from '../../src/command/serialize';
+import { checkCommandsFormat } from '../../src/command/gameFormat';
 import { SimViewport } from '../../src/render/sync';
 import { PARTICLE_DATA } from '../../src/render/particleData';
 
@@ -351,5 +352,31 @@ describe('M5 全流程', () => {
     expect(button('暂停').textContent).toContain('暂停');
     click(button('暂停'));
     expect(getState().playing).toBe(false);
+  });
+
+  // 游戏内格式检查（用户报告：回显把表达式引号吃掉 → 粘回游戏失败）
+  it('格式检查面板：缺引号表达式 → ⚠️ 指明参数位；补上引号 → ✅', () => {
+    const head = 'particleex conditional minecraft:end_rod ~ ~ ~ 1 0.95 0.89 1 0 0 0 8 0.6 8 ';
+    const tail = ' 0.1 200 vy=0.05 1 null'; // step / age / 速度表达式 / speedStep / group
+    setValue(ta(), head + '(abs(y-0.5)<0.05)&(sqrt(x^2+z^2)<8)' + tail);
+    const bad = container.querySelector('.format-check.bad');
+    expect(bad).toBeTruthy();
+    expect(bad!.textContent).toContain('第 15 个参数'); // 条件表达式位
+    expect(bad!.textContent).toContain('第 18 个参数'); // 速度表达式位
+    expect(bad!.textContent).toContain('截断');
+
+    setValue(ta(), head + "'(abs(y-0.5)<0.05)&(sqrt(x^2+z^2)<8)'" + ' 0.1 200 \'vy=0.05\' 1 null');
+    expect(container.querySelector('.format-check.bad')).toBeNull();
+    expect(container.querySelector('.format-check.ok')!.textContent).toContain('可直接粘回游戏');
+  });
+
+  it('应用缺引号文本 → 表单回显自动补单引号（引号不再消失）', () => {
+    const head = 'particleex conditional minecraft:end_rod ~ ~ ~ 1 0.95 0.89 1 0 0 0 8 0.6 8 ';
+    const tail = ' 0.1 200 vy=0.05 1 null';
+    setValue(ta(), head + '(abs(y-0.5)<0.05)&(sqrt(x^2+z^2)<8)' + tail);
+    click(button('应用'));
+    expect(getState().input).toContain("'(abs(y-0.5)<0.05)&(sqrt(x^2+z^2)<8)'");
+    expect(getState().input).toContain("'vy=0.05'");
+    expect(checkCommandsFormat(getState().input)).toEqual([]); // 回显本身即游戏内合法格式
   });
 });

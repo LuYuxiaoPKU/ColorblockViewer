@@ -21,7 +21,15 @@ export class CommandParseError extends Error {
 }
 
 export function tokenize(line: string): string[] {
-  const out: string[] = [];
+  return tokenizeWithMeta(line).map((t) => t.value);
+}
+
+/** 分词 + 引号元信息（格式检查用：判断某参数是否来自**引号字面量**）。
+ *  Mod 侧 `string()` 参数在游戏里必须满足 brigadier 未加引号字符集
+ *  （见 `gameFormat.ts` 的 UNQUOTED_OK），裸写含 `(` 的表达式会被截断 ——
+ *  预览的宽分词保留原样接受，由格式检查单独给出中文提示。 */
+export function tokenizeWithMeta(line: string): { value: string; quoted: boolean }[] {
+  const out: { value: string; quoted: boolean }[] = [];
   let i = 0;
   const n = line.length;
   while (i < n) {
@@ -31,8 +39,10 @@ export function tokenize(line: string): string[] {
       continue;
     }
     let buf = '';
+    let quoted = false;
     if (ch === '"' || ch === "'") {
       // readString：引号内容（' 定界词内 '' 转义、" 定界词内 "" 转义），闭引号处结束
+      quoted = true;
       const q = ch;
       i++;
       let closed = false;
@@ -60,7 +70,7 @@ export function tokenize(line: string): string[] {
         i++;
       }
     }
-    out.push(buf);
+    out.push({ value: buf, quoted });
   }
   return out;
 }
