@@ -59,6 +59,10 @@ export interface SimParticle {
    *  `DustPlumeParticle.tick`：每 tick 起点 `gravity *= 0.88f; friction *= 0.92f`
    *  再走 base 管道；仅当表项声明 gravityDecay/frictionDecay 时存在） */
   gf?: number; ff?: number;
+  /** 落叶曲线的构造器预计算量（FallingLeavesParticle：xaFlowScale/zaFlowScale/swirlPeriod，
+   *  均由构造器里的一次私有 nextFloat 决定 → 预览从共享 vanillaRand 消费一次，
+   *  见 kinematics.ts 表项注释） */
+  leafXa?: number; leafZa?: number; leafPeriod?: number;
   /** 速度表达式（customMove 路径） */
   exe: CompiledBlock | null;
   speedStep: number;

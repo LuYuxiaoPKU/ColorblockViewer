@@ -277,6 +277,21 @@ export class SimEngine {
       // 每 tick 起点由 animate 里的 gravityDecay/frictionDecay 逐步 fround）
       if (spec?.gravityDecay !== undefined) p.gf = spec.gravityF ?? 0;
       if (spec?.frictionDecay !== undefined) p.ff = spec.friction;
+      // 落叶曲线（FallingLeavesParticle 构造器）：位置型 super → 速度全 0、yd = −param14
+      // （命令速度被丢弃）；曲线参数由构造器里的一次私有 nextFloat 决定
+      // （F·60.0f 定 flow 方向、1000.0f+F·3000.0f 定 swirl 周期）→ 运动曲线必需，
+      // 预览无条件从共享 vanillaRand 消费一次（Java 侧构造器无条件执行、与 age 无关；
+      // 分布一致、同种子可复现）。Math.toRadians = deg/180×π（JDK 实现顺序）。
+      if (spec?.leaves) {
+        const rndF = this.vanillaRand.nextFloat();
+        const rad = (Math.fround(rndF * 60) / 180) * Math.PI;
+        p.leafXa = Math.cos(rad) * spec.leaves.windBig;
+        p.leafZa = Math.sin(rad) * spec.leaves.windBig;
+        p.leafPeriod = (Math.fround(1000 + Math.fround(rndF * 3000)) / 180) * Math.PI;
+        p.vx = 0;
+        p.vy = spec.leaves.yd0;
+        p.vz = 0;
+      }
       // 位置式飞行曲线（FlyStraightTowards / FlyTowardsPosition）：构造器里
       // xo = x + xd 后 x = xo —— 出生位置即「命令位置 + 一个速度矢量」
       // （Java 侧起点偏移，非零速构造的零位移）。
@@ -433,6 +448,38 @@ export class SimEngine {
           const f2 = Math.fround(1 - f1);
           const q = Math.fround(Math.fround(f2 * f2) * Math.fround(f2 * f2));
           p.y = p.cy + p.vy * f1 - Math.fround(q * Math.fround(1.2));
+        }
+      } else if (spec?.motion === 'leaves' && spec.leaves) {
+        // FallingLeavesParticle.tick（逐字节码浮点顺序）：Java 侧 lifetime 倒计时
+        // （300 → 0，存活 300 tick）等价于引擎的 age++ → f1 = 已过 tick 数 = age；
+        // f2 = fmin(f1/300.0f, 1.0f)；flowAway：xa/za += 预计算 scale × pow(f2,1.25d)；
+        // swirl：xa += (f2·cos(f2·period))·windBig（f2/period 加宽后全 double）、za 用 sin；
+        // xd/zd += xa/za × f2d(0.0025f)；yd −= (double)gravity；move(xd,yd,zd)；
+        // 随后 `lifetime < 299 && (xd == 0 || zd == 0)` → remove（lifetime < 299 ⟺
+        // 已过 ≥1 tick ⟺ 引擎 age ≥ 1 恒真）；尾步 `v *= f2d(friction)` = 1.0f 恒等。
+        const f2 = Math.min(Math.fround(p.age / 300), 1);
+        let xa = 0;
+        let za = 0;
+        if (spec.leaves.flowAway) {
+          const q = Math.pow(f2, 1.25);
+          xa += (p.leafXa ?? 0) * q;
+          za += (p.leafZa ?? 0) * q;
+        }
+        if (spec.leaves.swirl) {
+          const s = f2 * (p.leafPeriod ?? 0);
+          xa += f2 * Math.cos(s) * spec.leaves.windBig;
+          za += f2 * Math.sin(s) * spec.leaves.windBig;
+        }
+        p.vx += xa * 0.0024999999441206455;
+        p.vz += za * 0.0024999999441206455;
+        p.vy -= spec.leaves.gravityF;
+        p.x += p.vx;
+        p.y += p.vy;
+        p.z += p.vz;
+        if (p.vx === 0 || p.vz === 0) {
+          // 停摆移除（onGround 分支不建模：预览无世界 → 落地永不发生）
+          this.kill(p.id);
+          return;
         }
       } else {
         // dust_plume：DustPlumeParticle.tick 在 super.tick() **之前**先衰减 float 字段

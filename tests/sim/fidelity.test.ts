@@ -55,6 +55,10 @@ describe('fidelityFor（26.2）', () => {
     expect(fidelityFor('dust_plume', '26.2', TYPES_262)).toBe('full');
     expect(fidelityFor('dust_pillar', '26.2', TYPES_262)).toBe('full');
     expect(fidelityFor('dust_pillar{block_state:"minecraft:stone"}', '26.2', TYPES_262)).toBe('full'); // NBT 载荷不参与分级
+    // 2026-09-12 第五轮核对入表：落叶族（tick 无随机的确定性曲线，参数全为 Provider 常量）
+    expect(fidelityFor('cherry_leaves', '26.2', TYPES_262)).toBe('full');
+    expect(fidelityFor('pale_oak_leaves', '26.2', TYPES_262)).toBe('full');
+    expect(fidelityFor('tinted_leaves', '26.2', TYPES_262)).toBe('full');
   });
 
   it('注册表内但运动学未逐条核对 → approx（approx 清单类型）', () => {
