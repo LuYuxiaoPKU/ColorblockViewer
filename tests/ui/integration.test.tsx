@@ -53,7 +53,7 @@ afterEach(() => {
   container.remove();
 });
 
-beforeEach(() => {
+beforeEach(async () => {
   // store 是模块单例：每个用例前回到单条 normal 命令的确定状态
   while (getState().commands.length > 0) removeCommand(0);
   setCommand(0, {
@@ -74,6 +74,11 @@ beforeEach(() => {
   root = createRoot(container);
   act(() => {
     root.render(<App />);
+  });
+  // 渲染层按需加载（App 动态 import render/sync）→ 等一拍让 viewport 建立，
+  // 否则首帧后立刻断言的 viewport 调用（如 setGrid）还没发生
+  await act(async () => {
+    await Promise.resolve();
   });
 });
 

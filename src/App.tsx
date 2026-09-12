@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { SimEngine } from './sim/engine';
-import { SimViewport } from './render/sync';
+import type { SimViewport } from './render/sync';
 import { useAppState, setHud, pushToast, getState, clearToasts, setPlaying, applyInputText } from './store/appState';
 import { CommandPane } from './ui/CommandPane';
 import { Viewport } from './ui/Viewport';
@@ -28,20 +28,31 @@ export default function App() {
     engineRef.current = new SimEngine({ ...getState().sim });
   }
 
-  // 挂载：viewport + 渲染循环 + resize
+  // 挂载：**按需加载**渲染层（three ≈700KB → 独立 chunk，不阻塞首屏）——
+  // 命令面板/设置先可用，three 到达后再建 viewport + 渲染循环；期间
+  // viewportRef 为 null，其余 effect 的 `?.` 调用自动跳过，加载完成后补一次
+  // 当前设置（图集按版本、网格）以对齐状态。
   useEffect(() => {
-    if (!containerRef.current) return;
-    const vp = new SimViewport(containerRef.current, engineRef.current!.config.maxParticles, engineRef.current!.config.mcVersion);
-    viewportRef.current = vp;
-    // 点云缓冲容量 = 挂载时 maxParticles（运行期调大上限不扩容缓冲）→ 截断提示
-    setRenderCapacity(engineRef.current!.config.maxParticles);
-    vp.setPointScale(vp.size, 50); // fov 与 scene.ts 相机一致；首帧前设定像素换算
-    vp.start();
-    const onResize = () => vp.resize();
+    let disposed = false;
+    let vp: SimViewport | null = null;
+    void import('./render/sync').then(({ SimViewport }) => {
+      if (disposed || !containerRef.current) return;
+      vp = new SimViewport(containerRef.current, engineRef.current!.config.maxParticles, engineRef.current!.config.mcVersion);
+      viewportRef.current = vp;
+      // 点云缓冲容量 = 挂载时 maxParticles（运行期调大上限不扩容缓冲）→ 截断提示
+      setRenderCapacity(engineRef.current!.config.maxParticles);
+      vp.setPointScale(vp.size, 50); // fov 与 scene.ts 相机一致；首帧前设定像素换算
+      const cfg = engineRef.current!.config;
+      vp.setAtlasKey(cfg.mcVersion); // 加载期间版本/网格变更由 ?. 跳过 → 这里补齐
+      vp.setGrid(cfg.gridSize, cfg.gridVisible);
+      vp.start();
+    });
+    const onResize = () => viewportRef.current?.resize();
     window.addEventListener('resize', onResize);
     return () => {
+      disposed = true;
       window.removeEventListener('resize', onResize);
-      vp.dispose();
+      vp?.dispose();
       viewportRef.current = null;
     };
   }, []);
