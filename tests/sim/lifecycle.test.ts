@@ -1114,6 +1114,22 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
     expect(snap(en).length).toBe(0);
   });
 
+  it('block_marker：位置型零速构造 + gravity 0f + lifetime 80（继承 Particle.tick 但速度恒 0）', () => {
+    const en = eng1('block_marker');
+    const p0 = snap(en)[0];
+    expect(p0.vy).toBe(0); // cmdVy=1 ×0（位置型构造器不带速度 → 速度字段恒 0）
+    expect(p0.lifetime).toBe(80); // 26.2 构造器 bipush 80 覆写
+    for (let i = 0; i < 5; i++) en.tickOnce();
+    const p1 = snap(en)[0];
+    expect(p1.x).toBe(0);
+    expect(p1.y).toBe(0); // gravity 0f + 零速 → 位置恒定
+    expect(p1.z).toBe(0);
+    for (let i = 5; i < 79; i++) en.tickOnce();
+    expect(snap(en).length).toBe(1); // tick 79 仍存活（age 79 < 80）
+    en.tickOnce(); // age=80 = lifetime → 移除
+    expect(snap(en).length).toBe(0);
+  });
+
   it('nativeKinematics 关闭：新类型全部走模组匀速直线（无摩擦/重力/初速）', () => {
     const en = eng(); // 默认关闭
     en.runCommand(C('particleex normal minecraft:rain 0 0 0 1 1 1 1 0 1 0 0 0 0 1 0'));
@@ -1180,6 +1196,7 @@ describe('NATIVE_KINEMATICS 表值 = f2d 加宽精确值（防字面量回归）
     ['26.2', 'noxious_gas', f(0.96), -0.04 * f(-0.02)],
     ['26.2', 'falling_dust', 1.0, -0.003000000026077032],
     ['26.2', 'sweep_attack', f(0.98), 0],
+    ['26.2', 'block_marker', f(0.98), 0],
   ];
   for (const [ver, name, fr, gy] of T) {
     it(`${ver} ${name}：friction=${fr} gravityY=${gy}（f2d 精确）`, () => {
