@@ -238,9 +238,10 @@ export class SimEngine {
     }
     // 构造器里的出生初速修正（Java 侧无条件、与年龄无关 —— 命令 age 不影响
     // 构造器速度路径，故不 gate age）：
-    //   spawnVelocityMul：v *= 常量（dust ×0.1d、crit ×0.4d、bubble ×0.2d、
-    //   noxious_gas/falling_dust 基类 ×0.1f …；0 = 零速构造，见 kinematics.ts
-    //   近似清单）。
+    //   spawnVelocityMul：v *= 常量（dust ×0.1d、crit ×0.4d、bubble ×0.2d …；
+    //   0 = 零速构造 —— explosion/flash/gust 系与 falling_dust，见 kinematics.ts
+    //   文件头「判定口径」：只有作用于**命令速度**的常量才写此字段，
+    //   只缩放构造器抖动的系数（BaseAshSmoke r/g/b 三参）不写）。
     //   spawnVelOffsetY：SimpleVertical yd += ±0.03d。
     //   noxious_gas 的 BaseAshSmoke y 速度偏移 −0.02f（确定性）量级小不建模
     //   （与 wax ÷2 同类近似，见 kinematics.ts 头注释）。
@@ -248,12 +249,20 @@ export class SimEngine {
     // 的 +500.0f/F 上升初速同样不建模（构造器随机/特殊项，分布近似）。
     if (this.config.nativeKinematics) {
       const spec = nativeSpecFor(req.name, this.config.mcVersion);
-      if (spec?.spawnVelocityMul !== undefined) {
-        p.vx *= spec.spawnVelocityMul;
-        p.vy *= spec.spawnVelocityMul;
-        p.vz *= spec.spawnVelocityMul;
+      if (spec?.spawnVel) {
+        // provider/构造器侧的精确初速表达式（无随机消费；与 spawnVelocityMul 互斥）
+        const v = spec.spawnVel({ x: p.vx, y: p.vy, z: p.vz });
+        p.vx = v.x;
+        p.vy = v.y;
+        p.vz = v.z;
+      } else {
+        if (spec?.spawnVelocityMul !== undefined) {
+          p.vx *= spec.spawnVelocityMul;
+          p.vy *= spec.spawnVelocityMul;
+          p.vz *= spec.spawnVelocityMul;
+        }
+        if (spec?.spawnVelOffsetY !== undefined) p.vy += spec.spawnVelOffsetY;
       }
-      if (spec?.spawnVelOffsetY !== undefined) p.vy += spec.spawnVelOffsetY;
       // 位置式飞行曲线（FlyStraightTowards / FlyTowardsPosition）：构造器里
       // xo = x + xd 后 x = xo —— 出生位置即「命令位置 + 一个速度矢量」
       // （Java 侧起点偏移，非零速构造的零位移）。

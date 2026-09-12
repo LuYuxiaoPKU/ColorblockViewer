@@ -1029,47 +1029,61 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
     expect(snap(en)[0].vy).toBeCloseTo(fr(0.96), 12);
   });
 
-  it('noxious_gas：BaseAshSmoke 管道（摩擦 0.96f、重力 −0.04d×fround(−0.02f) 微升）+ 出生初速 ×0.1f（y −0.02f 偏移量级小不建模）', () => {
+  it('damage_indicator：Provider 传 cmdVy+1.0d 后统一 ×0.4d → vy = (1+1)·0.4 = 0.8（精确式子，非 mul+offset）', () => {
+    const en = eng1('damage_indicator');
+    expect(snap(en)[0].vy).toBe(0.8); // (cmdVy 1 + 1)·0.4d
+    expect(snap(en)[0].vx).toBe(0); // cmdVx=0 ×0.4d
+    en.tickOnce();
+    const p1 = snap(en)[0];
+    expect(p1.vy).toBeCloseTo((0.8 + gBase(0.5)) * fr(0.7), 12); // CritParticle：friction 0.7f、gravity 0.5f
+  });
+
+  it('noxious_gas：BaseAshSmoke 管道（摩擦 0.96f、重力 −0.04d×fround(−0.02f) 微升）+ 命令速度原样（r/g/b 三参只乘构造器抖动）', () => {
     const en = eng1('noxious_gas');
-    expect(snap(en)[0].vy).toBe(f(0.1)); // cmdVy=1 ×f2d(0.1f)
+    expect(snap(en)[0].vy).toBe(1); // 无 spawnVelocityMul：BaseAshSmoke 的 0.1f 只作用于抖动
     en.tickOnce();
     const p1 = snap(en)[0];
     const gravY = -0.04 * fr(-0.02); // −0.04d×fround(−0.02f)（表值精确 double）
-    expect(p1.y).toBeCloseTo(f(0.1) + gravY, 12); // 重力先于位移
-    expect(p1.vy).toBeCloseTo((f(0.1) + gravY) * fr(0.96), 12);
+    expect(p1.y).toBeCloseTo(1 + gravY, 12); // 重力先于位移
+    expect(p1.vy).toBeCloseTo((1 + gravY) * fr(0.96), 12);
   });
 
-  it('falling_dust：自管 tick ≡ base 管道 + 位移后 −0.003d + max(vy,−0.14d)（初始无摩擦、重力后于位移）+ 出生初速 ×0.1f', () => {
+  it('falling_dust：自管 tick ≡ base 管道 + 位移后 −0.003d + max(vy,−0.14d)（初始无摩擦、重力后于位移）+ 命令速度被构造器丢弃', () => {
     const en = eng1('falling_dust');
-    expect(snap(en)[0].vy).toBe(f(0.1)); // cmdVy=1 ×f2d(0.1f)（0.1f 精确 → f(0.1)）
+    expect(snap(en)[0].vy).toBe(0); // spawnVelocityMul 0：3 参构造器不带速度、provider 不传
     en.tickOnce();
     const p1 = snap(en)[0];
-    expect(p1.y).toBeCloseTo(f(0.1), 12); // 位移 = 摩擦前 vy（0.003 在位移之后）
-    expect(p1.vy).toBeCloseTo(f(0.1) - 0.003000000026077032, 12); // move 后 −= 0.003d
+    expect(p1.y).toBe(0); // 位移 = 摩擦前 vy（0.003 在位移之后）
+    expect(p1.vy).toBeCloseTo(-0.003000000026077032, 12); // move 后 −= 0.003d
   });
 
-  it('falling_dust：下抛（cmdVy=−1）tick 13 仍未触顶、tick 14 首触终端钳制、之后恒住（age=-1）', () => {
+  it('falling_dust：零速起步 tick 46 仍未触顶、tick 47 首触终端钳制、之后恒住（age=-1）', () => {
     const en = eng({ seed: 1, nativeKinematics: true });
     en.runCommand(C('particleex normal minecraft:falling_dust 0 0 0 1 1 1 1 0 -1 0 0 0 0 1 -1'));
-    for (let i = 0; i < 13; i++) en.tickOnce();
-    expect(snap(en)[0].vy).not.toBe(-0.14000000059604645); // tick 13 尚未触顶
+    for (let i = 0; i < 46; i++) en.tickOnce();
+    const vy46 = snap(en)[0].vy; // 初速 0 起步 → vy = −0.003d×46 = −0.138…（命令速度不参与）
+    expect(vy46).toBeLessThan(0);
+    expect(vy46).toBeGreaterThan(-0.14000000059604645); // tick 46 尚未触顶
     en.tickOnce();
-    expect(snap(en)[0].vy).toBe(-0.14000000059604645); // tick 14：max 首次生效 → 精确 −0.14d
+    expect(snap(en)[0].vy).toBe(-0.14000000059604645); // tick 47：−0.141… < −0.14 → max 首次生效
     for (let i = 0; i < 50; i++) en.tickOnce();
     expect(snap(en)[0].vy).toBe(-0.14000000059604645); // 不动点：恒住
   });
 
-  it('falling_dust：上抛（cmdVy=1）tick 33 仍 +、tick 34 过零、tick 79 差 3 ULP、tick 80 首触终端钳制（age=-1）', () => {
-    const en = eng({ seed: 1, nativeKinematics: true });
-    en.runCommand(C('particleex normal minecraft:falling_dust 0 0 0 1 1 1 1 0 1 0 0 0 0 1 -1'));
-    for (let i = 0; i < 33; i++) en.tickOnce();
-    expect(snap(en)[0].vy).toBeGreaterThan(0); // tick 33 仍上抛
-    en.tickOnce();
-    expect(snap(en)[0].vy).toBeLessThan(0); // tick 34 翻负
-    for (let i = 34; i < 79; i++) en.tickOnce();
-    expect(snap(en)[0].vy).toBe(-0.13700000056996942); // tick 79：fround(0.1)−79×0.003d（仍未触顶）
-    en.tickOnce();
-    expect(snap(en)[0].vy).toBe(-0.14000000059604645); // tick 80：max 首次生效 → 精确 −0.14d
+  it('falling_dust：命令速度被构造器丢弃（cmdVy=+1 与 −1 逐 tick 轨迹完全相同，age=-1）', () => {
+    const run = (cmdVy: number) => {
+      const en = eng({ seed: 1, nativeKinematics: true });
+      en.runCommand(C(`particleex normal minecraft:falling_dust 0 0 0 1 1 1 1 0 ${cmdVy} 0 0 0 0 1 -1`));
+      const out: number[] = [];
+      for (let i = 0; i < 5; i++) {
+        en.tickOnce();
+        out.push(snap(en)[0].y, snap(en)[0].vy);
+      }
+      return out;
+    };
+    const up = run(1);
+    expect(up[0]).toBe(0); // tick 1 位移 = 初速 0（3 参 SingleQuadParticle 构造器无速度参数）
+    expect(up).toEqual(run(-1)); // 上抛/下抛命令速度均被丢弃 → 轨迹逐位相同
   });
 
   it('spawnVelocityMul 与显式 age 无关（Java 构造器无条件；campfire 例外仍 age=0）', () => {

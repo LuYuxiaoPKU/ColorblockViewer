@@ -49,12 +49,20 @@
 //   - spawnVelocityMul：Java 构造器里无条件的 v *= 常量（dust 0.1d、crit 0.4d、
 //     bubble 0.2d、scrape/wax 0.01d、spark 0.25d；Java 侧先 ×常量 再 ±抖动/
 //     加 cmdV —— 常量因子与加法可交换，预览对模组 cmdV 整体 ×常量，见下方
-//     近似清单）。0 = Java 侧零速构造（explosion/sonic_boom/flash/gust 系）。
+//     近似清单）。0 = Java 侧零速构造：explosion/sonic_boom/flash/gust 系、
+//     falling_dust（3 参 SingleQuadParticle(level,x,y,z,sprite) 不带速度参数、
+//     provider 也不传命令速度 → 命令速度被丢弃）。
+//   - 判定口径（2026-09-12 第五轮稽核，逐类改查 super 调用）：常量因子只作用于
+//     **命令速度**时才写 spawnVelocityMul。Java 侧 6 参 Particle 构造器先
+//     `xd = 命令速度 + (2F−1)·0.4f 抖动`，随后任何 `xd *= k` 同时缩放两者
+//     （dust/crit/bubble/bubble_column_up/glow 属此类 → 写法成立）；而在**零速**
+//     super 之后 `xd *= k … xd += 命令速度` 的顺序里，k 只作用于抖动
+//     （BaseAshSmoke 的 r/g/b 三参即此语义 → 一律不写 spawnVelocityMul）。
+//   - spawnVel：provider/构造器侧的精确初速表达式（无随机消费；与 spawnVelocityMul
+//     互斥）—— damage_indicator 的 Provider 传 (cmdVx, cmdVy+1.0d, cmdVz)、
+//     CritParticle 再统一 ×0.4d → y = (cmdVy+1)·0.4d（多出 +0.4d 项）。
 //   - spawnVelOffsetY：SimpleVertical 构造器 yd += up?0.03d:−0.03d（确定性）。
 //   - campfireRise：见上。
-//   - noxious_gas：BaseAshSmoke 构造器 v×0.1f + 偏移 (0,−0.02,0)（确定性）
-//     —— 预览只应用 v×spawnVelocityMul(0.1)；y −0.02 常数偏移量级小，不建模
-//     （与 wax ÷2 同类近似）。
 //   - falling_dust：自管 tick（SingleQuadParticle 无默认 tick 实现；FallingDust
 //     本体 = save pre → age++/死亡 → setSpriteFromAge/roll 渲染更新 →
 //     move(xd,yd,zd) → yd −= 0.003d → yd = max(yd, −0.14d)）—— ≡ 引擎 base
@@ -102,8 +110,15 @@
 // 2026-09-11 本轮核对后从近似升级入表的类型：vibration（motion='vibration'
 // 绝对式 lerp 归位，destination 为 block 时 = 方块中心）、trail（既有）。
 // 2026-09-12 第二轮核对入表：noxious_gas（BaseAshSmoke base 管道 +
-// spawnVelocityMul 0.1 + 寿命公式 gas）、falling_dust（自管 tick ≡ base 管道
+// 寿命公式 gas）、falling_dust（自管 tick ≡ base 管道
 // friction=1.0 + 位移后 −0.003d + 终端速度钳制 −0.14d + 寿命公式 fallingDust）。
+// 2026-09-12 第五轮稽核**更正**第二轮的两处出生初速误读（其余管道值不变）：
+// ① noxious_gas 曾记 spawnVelocityMul 0.1f —— BaseAshSmoke 的 r/g/b 三参在
+//    零速 super 之后作用于 `xd *= r; xd += 命令速度`，即只缩放构造器抖动，
+//    命令速度不被缩放（与 smoke/ash 同族写法一致，引擎 smoke 条目亦无乘法）；
+// ② falling_dust 曾记 spawnVelocityMul 0.1f（误取构造器 rotSpeed 的 0.1f）——
+//    实际走 3 参 SingleQuadParticle(level,x,y,z,sprite)，provider 只传
+//    level/x/y/z/color，命令速度被丢弃 → 零速构造（0 初速 + 自管 tick 下落）。
 // 2026-09-12 第三轮核对入表（静态类型：零速构造 + 恒定寿命 + tick 无位移）：
 // sweep_attack（SingleQuadParticle 零速构造 dconst_0×3、iconst_4 寿命、tick 只
 // 记录 pre + age++/死亡 + setSpriteFromAge —— 不调 move，位置恒定）、
@@ -136,6 +151,12 @@ export interface NativeKinematics {
   campfireRise?: boolean;
   /** spawn 时三轴初速 ×= 常量（Java 构造器无条件乘法因子，见文件头） */
   spawnVelocityMul?: number;
+  /** spawn 时三轴初速由表达式给出（provider/构造器侧的精确式子；**无随机消费**）。
+   *  求值点与 spawnVelocityMul 同处（互斥，优先于 mul/offset）。
+   *  damage_indicator：Provider 传 (cmdVx, cmdVy+1.0d, cmdVz) → CritParticle 再
+   *  ×0.4d，即 y = (cmdVy+1)·0.4d（Java 乘法在加法**之后**，写成 mul+offset
+   *  会在非整数 cmdVy 上差 ≤1 ULP，故用表达式）。 */
+  spawnVel?: (cmd: { x: number; y: number; z: number }) => { x: number; y: number; z: number };
   /** spawn 时 y 初速 += 常量（SimpleVertical：pause −0.03 / reset +0.03） */
   spawnVelOffsetY?: number;
   /** 位移后的 y 终端速度钳制：vy = max(vy, terminalVy)（falling_dust：
@@ -217,7 +238,12 @@ export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>>
     flash: { friction: 1.0, gravityY: 0, spawnVelocityMul: 0 }, // Overlay：无速度覆写、无摩擦/重力
     // —— crit 系（CritParticle：friction 0.7f、gravity 0.5f；构造器末尾 tick() 一次 = off-by-one 不建模）——
     crit: { friction: 0.699999988079071, gravityY: -0.02, spawnVelocityMul: 0.4 }, // cmdV×0.4d（+0.1d 常数项见近似清单）
-    damage_indicator: { friction: 0.699999988079071, gravityY: -0.02, spawnVelocityMul: 0.4 }, // Provider 传 (cmdVx, cmdVy+1, cmdVz)
+    damage_indicator: {
+      friction: 0.699999988079071,
+      gravityY: -0.02,
+      // Provider 传 (cmdVx, cmdVy+1.0d, cmdVz)；CritParticle 对三个参数统一 ×0.4d
+      spawnVel: (c) => ({ x: c.x * 0.4, y: (c.y + 1) * 0.4, z: c.z * 0.4 }),
+    },
     enchanted_hit: { friction: 0.699999988079071, gravityY: -0.02, spawnVelocityMul: 0.4 }, // MagicProvider：cmdV
     // —— bubble 系（自管 tick：yd += 0.002d / −f2d(gravity) / +f2d(0.005d)；×0.85d 或无摩擦）——
     bubble: { friction: 0.8500000238418579, gravityY: 0.002, spawnVelocityMul: 0.20000000298023224 }, // 自管 yd += 0.002d、×0.85d
@@ -276,14 +302,17 @@ export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>>
     noxious_gas: {
       friction: 0.9599999785423279, // BaseAshSmoke：friction fround(0.96f)
       gravityY: 0.0007999999821186066, // gravity 参数 −0.02f（smoke 同传）→ −0.04d×fround(−0.02f)（烟雾微升）
-      spawnVelocityMul: 0.10000000149011612, // BaseAshSmoke 构造器 v×f2d(0.1f)
+      // 出生初速 = 命令速度原样（无 spawnVelocityMul）：BaseAshSmoke 的 r/g/b
+      // 三参 (0.1f) 只乘零速 super 留下的抖动 → `xd = 抖动·0.1f + 命令速度`，
+      // 见文件头「判定口径」。第五轮更正（此前误记 ×0.1f）。
     },
     falling_dust: {
       friction: 1.0, // 自管 tick 无摩擦步
       gravityY: -0.003000000026077032, // move 后 yd −= 0.003d（逐 tick 实际效果）
       gravityPost: true, // 字节码顺序：move → −=0.003d → max（区别于 base 管道先减后移）
       terminalVy: -0.14000000059604645, // yd = max(yd, −0.14d) 终端速度钳制
-      spawnVelocityMul: 0.10000000149011612, // SingleQuadParticle 基类 v×f2d(0.1f)
+      spawnVelocityMul: 0, // 零速构造：3 参 SingleQuadParticle(level,x,y,z,sprite) +
+      // provider 不传速度（FallingDustParticle 构造器签名无速度参数）→ 命令速度被丢弃
     },
     // —— 第三轮核对（2026-09-12，静态类型：零速构造 + 恒定寿命 + tick 无位移）——
     // 判定共同点：① 构造器速度参数为 dconst_0（或位置型构造器不带速度）；
