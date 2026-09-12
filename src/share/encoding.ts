@@ -14,6 +14,8 @@ export interface SharePayload {
 }
 
 export const SHARE_PARAM = 's';
+/** 模板直达参数：`?t=<模板 id>`（只带模板，不带场景；与 ?s= 同时出现时 ?s= 优先） */
+export const TEMPLATE_PARAM = 't';
 
 // base64 → base64url（去掉 +/=，URL 安全）；unicode 经 encodeURIComponent 中转
 function b64urlEncode(s: string): string {
