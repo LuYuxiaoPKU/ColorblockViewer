@@ -462,13 +462,13 @@ describe('M5 全流程', () => {
     expect(getState().toasts.at(-1)).toContain('链接已复制到剪贴板');
   });
 
-  it('模板库：入口在命令区头部；Esc 关闭、面板内点击不关闭', () => {
-    // 入口与「执行」同一行（不再沉在左栏底部）
-    const head = container.querySelector('.pane-section-head')!;
-    expect(buttonIn(head, '模板库')).toBeTruthy();
-    expect(buttonIn(head, '执行')).toBeTruthy();
+  it('模板库：入口在命令区（与「执行」同一区块）；Esc 关闭、面板内点击不关闭', () => {
+    const section = container.querySelector('.pane-section')!;
+    expect(buttonIn(section, '模板库')).toBeTruthy();
+    expect(buttonIn(section, '执行')).toBeTruthy();
+    expect(buttonIn(section, '一键清空')).toBeTruthy();
 
-    click(buttonIn(head, '模板库'));
+    click(buttonIn(section, '模板库'));
     const sheet = container.querySelector('.gallery-sheet');
     expect(sheet).toBeTruthy();
 
@@ -487,22 +487,26 @@ describe('M5 全流程', () => {
     expect(container.querySelector('.gallery-sheet')).toBeNull();
   });
 
-  it('精选模板入口：常驻一行 chips，「全部 N 个」打开面板；chip = 清空并载入执行', () => {
-    const featured = container.querySelector('.template-featured')!;
-    expect(featured.className).not.toContain('empty');
-    expect(featured.textContent).toContain('精选模板');
+  it('一键清空：命令输入框与命令列表清空 + 画面粒子清掉', () => {
+    // 先跑一遍默认命令 → 有粒子
+    click(button('执行'));
+    expect(container.querySelector('.hud')!.textContent).not.toContain('粒子 0');
 
-    click(buttonIn(featured, '全部'));
-    expect(container.querySelector('.gallery-sheet')).toBeTruthy();
-    click(buttonIn(container.querySelector('.gallery-sheet')!, '关闭'));
+    click(button('一键清空'));
+    expect(getState().commands).toEqual([]);
+    expect(ta().value).toBe('');
+    expect(container.querySelector('.hud')!.textContent).toContain('粒子 0');
+    expect(getState().toasts.at(-1)).toContain('已清空命令输入框与画面粒子');
+    // 清空后仍可从模板库载入（面板入口还在）
+    click(button('模板库'));
+    const card = container.querySelectorAll('.template-card')[0];
+    click(buttonIn(card, '载入并执行'));
+    expect(getState().commands.length).toBeGreaterThan(0);
+  });
 
-    click(buttonIn(container.querySelector('.template-featured')!, '圆周环'));
-    // chip 与「载入并执行」同语义：命令被**替换**成模板本身（不是追加）
-    const tpl = templateById('ring')!;
-    expect(getState().commands.map(serialize)).toEqual(
-      parseCommands(templateText(tpl)).map(serialize),
-    );
-    expect(getState().toasts.at(-1)).toContain('已清空原有命令与粒子');
+  it('精选模板行已移除（入口只保留「模板库」按钮）', () => {
+    expect(container.querySelector('.template-featured')).toBeNull();
+    expect(container.querySelectorAll('.chip').length).toBe(0);
   });
 
   it('「载入并执行」= 清空原有命令与粒子后执行（不叠加旧命令/旧粒子）', () => {
@@ -530,18 +534,5 @@ describe('M5 全流程', () => {
     // ② 粒子只剩模板生成的（引擎回放重置过：HUD 计数 = 模板单独跑的结果）
     expect(container.querySelector('.hud')!.textContent).toContain(`粒子 ${expected}`);
     expect(getState().toasts.at(-1)).toContain('已清空原有命令与粒子');
-  });
-
-  it('命令列表清空 → 精选入口变「从模板开始」引导', () => {
-    act(() => {
-      while (getState().commands.length > 0) removeCommand(0);
-    });
-    const featured = container.querySelector('.template-featured')!;
-    expect(featured.className).toContain('empty');
-    expect(featured.textContent).toContain('从模板开始');
-
-    click(buttonIn(featured, '螺旋上升'));
-    expect(getState().commands.length).toBeGreaterThan(0);
-    expect(checkCommandsFormat(getState().input)).toEqual([]);
   });
 });
