@@ -148,20 +148,20 @@ describe('粘贴 → 执行', () => {
     expect(getState().commands).toEqual([]);
   });
 
-  it('粘贴原版 /particle → 直接执行 → HUD 有粒子（无需先应用）', () => {
+  it('粘贴原版 /particle → 直接加入播放器 → HUD 有粒子（无需先应用）', () => {
     setValue(ta(), 'particle flame 0 2 0 0.5 0.5 0.5 0.3 37\n');
-    click(button('执行'));
+    click(button('加入播放器'));
     const cmds = getState().commands;
     expect(cmds.length).toBe(1);
     expect(cmds[0].kind).toBe('vanilla');
-    expect(ta().value).toBe(serializeAll(cmds)); // 执行后文本对齐真源
+    expect(ta().value).toBe(serializeAll(cmds)); // 加入播放器后文本对齐真源
     const hud = container.querySelector('.hud');
     expect(hud?.textContent).toContain('粒子 37');
   });
 
-  it('粘贴无法解析的命令 → 执行报错（toast）且命令列表不动', () => {
+  it('粘贴无法解析的命令 → 加入播放器报错（toast）且命令列表不动', () => {
     setValue(ta(), 'particleex normal broken\n');
-    click(button('执行'));
+    click(button('加入播放器'));
     expect(getState().commands).toEqual([]);
     expect(ta().value).toBe('particleex normal broken\n'); // 文本保留，用户可继续修改
     expect(getState().toasts.at(-1)).toMatch(/用法/);
@@ -170,7 +170,7 @@ describe('粘贴 → 执行', () => {
   it('用户真实指令（/ 前缀 + 单引号表达式）粘贴→执行 → 结构正确 + 回显保留斜杠', () => {
     const raw = "/particleex conditional minecraft:end_rod ~1 ~2 ~ 1 0.95 0.89 1 0 0 0 0.5 0.5 0.5 '(abs(y)==0.5&!(abs(z)<0.5))|(abs(x)==0.5&(!(abs(z)<0.5)|!(abs(y)<0.5)))' 0.1 20 'vy=0.05' 1.0 null\n";
     setValue(ta(), raw);
-    click(button('执行'));
+    click(button('加入播放器'));
     const c = getState().commands[0];
     expect(c.kind).toBe('conditional');
     if (c.kind !== 'conditional') return;
@@ -187,7 +187,7 @@ describe('粘贴 → 执行', () => {
   it('用户报告的完整命令：polarparameter 螺旋，粘贴后直接执行 → 201 粒子', () => {
     // begin=-10 end=10 step=0.1 → 201 个 t 值；y=2 半径 ~1 的圆环（end_rod 贴图）
     setValue(ta(), 'particleex polarparameter minecraft:end_rod ~ ~2 ~ 1 0.95 0.89 1 0 0 0 -10 10 dis=1;s1=2*t;s2=0 0.1 20 i=0.1;(vx,vy,vz)=((i)*cos(s1),0,(i)*sin(s1)) 1 null\n');
-    click(button('执行'));
+    click(button('加入播放器'));
     expect(getState().commands.length).toBe(1);
     expect(getState().commands[0]?.kind).toBe('parameter');
     const hud = container.querySelector('.hud');
@@ -213,7 +213,7 @@ describe('粘贴 → 执行', () => {
     const head = 'particleex conditional minecraft:end_rod ~ ~ ~ 1 0.95 0.89 1 0 0 0 8 0.6 8 ';
     const tail = ' 0.1 200 vy=0.05 1 null';
     setValue(ta(), head + '(abs(y-0.5)<0.05)&(sqrt(x^2+z^2)<8)' + tail);
-    click(button('执行'));
+    click(button('加入播放器'));
     expect(getState().input).toContain("'(abs(y-0.5)<0.05)&(sqrt(x^2+z^2)<8)'");
     expect(getState().input).toContain("'vy=0.05'");
     expect(checkCommandsFormat(getState().input)).toEqual([]); // 回显本身即游戏内合法格式
@@ -223,7 +223,7 @@ describe('粘贴 → 执行', () => {
 describe('播放条（播放 / 单步 / 重置 / 倍速）', () => {
   it('单步 → tick 推进', () => {
     setValue(ta(), 'particle flame 0 2 0 0.5 0.5 0.5 0.3 100\n');
-    click(button('执行'));
+    click(button('加入播放器'));
     const tickBefore = Number((container.querySelector('.hud')?.textContent?.match(/tick (\d+)/) ?? [])[1]);
     click(button('单步'));
     const tickAfter = Number((container.querySelector('.hud')?.textContent?.match(/tick (\d+)/) ?? [])[1]);
@@ -232,7 +232,7 @@ describe('播放条（播放 / 单步 / 重置 / 倍速）', () => {
 
   it('重置 → 粒子清零、tick 归零', () => {
     setValue(ta(), 'particle flame 0 2 0 0.5 0.5 0.5 0.3 100\n');
-    click(button('执行'));
+    click(button('加入播放器'));
     expect(container.querySelector('.hud')?.textContent).toContain('粒子 100');
     click(button('重置'));
     const hud = container.querySelector('.hud')!;
@@ -240,13 +240,14 @@ describe('播放条（播放 / 单步 / 重置 / 倍速）', () => {
     expect(hud.textContent).toContain('粒子 0');
   });
 
-  it('播放开关镜像 store.playing（按钮高亮切换）', () => {
-    const playBtn = button('播放');
+  it('播放开关镜像 store.playing（画布播放条按钮高亮切换）', () => {
+    const playBtn = container.querySelector('.playback-bar button')!;
     expect(playBtn.textContent).toContain('播放');
     click(playBtn);
     expect(getState().playing).toBe(true);
-    expect(button('暂停').textContent).toContain('暂停');
-    click(button('暂停'));
+    const pauseBtn = container.querySelector('.playback-bar button')!;
+    expect(pauseBtn.textContent).toContain('暂停');
+    click(pauseBtn);
     expect(getState().playing).toBe(false);
   });
 
@@ -256,6 +257,25 @@ describe('播放条（播放 / 单步 / 重置 / 倍速）', () => {
     setSelectValue(sel, '4');
     expect(getState().speed).toBe(4);
     expect(sel.value).toBe('4');
+  });
+
+  it('「▶ 播放」（粘贴框上）= 重置 + 执行 + 开始播放', async () => {
+    setValue(ta(), 'particle flame 0 2 0 0.5 0.5 0.5 0.3 200\n');
+    click(button('加入播放器'));
+    expect(container.querySelector('.hud')!.textContent).toContain('粒子 200');
+    // 一键开播：重置（tick 归零）+ 重新执行 + playing = true
+    click(button('▶ 播放'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(getState().playing).toBe(true);
+    const hud = container.querySelector('.hud')!;
+    expect(hud.textContent).toContain('tick 0');
+    expect(hud.textContent).toContain('粒子 200');
+    // 收尾：停止播放，避免 rAF 循环影响后续用例
+    act(() => {
+      setPlaying(false);
+    });
   });
 });
 
@@ -307,10 +327,10 @@ describe('模板库（复制命令 / 载入并执行）', () => {
     expect(container.querySelectorAll('.template-card').length).toBe(0);
   });
 
-  it('入口在命令区（与「执行」同一区块）；Esc 关闭、面板内点击不关闭', () => {
+  it('入口在命令区（与「加入播放器」同一区块）；Esc 关闭、面板内点击不关闭', () => {
     const section = container.querySelector('.pane-section')!;
     expect(buttonIn(section, '模板库')).toBeTruthy();
-    expect(buttonIn(section, '执行')).toBeTruthy();
+    expect(buttonIn(section, '加入播放器')).toBeTruthy();
     expect(buttonIn(section, '一键清空')).toBeTruthy();
 
     click(buttonIn(section, '模板库'));
@@ -335,7 +355,7 @@ describe('模板库（复制命令 / 载入并执行）', () => {
   it('「载入并执行」= 清空原有命令与粒子后执行（不叠加旧命令/旧粒子）', () => {
     // 先跑一条命令 → 暂停在“有粒子”的状态
     setValue(ta(), 'particle flame 0 2 0 0.5 0.5 0.5 0.3 100\n');
-    click(button('执行'));
+    click(button('加入播放器'));
     expect(container.querySelector('.hud')!.textContent!).not.toContain('粒子 0');
 
     const tpl = templateById('ring')!;
@@ -363,7 +383,7 @@ describe('一键清空', () => {
   it('命令输入框清空 + 画面粒子清掉', () => {
     // 先跑一遍命令 → 有粒子
     setValue(ta(), 'particle flame 0 2 0 0.5 0.5 0.5 0.3 100\n');
-    click(button('执行'));
+    click(button('加入播放器'));
     expect(container.querySelector('.hud')!.textContent).toContain('粒子 100');
 
     click(button('一键清空'));

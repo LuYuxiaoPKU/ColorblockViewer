@@ -184,6 +184,13 @@ button.active {
   margin-bottom: 6px;
 }
 
+/* 标题行右侧两个按钮（▶ 播放 + 加入播放器）：窄栏里留点间距 */
+.head-btns {
+  display: inline-flex;
+  gap: 6px;
+  flex: none;
+}
+
 button.small {
   font-size: 12px;
   padding: 2px 8px;
