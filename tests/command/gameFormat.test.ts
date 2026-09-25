@@ -101,6 +101,24 @@ describe('checkCommandFormat：游戏内格式查验', () => {
     expect(issues[0].message).toMatch(/unterminated/);
   });
 
+  it('表达式括号不配对 → 指明参数位（预览分词宽松会漏掉，游戏内解析失败）', () => {
+    // 末尾多一个 ')'（用户实际遇到的形态：预览不报错、游戏报错）
+    const issues = checkCommandFormat(
+      "particleex conditional flame 0 0 0 1 1 1 1 0 0 0 1 0 0 'x=(y+1))' 0.1 5 'vy=0.1' 1 null",
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0].fatal).toBe(true);
+    expect(issues[0].index).toBe(16); // 词序号 = 条件表达式位
+    expect(issues[0].message).toMatch(/第 15 个参数/);
+    expect(issues[0].message).toMatch(/没有对应的「\(」/);
+    // 条件表达式位括号少一个
+    const issues2 = checkCommandFormat("particleex conditional flame 0 0 0 1 1 1 1 0 0 0 1 0 0 '(x==1' 0.1 5");
+    expect(issues2).toHaveLength(1);
+    expect(issues2[0].message).toMatch(/未闭合/);
+    // 配平的表达式 → 零问题（不误报）
+    expect(checkCommandFormat("particleex normal flame 0 0 0 1 1 1 1 0 0 0 1 0 1 5 5 'vy=0.5*exp(-(x^2))/3' 2 g")).toEqual([]);
+  });
+
   it('多行文本：只报有问题的行（跳过空行与 # 注释）', () => {
     const text = ['# 注释', '', COND, COND_UNQUOTED, 'particleex clearparticle'].join('\n');
     const reports = checkCommandsFormat(text);

@@ -174,6 +174,14 @@ export default function App() {
     run();
   };
 
+  // 「▶ 播放」（粘贴框上的播放入口）：重置 + 执行 + 开始播放——
+  // 粘贴即播，不用先跑一遍再点画布播放。
+  const playFresh = () => {
+    reset();
+    run();
+    setPlaying(true);
+  };
+
   return (
     <div className="app-layout">
       <aside className="pane">
@@ -181,7 +189,7 @@ export default function App() {
         <p className="muted">
           AnotherColorBlock 粒子效果预览（默认启用原版运动学：end_rod 等类型的摩擦/重力/淡出/随机寿命按 1.21.1 反编译值，可在设置中关闭回退匀速直线）
         </p>
-        <CommandPane onRun={run} onRunFresh={runFresh} onReset={reset} />
+        <CommandPane onRun={run} onRunFresh={runFresh} onReset={reset} onPlayFresh={playFresh} />
       </aside>
       <Viewport containerRef={containerRef} renderCapacity={renderCapacity} onStep={step} onReset={reset} />
     </div>

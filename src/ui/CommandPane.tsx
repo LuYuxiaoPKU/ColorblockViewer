@@ -17,10 +17,12 @@ export function CommandPane({
   onRun,
   onRunFresh,
   onReset,
+  onPlayFresh,
 }: {
   onRun: () => void;
   onRunFresh: () => void;
   onReset: () => void;
+  onPlayFresh: () => void;
 }) {
   const { input, toasts } = useAppState();
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -42,7 +44,22 @@ export function CommandPane({
       <section className="pane-section">
         <div className="pane-section-head">
           <span>命令（多行，每行一条）</span>
-          <button className="primary small" onClick={onRun}>执行</button>
+          <span className="head-btns">
+            <button
+              className="small"
+              onClick={onPlayFresh}
+              title="重置 + 执行 + 开始播放：粘贴好命令后一键开播（不叠加旧粒子）"
+            >
+              ▶ 播放
+            </button>
+            <button
+              className="primary small"
+              onClick={onRun}
+              title="按当前命令生成粒子（不重置；画布左上角可播放/单步）"
+            >
+              加入播放器
+            </button>
+          </span>
         </div>
         <div className="btn-row">
           <button className="small" onClick={() => setGalleryOpen(true)} title="模板展示：复制命令 / 载入并执行">
