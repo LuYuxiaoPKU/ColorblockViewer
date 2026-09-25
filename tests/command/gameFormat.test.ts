@@ -1,6 +1,6 @@
 // 游戏内格式检查（src/command/gameFormat.ts）+ 序列化引号回归。
 //
-// 背景（用户报告）：粘贴带单引号的命令 → 表单回显把引号吃掉 → 文本在游戏内非法。
+// 背景（用户报告）：粘贴带单引号的命令 → 回显把引号吃掉 → 文本在游戏内非法。
 // brigadier `string()` 的未加引号字符集只有 0-9 A-Z a-z _ - . +，含 `(` `)` `*`
 // `^` `&` `<` `=` 的表达式必须加引号（`'…'`），否则游戏里参数被截断。
 
@@ -8,15 +8,6 @@ import { describe, it, expect } from 'vitest';
 import { checkCommandFormat, checkCommandsFormat, UNQUOTED_OK } from '../../src/command/gameFormat';
 import { parseCommand } from '../../src/command/parser';
 import { serialize } from '../../src/command/serialize';
-import {
-  DEFAULT_NORMAL,
-  DEFAULT_CONDITIONAL,
-  DEFAULT_VANILLA,
-  DEFAULT_GROUP_CHANGE,
-  DEFAULT_GROUP_REMOVE,
-  DEFAULT_CLEAR,
-  makeParameter,
-} from '../../src/store/appState';
 
 // 用户的真实命令（游戏内可运行）：两处表达式都用单引号
 const COND =
@@ -119,26 +110,20 @@ describe('checkCommandFormat：游戏内格式查验', () => {
   });
 });
 
-describe('表单默认命令（站点自己生成的回显）必须全部通过格式检查', () => {
-  const cases: [string, () => unknown][] = [
-    ['normal', () => structuredClone(DEFAULT_NORMAL)],
-    ['conditional', () => structuredClone(DEFAULT_CONDITIONAL)],
-    ['particle（原版）', () => structuredClone(DEFAULT_VANILLA)],
-    ['group change', () => structuredClone(DEFAULT_GROUP_CHANGE)],
-    ['group remove', () => structuredClone(DEFAULT_GROUP_REMOVE)],
-    ['clear', () => ({ ...DEFAULT_CLEAR })],
-    ...(
-      [
-        'parameter', 'polarparameter', 'tickparameter', 'tickpolarparameter',
-        'rgbaparameter', 'rgbapolarparameter', 'rgbatickparameter', 'rgbatickpolarparameter',
-      ] as const
-    ).map((v) => [v, () => makeParameter(v)] as [string, () => unknown]),
+describe('各类型命令的 canonical serialize 输出必须全部通过格式检查（站点回显格式）', () => {
+  const lines = [
+    'particleex normal flame 0 0 0 1 0 0 1 0 0 0 0 0 0 5',
+    COND, // conditional（含两处单引号表达式）
+    'particle minecraft:flame ~ ~ ~ 0 0 0 0 5 normal',
+    'particleex group change parameter g1 "x=1" "age>2"',
+    'particleex group remove g1',
+    'particleex clearparticle',
+    'particleex tickpolarparameter flame 0 0 0 1 0 0 1 0 0 0 0 6.28 "x=dis*cos(s2)*cos(s1),y=dis*sin(s2)" 0.5 3 0 null 1 null',
   ];
 
-  for (const [label, make] of cases) {
-    it(`${label}：serialize → 格式检查零问题`, () => {
-      const line = serialize(make() as never);
-      expect(checkCommandFormat(line)).toEqual([]);
+  for (const line of lines) {
+    it(line.slice(0, 46) + '…：serialize → 格式检查零问题', () => {
+      expect(checkCommandFormat(serialize(parseCommand(line)))).toEqual([]);
     });
   }
 });

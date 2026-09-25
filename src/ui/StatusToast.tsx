@@ -1,9 +1,8 @@
 // StatusToast：底部浮层显示最近错误/提示（引擎错误 / 解析失败 / 超限），
-// 5s 自动消失，可手动关闭。引擎错误（java.lang.Xxx）附中文提示行。
+// 5s 自动消失，可手动关闭。
 
 import { useEffect, useRef, useState } from 'react';
 import { clearToasts } from '../store/appState';
-import { exprCnHint } from './ExprField';
 
 export function StatusToast({ toasts }: { toasts: string[] }) {
   const [visible, setVisible] = useState(false);
@@ -27,15 +26,9 @@ export function StatusToast({ toasts }: { toasts: string[] }) {
         最近消息
         <button className="small" onClick={() => { setVisible(false); clearToasts(); }}>✕</button>
       </div>
-      {toasts.map((t, i) => {
-        const cn = exprCnHint(t);
-        return (
-          <div key={i} className="toast-item">
-            {t}
-            {cn ? <div className="expr-status-cn">{cn}</div> : null}
-          </div>
-        );
-      })}
+      {toasts.map((t, i) => (
+        <div key={i} className="toast-item">{t}</div>
+      ))}
     </div>
   );
 }

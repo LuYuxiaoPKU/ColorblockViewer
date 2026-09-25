@@ -1,4 +1,4 @@
-// M5 集成验证（计划 §十二 M5：粘贴→自动填表→改表→文本更新→播放全流程）。
+// 集成验证（极简版）：粘贴 → 执行 → 播放条（播放/单步/重置/倍速）→ 模板库全流程。
 // happy-dom 渲染真实 <App/>；SimViewport（WebGL）mock 掉——Three 路径由
 // tests/render/points.test.ts 单元覆盖，这里聚焦 UI↔store↔引擎 联动。
 // @vitest-environment happy-dom
@@ -7,14 +7,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import App from '../../src/App';
-import { getState, setCommand, removeCommand, setSim, DEFAULT_VANILLA } from '../../src/store/appState';
+import { getState, replaceCommands, setInputText, setSim, setPlaying, setSpeed, clearToasts } from '../../src/store/appState';
 import { serialize, serializeAll } from '../../src/command/serialize';
 import { parseCommands } from '../../src/command/parser';
 import { templateById, templateText } from '../../src/templates/library';
 import { SimEngine } from '../../src/sim/engine';
 import { checkCommandsFormat } from '../../src/command/gameFormat';
 import { SimViewport } from '../../src/render/sync';
-import { PARTICLE_DATA } from '../../src/render/particleData';
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -47,6 +46,8 @@ vi.mock('../../src/render/sync', () => {
   };
 });
 
+const SIM_BASE = { playerPos: { x: 0, y: 0, z: 0 }, defaultLifetime: 20, maxParticles: 20000, seed: 1, mcVersion: '26.2', gridSize: 10, gridVisible: true, nativeKinematics: true };
+
 let container: HTMLDivElement;
 let root: Root;
 /** 剪贴板替身（happy-dom 不提供 writeText）：记录最后一次写入内容 */
@@ -70,21 +71,13 @@ beforeEach(async () => {
       },
     },
   });
-  // store 是模块单例：每个用例前回到单条 normal 命令的确定状态
-  while (getState().commands.length > 0) removeCommand(0);
-  setCommand(0, {
-    kind: 'normal',
-    name: 'flame',
-    pos: { x: { v: 0, rel: false }, y: { v: 1, rel: false }, z: { v: 0, rel: false } },
-    color: { r: 1, g: 0.5, b: 0.2, a: 1 },
-    speed: { x: 0, y: 0, z: 0 },
-    range: { x: 0.4, y: 0.4, z: 0 },
-    count: 100,
-    age: 20,
-    speedExpression: null,
-    speedStep: 1.0,
-    group: null,
-  } as never);
+  // store 是模块单例：每个用例前回到「空命令」的确定状态
+  replaceCommands([]);
+  setInputText('');
+  setSim(SIM_BASE);
+  setPlaying(false);
+  setSpeed(1);
+  clearToasts();
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -134,84 +127,50 @@ function setInputValue(el: HTMLInputElement, v: string): void {
   });
 }
 
+/** select 切换（React 受控 select 监听 change 事件） */
+function setSelectValue(el: HTMLSelectElement, v: string): void {
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value')!.set!;
+  act(() => {
+    setter.call(el, v);
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+}
+
 function click(el: Element): void {
   act(() => {
     el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   });
 }
 
-describe('M5 全流程', () => {
-  it('初始：粘贴框文本 = commands 序列化（真源派生）', () => {
-    expect(ta().value).toBe(serializeAll(getState().commands));
+describe('粘贴 → 执行', () => {
+  it('初始：粘贴框为空（无默认命令）', () => {
+    expect(ta().value).toBe('');
+    expect(getState().commands).toEqual([]);
   });
 
-  it('粘贴 → 应用 → 表单字段自动填充', () => {
-    setValue(ta(), 'particleex normal smoke 0 2 0 0.2 0.9 1 0.5 0.5 0.5 3 0.5 0.5 0 42 15 "vy=0.1" 1 g9\n');
-    click(button('应用'));
-    const cmds = getState().commands;
-    expect(cmds.length).toBe(1);
-    const c = cmds[0];
-    expect(c.kind).toBe('normal');
-    if (c.kind !== 'normal') return;
-    expect(c.name).toBe('smoke');
-    expect(c.count).toBe(42);
-    expect(c.age).toBe(15);
-    expect(c.speedExpression).toBe('vy=0.1');
-    expect(c.group).toBe('g9');
-    // 文本重新对齐 canonical 形式
-    expect(ta().value).toBe(serializeAll(cmds));
-    // 表单里数量框显示 42
-    const countInput = [...container.querySelectorAll('.numfield input')].find(
-      (i) => i.closest('.numfield')?.querySelector('.numfield-label')?.textContent === '数量',
-    ) as HTMLInputElement | undefined;
-    expect(countInput?.value).toBe('42');
-  });
-
-  it('改表 → 文本更新（双向同步反向）', () => {
-    // 直接改 store 模拟表单提交（CommandForm 的 setCommand 路径同此）
-    const c = getState().commands[0];
-    expect(c.kind).toBe('normal');
-    if (c.kind !== 'normal') return;
-    act(() => {
-      setCommand(0, { ...c, count: 777 });
-    });
-    expect(ta().value).toContain('777');
-  });
-
-  it('粘贴无法结构化 → 命令不动 + 错误显示', () => {
-    const before = getState().commands;
-    setValue(ta(), 'particleex normal broken\n');
-    click(button('应用'));
-    expect(getState().commands).toEqual(before);
-    expect(container.textContent).toMatch(/用法/);
-  });
-
-  it('粘贴原版 /particle → 解析成功 + 文本对齐 + 执行后 HUD 有粒子', () => {
+  it('粘贴原版 /particle → 直接执行 → HUD 有粒子（无需先应用）', () => {
     setValue(ta(), 'particle flame 0 2 0 0.5 0.5 0.5 0.3 37\n');
-    click(button('应用'));
+    click(button('执行'));
     const cmds = getState().commands;
     expect(cmds.length).toBe(1);
     expect(cmds[0].kind).toBe('vanilla');
-    expect(ta().value).toBe(serializeAll(cmds));
-    click(button('执行'));
+    expect(ta().value).toBe(serializeAll(cmds)); // 执行后文本对齐真源
     const hud = container.querySelector('.hud');
     expect(hud?.textContent).toContain('粒子 37');
   });
 
-  it('粘贴未点「应用」直接点「执行」→ 新粘贴命令生效（而非旧 commands）', () => {
-    // 回归：执行按钮曾在未应用文本时直接跑旧真源 → 粘贴的命令「不生效」
-    setValue(ta(), 'particle flame 0 2 0 0.5 0.5 0.5 0.3 37\n');
-    expect(getState().commands[0]?.kind).toBe('normal'); // 尚未应用
+  it('粘贴无法解析的命令 → 执行报错（toast）且命令列表不动', () => {
+    setValue(ta(), 'particleex normal broken\n');
     click(button('执行'));
-    expect(ta().value).toBe(serializeAll(getState().commands)); // 执行后文本对齐真源
-    const hud = container.querySelector('.hud');
-    expect(hud?.textContent).toContain('粒子 37'); // 而非默认 normal 的 100
+    expect(getState().commands).toEqual([]);
+    expect(ta().value).toBe('particleex normal broken\n'); // 文本保留，用户可继续修改
+    expect(getState().toasts.at(-1)).toMatch(/用法/);
   });
 
-  it('用户真实指令（/ 前缀 + 单引号表达式）粘贴→应用→回显保留斜杠', () => {
+  it('用户真实指令（/ 前缀 + 单引号表达式）粘贴→执行 → 结构正确 + 回显保留斜杠', () => {
     const raw = "/particleex conditional minecraft:end_rod ~1 ~2 ~ 1 0.95 0.89 1 0 0 0 0.5 0.5 0.5 '(abs(y)==0.5&!(abs(z)<0.5))|(abs(x)==0.5&(!(abs(z)<0.5)|!(abs(y)<0.5)))' 0.1 20 'vy=0.05' 1.0 null\n";
     setValue(ta(), raw);
-    click(button('应用'));
+    click(button('执行'));
     const c = getState().commands[0];
     expect(c.kind).toBe('conditional');
     if (c.kind !== 'conditional') return;
@@ -220,7 +179,7 @@ describe('M5 全流程', () => {
     expect(c.expression).toBe("(abs(y)==0.5&!(abs(z)<0.5))|(abs(x)==0.5&(!(abs(z)<0.5)|!(abs(y)<0.5)))");
     expect(c.speedExpression).toBe('vy=0.05');
     expect(c.group).toBeNull();
-    // 应用后 textarea 回写真源：斜杠保留（回归：曾「斜杠消失」）
+    // 执行后 textarea 回写真源：斜杠保留（回归：曾「斜杠消失」）
     expect(ta().value).toBe(serializeAll(getState().commands));
     expect(ta().value.startsWith('/particleex conditional minecraft:end_rod')).toBe(true);
   });
@@ -235,157 +194,6 @@ describe('M5 全流程', () => {
     expect(hud?.textContent).toContain('粒子 201');
   });
 
-  it('粘贴原版命令（~ 相对坐标）→ 真源结构正确', () => {
-    setValue(ta(), 'particle heart ~ ~1 ~\n');
-    click(button('应用'));
-    expect(getState().commands[0].kind).toBe('vanilla');
-    const c = getState().commands[0];
-    if (c.kind !== 'vanilla') return;
-    expect(c.name).toBe('heart');
-    expect(c.pos).toEqual({ x: { v: 0, rel: true }, y: { v: 1, rel: true }, z: { v: 0, rel: true } });
-  });
-
-  it('vanilla 表单渲染：粒子名下拉 + 槽位添加按钮', () => {
-    act(() => {
-      setCommand(0, { ...structuredClone(DEFAULT_VANILLA), name: 'smoke' });
-    });
-    // 标题
-    expect(container.textContent).toContain('particle（原版）');
-    // 类型名下拉（datalist 含 26.2 注册表类型）
-    const nameInput = [...container.querySelectorAll('input')].find(
-      (i) => i.closest('label')?.querySelector('.numfield-label')?.textContent?.startsWith('粒子类型名'),
-    ) as HTMLInputElement | undefined;
-    expect(nameInput).toBeTruthy();
-    expect(nameInput!.value).toBe('smoke');
-    const dl = document.getElementById(nameInput!.getAttribute('list')!);
-    const opts = [...(dl?.querySelectorAll('option') ?? [])].map((o) => o.getAttribute('value'));
-    expect(opts).toContain('end_rod');
-    expect(opts).toContain('ambient_entity_effect');
-    expect(opts.length).toBeGreaterThanOrEqual(120);
-    // 空槽位 → 「+ 添加」按钮
-    expect(button('+ 添加 pos')).toBeTruthy();
-    expect(button('+ 添加 delta')).toBeTruthy();
-  });
-
-  it('vanilla 表单：粒子类型名行尾保真度角标（✅ 已核对 / ⚠️ 近似 / ❌ 未收录）', () => {
-    act(() => {
-      setCommand(0, { ...structuredClone(DEFAULT_VANILLA), name: 'end_rod' });
-    });
-    const badge = () => container.querySelector('.field-badge')?.textContent ?? '';
-    expect(badge()).toContain('已核对'); // 26.2 运动学表内
-    act(() => {
-      setCommand(0, { ...structuredClone(DEFAULT_VANILLA), name: 'firefly' });
-    });
-    expect(badge()).toContain('近似'); // 注册表内但运动学未逐条核对（approx 清单）
-    act(() => {
-      setCommand(0, { ...structuredClone(DEFAULT_VANILLA), name: 'no_such_type' });
-    });
-    expect(badge()).toContain('未收录');
-    // 切到 1.21.11：end_rod 仍是唯一表内类型（§10 证据边界）；smoke 在 26.2
-    // 表内但 1.21.11 分区无表项 → 近似（版本分区生效）
-    act(() => setSim({ mcVersion: '1.21.11' }));
-    act(() => {
-      setCommand(0, { ...structuredClone(DEFAULT_VANILLA), name: 'end_rod' });
-    });
-    expect(badge()).toContain('已核对');
-    act(() => {
-      setCommand(0, { ...structuredClone(DEFAULT_VANILLA), name: 'smoke' });
-    });
-    expect(badge()).toContain('近似');
-    act(() => setSim({ mcVersion: '26.2' }));
-  });
-
-  it('vanilla 表单：游戏版本切换 → 粒子名下拉与标签按版本分区', () => {
-    act(() => {
-      setCommand(0, { ...structuredClone(DEFAULT_VANILLA), name: 'smoke' });
-    });
-    const findNameInput = () =>
-      [...container.querySelectorAll('input')].find(
-        (i) => i.closest('label')?.querySelector('.numfield-label')?.textContent?.startsWith('粒子类型名'),
-      ) as HTMLInputElement;
-    // 默认 26.2
-    let dl = document.getElementById(findNameInput().getAttribute('list')!);
-    let opts = [...(dl?.querySelectorAll('option') ?? [])].map((o) => o.getAttribute('value'));
-    expect(container.textContent).toContain('粒子类型名（26.2 注册表，支持 type{NBT}）');
-    expect(opts).toContain('ambient_entity_effect');
-    // 切到 1.21.11：下拉换成 1.21.11 注册表（26.2 独有类型消失）
-    act(() => setSim({ mcVersion: '1.21.11' }));
-    dl = document.getElementById(findNameInput().getAttribute('list')!);
-    opts = [...(dl?.querySelectorAll('option') ?? [])].map((o) => o.getAttribute('value'));
-    expect(container.textContent).toContain('粒子类型名（1.21.11 注册表，支持 type{NBT}）');
-    expect(opts.length).toBe(PARTICLE_DATA['1.21.11'].types.length);
-    expect(opts).toContain('end_rod');
-    // 26.2 独有类型在 1.21.11 下拉里消失（注册表随版本增长）
-    const onlyIn262 = PARTICLE_DATA['26.2'].types.filter(
-      (t) => !PARTICLE_DATA['1.21.11'].types.includes(t),
-    );
-    expect(onlyIn262.length).toBeGreaterThan(0);
-    expect(opts).not.toContain(onlyIn262[0]);
-    // 切回 26.2（后续用例基线）
-    act(() => setSim({ mcVersion: '26.2' }));
-  });
-
-  it('执行 → 引擎生成粒子 → HUD 显示数量', () => {
-    click(button('执行'));
-    // 默认命令 count=100 → HUD 「粒子 100」
-    const hud = container.querySelector('.hud');
-    expect(hud?.textContent).toContain('粒子 100');
-    // 未超容量 → 无截断提示
-    expect(hud?.textContent).not.toContain('渲染截断');
-  });
-
-  it('活粒子数超过缓冲容量 → HUD 显示「渲染截断」', () => {
-    // 缓冲容量在挂载时按当时 maxParticles（默认 20000）固定；运行期调高上限
-    // 不会扩容缓冲，超出部分不渲染（syncToPoints 截断）→ 需要提示
-    act(() => setSim({ maxParticles: 25000 }));
-    setValue(ta(), 'particle flame 0 2 0 0.5 0.5 0.5 0.3 10050\nparticle flame 0 2 0 0.5 0.5 0.5 0.3 10050\n');
-    click(button('应用'));
-    click(button('执行'));
-    const hud = container.querySelector('.hud');
-    expect(hud?.textContent).toContain('粒子 20100');
-    expect(hud?.textContent).toContain('渲染截断');
-  });
-
-  it('网格设置 → viewport.setGrid(size, visible) 随 sim 驱动', () => {
-    const Mock = SimViewport as unknown as { gridCalls: [number, boolean][] };
-    const before = Mock.gridCalls.length; // 挂载时已按默认 (10, true) 调过
-    act(() => setSim({ gridSize: 50 }));
-    act(() => setSim({ gridVisible: false }));
-    expect(Mock.gridCalls.slice(-2)).toEqual([[50, true], [50, false]]);
-    expect(before).toBeGreaterThanOrEqual(1);
-    // 恢复基线（后续用例不受影响）
-    act(() => setSim({ gridSize: 10, gridVisible: true }));
-  });
-
-  it('单步 → tick 推进', () => {
-    click(button('执行'));
-    const hud = container.querySelector('.hud')!;
-    const tickBefore = Number((hud.textContent?.match(/tick (\d+)/) ?? [])[1]);
-    click(button('单步'));
-    const tickAfter = Number((container.querySelector('.hud')?.textContent?.match(/tick (\d+)/) ?? [])[1]);
-    expect(tickAfter).toBe(tickBefore + 1);
-  });
-
-  it('重置 → 粒子清零、tick 归零', () => {
-    click(button('执行'));
-    expect(container.querySelector('.hud')?.textContent).toContain('粒子 100');
-    click(button('回放重置'));
-    const hud = container.querySelector('.hud')!;
-    expect(hud.textContent).toContain('tick 0');
-    expect(hud.textContent).toContain('粒子 0');
-  });
-
-  it('播放开关镜像 store.playing（按钮高亮切换）', () => {
-    const playBtn = button('播放');
-    expect(playBtn.textContent).toContain('播放');
-    click(playBtn);
-    expect(getState().playing).toBe(true);
-    expect(button('暂停').textContent).toContain('暂停');
-    click(button('暂停'));
-    expect(getState().playing).toBe(false);
-  });
-
-  // 游戏内格式检查（用户报告：回显把表达式引号吃掉 → 粘回游戏失败）
   it('格式检查面板：缺引号表达式 → ⚠️ 指明参数位；补上引号 → ✅', () => {
     const head = 'particleex conditional minecraft:end_rod ~ ~ ~ 1 0.95 0.89 1 0 0 0 8 0.6 8 ';
     const tail = ' 0.1 200 vy=0.05 1 null'; // step / age / 速度表达式 / speedStep / group
@@ -401,22 +209,83 @@ describe('M5 全流程', () => {
     expect(container.querySelector('.format-check.ok')!.textContent).toContain('可直接粘回游戏');
   });
 
-  it('应用缺引号文本 → 表单回显自动补单引号（引号不再消失）', () => {
+  it('缺引号表达式执行 → 真源保留原表达式 + 回显自动补单引号（引号不再消失）', () => {
     const head = 'particleex conditional minecraft:end_rod ~ ~ ~ 1 0.95 0.89 1 0 0 0 8 0.6 8 ';
     const tail = ' 0.1 200 vy=0.05 1 null';
     setValue(ta(), head + '(abs(y-0.5)<0.05)&(sqrt(x^2+z^2)<8)' + tail);
-    click(button('应用'));
+    click(button('执行'));
     expect(getState().input).toContain("'(abs(y-0.5)<0.05)&(sqrt(x^2+z^2)<8)'");
     expect(getState().input).toContain("'vy=0.05'");
     expect(checkCommandsFormat(getState().input)).toEqual([]); // 回显本身即游戏内合法格式
   });
+});
 
-  // 模板库（模板展示 + 复制/载入）
-  it('模板库：展开列出模板，复制命令写剪贴板并 toast', async () => {
+describe('播放条（播放 / 单步 / 重置 / 倍速）', () => {
+  it('单步 → tick 推进', () => {
+    setValue(ta(), 'particle flame 0 2 0 0.5 0.5 0.5 0.3 100\n');
+    click(button('执行'));
+    const tickBefore = Number((container.querySelector('.hud')?.textContent?.match(/tick (\d+)/) ?? [])[1]);
+    click(button('单步'));
+    const tickAfter = Number((container.querySelector('.hud')?.textContent?.match(/tick (\d+)/) ?? [])[1]);
+    expect(tickAfter).toBe(tickBefore + 1);
+  });
+
+  it('重置 → 粒子清零、tick 归零', () => {
+    setValue(ta(), 'particle flame 0 2 0 0.5 0.5 0.5 0.3 100\n');
+    click(button('执行'));
+    expect(container.querySelector('.hud')?.textContent).toContain('粒子 100');
+    click(button('重置'));
+    const hud = container.querySelector('.hud')!;
+    expect(hud.textContent).toContain('tick 0');
+    expect(hud.textContent).toContain('粒子 0');
+  });
+
+  it('播放开关镜像 store.playing（按钮高亮切换）', () => {
+    const playBtn = button('播放');
+    expect(playBtn.textContent).toContain('播放');
+    click(playBtn);
+    expect(getState().playing).toBe(true);
+    expect(button('暂停').textContent).toContain('暂停');
+    click(button('暂停'));
+    expect(getState().playing).toBe(false);
+  });
+
+  it('倍速下拉 → store.speed 镜像（默认 1×）', () => {
+    const sel = container.querySelector('select[aria-label="倍速"]') as HTMLSelectElement;
+    expect(sel.value).toBe('1');
+    setSelectValue(sel, '4');
+    expect(getState().speed).toBe(4);
+    expect(sel.value).toBe('4');
+  });
+});
+
+describe('设置与视口联动', () => {
+  it('网格设置 → viewport.setGrid(size, visible) 随 sim 驱动', () => {
+    const Mock = SimViewport as unknown as { gridCalls: [number, boolean][] };
+    const before = Mock.gridCalls.length; // 挂载时已按默认 (10, true) 调过
+    act(() => setSim({ gridSize: 50 }));
+    act(() => setSim({ gridVisible: false }));
+    expect(Mock.gridCalls.slice(-2)).toEqual([[50, true], [50, false]]);
+    expect(before).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('模板库（复制命令 / 载入并执行）', () => {
+  it('展开列出模板，每卡两个按钮；已删按钮不存在', () => {
     click(button('模板库'));
     const cards = container.querySelectorAll('.template-card');
     expect(cards.length).toBeGreaterThanOrEqual(10);
+    for (const card of cards) {
+      expect(buttonIn(card, '复制命令')).toBeTruthy();
+      expect(buttonIn(card, '载入并执行')).toBeTruthy();
+    }
+    expect(container.textContent).not.toContain('载入到命令列表');
+    expect(container.textContent).not.toContain('复制链接');
+  });
 
+  it('复制命令写剪贴板并 toast', async () => {
+    click(button('模板库'));
+    const cards = container.querySelectorAll('.template-card');
     click(buttonIn(cards[0], '复制命令'));
     await act(async () => {
       await Promise.resolve();
@@ -425,19 +294,7 @@ describe('M5 全流程', () => {
     expect(getState().toasts.at(-1)).toContain('已复制到剪贴板');
   });
 
-  it('模板库：载入到命令列表 → 真源追加 + 粘贴框文本同步', () => {
-    click(button('模板库'));
-    const card = container.querySelectorAll('.template-card')[0];
-    const before = getState().commands.length;
-    click(buttonIn(card, '载入到命令列表'));
-    expect(getState().commands.length).toBeGreaterThan(before);
-    expect(ta().value).toContain('/particleex');
-    expect(getState().toasts.at(-1)).toContain('已载入模板');
-    // 追加的命令自身必须是游戏内合法格式
-    expect(checkCommandsFormat(getState().input)).toEqual([]);
-  });
-
-  it('模板库：搜索按名称/标签过滤', () => {
+  it('搜索按名称/标签过滤', () => {
     click(button('模板库'));
     const search = container.querySelector('.template-search') as HTMLInputElement;
     setInputValue(search, '落叶');
@@ -450,19 +307,7 @@ describe('M5 全流程', () => {
     expect(container.querySelectorAll('.template-card').length).toBe(0);
   });
 
-  it('模板库：复制链接 → ?t=<id> 直达链接', async () => {
-    click(button('模板库'));
-    const card = container.querySelectorAll('.template-card')[0];
-    click(buttonIn(card, '复制链接'));
-    await act(async () => {
-      await Promise.resolve();
-    });
-    expect(clipboardText).toContain('?t=');
-    expect(clipboardText).toContain('ripple');
-    expect(getState().toasts.at(-1)).toContain('链接已复制到剪贴板');
-  });
-
-  it('模板库：入口在命令区（与「执行」同一区块）；Esc 关闭、面板内点击不关闭', () => {
+  it('入口在命令区（与「执行」同一区块）；Esc 关闭、面板内点击不关闭', () => {
     const section = container.querySelector('.pane-section')!;
     expect(buttonIn(section, '模板库')).toBeTruthy();
     expect(buttonIn(section, '执行')).toBeTruthy();
@@ -487,34 +332,11 @@ describe('M5 全流程', () => {
     expect(container.querySelector('.gallery-sheet')).toBeNull();
   });
 
-  it('一键清空：命令输入框与命令列表清空 + 画面粒子清掉', () => {
-    // 先跑一遍默认命令 → 有粒子
-    click(button('执行'));
-    expect(container.querySelector('.hud')!.textContent).not.toContain('粒子 0');
-
-    click(button('一键清空'));
-    expect(getState().commands).toEqual([]);
-    expect(ta().value).toBe('');
-    expect(container.querySelector('.hud')!.textContent).toContain('粒子 0');
-    expect(getState().toasts.at(-1)).toContain('已清空命令输入框与画面粒子');
-    // 清空后仍可从模板库载入（面板入口还在）
-    click(button('模板库'));
-    const card = container.querySelectorAll('.template-card')[0];
-    click(buttonIn(card, '载入并执行'));
-    expect(getState().commands.length).toBeGreaterThan(0);
-  });
-
-  it('精选模板行已移除（入口只保留「模板库」按钮）', () => {
-    expect(container.querySelector('.template-featured')).toBeNull();
-    expect(container.querySelectorAll('.chip').length).toBe(0);
-  });
-
   it('「载入并执行」= 清空原有命令与粒子后执行（不叠加旧命令/旧粒子）', () => {
-    act(() => setSim({ seed: 1, nativeKinematics: true, playerPos: { x: 0, y: 0, z: 0 } }));
-    // 先跑默认命令 → 暂停在“有粒子”的状态
+    // 先跑一条命令 → 暂停在“有粒子”的状态
+    setValue(ta(), 'particle flame 0 2 0 0.5 0.5 0.5 0.3 100\n');
     click(button('执行'));
-    const before = container.querySelector('.hud')!.textContent!;
-    expect(before).not.toContain('粒子 0');
+    expect(container.querySelector('.hud')!.textContent!).not.toContain('粒子 0');
 
     const tpl = templateById('ring')!;
     const ref = new SimEngine({ ...getState().sim, seed: 1, nativeKinematics: true });
@@ -527,12 +349,32 @@ describe('M5 全流程', () => {
     )!;
     click(buttonIn(card, '载入并执行'));
 
-    // ① 命令列表 = 模板本身（旧的默认命令已清空）
+    // ① 命令列表 = 模板本身（旧的命令已清空）
     expect(getState().commands.map(serialize)).toEqual(
       parseCommands(templateText(tpl)).map(serialize),
     );
     // ② 粒子只剩模板生成的（引擎回放重置过：HUD 计数 = 模板单独跑的结果）
     expect(container.querySelector('.hud')!.textContent).toContain(`粒子 ${expected}`);
     expect(getState().toasts.at(-1)).toContain('已清空原有命令与粒子');
+  });
+});
+
+describe('一键清空', () => {
+  it('命令输入框清空 + 画面粒子清掉', () => {
+    // 先跑一遍命令 → 有粒子
+    setValue(ta(), 'particle flame 0 2 0 0.5 0.5 0.5 0.3 100\n');
+    click(button('执行'));
+    expect(container.querySelector('.hud')!.textContent).toContain('粒子 100');
+
+    click(button('一键清空'));
+    expect(getState().commands).toEqual([]);
+    expect(ta().value).toBe('');
+    expect(container.querySelector('.hud')!.textContent).toContain('粒子 0');
+    expect(getState().toasts.at(-1)).toContain('已清空命令输入框与画面粒子');
+    // 清空后仍可从模板库载入（面板入口还在）
+    click(button('模板库'));
+    const card = container.querySelectorAll('.template-card')[0];
+    click(buttonIn(card, '载入并执行'));
+    expect(getState().commands.length).toBeGreaterThan(0);
   });
 });
