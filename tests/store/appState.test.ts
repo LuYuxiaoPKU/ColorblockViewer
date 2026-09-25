@@ -1,98 +1,39 @@
-// M5 store 双向同步（计划 §九）：commands 为唯一真源。
-//   改表单 → setCommand → serialize → input 文本更新
-//   改粘贴框 → applyInputText（parse）→ 成功写回 commands；失败 commands 不动 + toast
+// store（极简版）：单一输入路径——粘贴框文本 → applyInputText（parse）→
+// commands 唯一真源，文本是派生（serializeAll）。没有表单编辑路径。
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   getState,
-  setCommand,
-  insertCommandAfter,
-  removeCommand,
-  appendCommands,
   replaceCommands,
   setInputText,
   applyInputText,
   setSim,
-  makeParameter,
-  parameterVariantName,
-  DEFAULT_NORMAL,
-  DEFAULT_PARAMETER,
-  DEFAULT_GROUP_REMOVE,
-  DEFAULT_VANILLA,
-  DEFAULT_CONDITIONAL,
+  loadShared,
+  setPlaying,
+  setSpeed,
+  setHud,
+  pushToast,
+  clearToasts,
 } from '../../src/store/appState';
 import { parseCommands } from '../../src/command/parser';
 import { serialize } from '../../src/command/serialize';
-import type { ParticleCommand } from '../../src/command/types';
+
+const SIM_BASE = { playerPos: { x: 0, y: 0, z: 0 }, defaultLifetime: 20, maxParticles: 20000, seed: 1, mcVersion: '26.2', gridSize: 10, gridVisible: true, nativeKinematics: false };
 
 // store 是模块级单例 → 每个用例前重置为可重现状态
 function resetStore(): void {
-  const fresh = { ...structuredClone(DEFAULT_NORMAL), pos: structuredClone(DEFAULT_NORMAL.pos) };
-  setCommand(0, fresh);
-  // 清掉其余命令（defaultState 有 2 条）
-  while (getState().commands.length > 1) removeCommand(1);
-  setSim({ playerPos: { x: 0, y: 0, z: 0 }, defaultLifetime: 20, maxParticles: 20000, seed: 1, mcVersion: '26.2', gridSize: 10, gridVisible: true, nativeKinematics: false });
+  replaceCommands([]);
+  setInputText('');
+  setSim(SIM_BASE);
+  setPlaying(false);
+  setSpeed(1);
+  setHud({ tick: 0, count: 0, dropped: 0 });
+  clearToasts();
 }
 
 beforeEach(resetStore);
 
-describe('表单 → 文本（serialize 派生）', () => {
-  it('改表单字段 → input 文本同步更新', () => {
-    const c = { ...structuredClone(DEFAULT_NORMAL), count: 1234 };
-    setCommand(0, c);
-    expect(getState().input).toContain('1234');
-    expect(parseCommands(getState().input)[0].kind).toBe('normal');
-  });
-
-  it('改表达式字段 → 按 brigadier 未加引号字符集决定是否加单引号', () => {
-    const c = { ...structuredClone(DEFAULT_NORMAL), speedExpression: 'x=1;y=2' };
-    setCommand(0, c);
-    // ';' '=' 不在未加引号字符集（0-9 A-Z a-z _ - . +）内 → 游戏内必须加引号
-    expect(getState().input).toContain("'x=1;y=2'");
-    const c2 = { ...c, speedExpression: 'x = 1' };
-    setCommand(0, c2);
-    expect(getState().input).toContain("'x = 1'"); // 空格同样需要引号
-    const c3 = { ...c, speedExpression: 'x_1.plus-2' };
-    setCommand(0, c3);
-    expect(getState().input).toContain(' x_1.plus-2 '); // 全在集合内 → 裸写
-  });
-
-  it('replace 命令 kind → 文本变体名正确', () => {
-    setCommand(0, makeParameter('tickpolarparameter'));
-    expect(getState().input).toContain('particleex tickpolarparameter');
-    setCommand(0, makeParameter('rgbaparameter'));
-    expect(getState().input).toContain('particleex rgbaparameter');
-  });
-
-  it('vanilla 命令 → 文本为原版形式（无 particleex 前缀，带 / 前缀）', () => {
-    setCommand(0, { ...structuredClone(DEFAULT_VANILLA), name: 'smoke' });
-    expect(getState().input).toBe('/particle smoke');
-  });
-});
-
-describe('模板载入：追加 vs 替换', () => {
-  it('appendCommands：追加到末尾（保留现有命令）', () => {
-    setCommand(0, { ...structuredClone(DEFAULT_NORMAL), count: 3 });
-    appendCommands([structuredClone(DEFAULT_CONDITIONAL)]);
-    expect(getState().commands).toHaveLength(2);
-    expect(getState().input).toContain('particleex normal');
-    expect(getState().input).toContain('particleex conditional');
-  });
-
-  it('replaceCommands：整体替换（不追加）并重新派生文本 —— 「载入并执行」语义', () => {
-    appendCommands([structuredClone(DEFAULT_CONDITIONAL)]);
-    expect(getState().commands.length).toBeGreaterThanOrEqual(2);
-    const only = { ...structuredClone(DEFAULT_NORMAL), count: 7 };
-    replaceCommands([only]);
-    expect(getState().commands).toHaveLength(1);
-    expect(getState().commands[0]).toEqual(only);
-    expect(getState().input).toContain('particleex normal');
-    expect(getState().input).not.toContain('conditional'); // 旧命令不再残留
-    expect(parseCommands(getState().input)).toEqual([only]); // 文本 ↔ 真源一致
-  });
-});
-
-describe('文本 → 表单（parse 写回）', () => {
+describe('文本 → 真源（applyInputText）', () => {
   it('合法粘贴 → commands 更新且文本重新对齐', () => {
     setInputText('particleex normal flame 0 0 0 1 0 0 1 0 0 0 0 0 0 5\nparticleex clearparticle\n');
     const err = applyInputText();
@@ -100,7 +41,6 @@ describe('文本 → 表单（parse 写回）', () => {
     const cmds = getState().commands;
     expect(cmds.length).toBe(2);
     expect(cmds[0].kind).toBe('normal');
-    expect((cmds[0] as typeof DEFAULT_NORMAL).count).toBe(5);
     expect(cmds[1].kind).toBe('clearparticle');
     // 文本重新对齐（canonical 序列化）
     expect(getState().input).toBe(cmds.map(serialize).join('\n'));
@@ -116,6 +56,20 @@ describe('文本 → 表单（parse 写回）', () => {
     expect(getState().toasts.length).toBeGreaterThan(0);
   });
 
+  it('缺引号表达式粘贴 → 真源保留表达式 + 文本回显按 brigadier 补单引号', () => {
+    const head = 'particleex conditional minecraft:end_rod ~ ~ ~ 1 0.95 0.89 1 0 0 0 8 0.6 8 ';
+    const tail = ' 0.1 200 vy=0.05 1 null';
+    setInputText(head + '(abs(y-0.5)<0.05)&(sqrt(x^2+z^2)<8)' + tail);
+    expect(applyInputText()).toBeNull();
+    expect(getState().input).toContain("'(abs(y-0.5)<0.05)&(sqrt(x^2+z^2)<8)'");
+    expect(getState().input).toContain("'vy=0.05'");
+    const c = getState().commands[0];
+    expect(c.kind).toBe('conditional');
+    if (c.kind === 'conditional') {
+      expect(c.expression).toBe('(abs(y-0.5)<0.05)&(sqrt(x^2+z^2)<8)');
+    }
+  });
+
   it('粘贴 8 变体 parameter → 结构标志正确', () => {
     setInputText(
       'particleex tickpolarparameter flame 0 0 0 1 0 0 1 0 0 0 0 6.28 "x=dis*cos(s2)*cos(s1),y=dis*sin(s2)" 0.5 3 0 null 1 null',
@@ -128,51 +82,72 @@ describe('文本 → 表单（parse 写回）', () => {
       expect(c.tick).toBe(true);
       expect(c.rgba).toBe(false);
       expect(c.cpt).toBe(3);
-      expect(parameterVariantName(c)).toBe('tickpolarparameter');
     }
   });
 
-  it('group remove 粘贴 → 结构正确', () => {
-    setInputText('particleex group remove g1\n');
+  it('原版 /particle 粘贴 → vanilla 结构正确（~ 相对坐标）', () => {
+    setInputText('particle heart ~ ~1 ~\n');
     expect(applyInputText()).toBeNull();
     const c = getState().commands[0];
-    expect(c.kind).toBe('group');
-    expect(JSON.stringify(c)).toBe(JSON.stringify({ ...DEFAULT_GROUP_REMOVE, expression: null, pos: null }));
+    expect(c.kind).toBe('vanilla');
+    if (c.kind === 'vanilla') {
+      expect(c.name).toBe('heart');
+      expect(c.pos).toEqual({ x: { v: 0, rel: true }, y: { v: 1, rel: true }, z: { v: 0, rel: true } });
+    }
   });
 });
 
-describe('列表操作', () => {
-  it('insert/remove 保持真源一致（文本始终对齐）', () => {
-    const before = getState().commands.length;
-    insertCommandAfter(0, makeParameter('parameter'));
-    expect(getState().commands.length).toBe(before + 1);
-    expect(getState().input).toBe(getState().commands.map(serialize).join('\n'));
-    removeCommand(1);
-    expect(getState().commands.length).toBe(before);
-    expect(getState().input).toBe(getState().commands.map(serialize).join('\n'));
+describe('replaceCommands（模板「载入并执行」/ 一键清空）', () => {
+  it('整体替换并重新派生文本（不叠加旧命令）', () => {
+    replaceCommands(parseCommands('particleex normal flame 0 0 0 1 0 0 1 0 0 0 0 0 0 5\n'));
+    const cmds = parseCommands('/particle smoke\n');
+    replaceCommands(cmds);
+    expect(getState().commands).toHaveLength(1);
+    expect(getState().commands[0]).toEqual(cmds[0]);
+    expect(getState().input).not.toContain('normal'); // 旧命令不再残留
+    expect(parseCommands(getState().input)).toEqual(cmds); // 文本 ↔ 真源一致
   });
 
-  it('setSim 合并 patch', () => {
+  it('空列表 = 一键清空（文本变空）', () => {
+    replaceCommands(parseCommands('particleex normal flame 0 0 0 1 0 0 1 0 0 0 0 0 0 5\n'));
+    replaceCommands([]);
+    expect(getState().commands).toEqual([]);
+    expect(getState().input).toBe('');
+  });
+});
+
+describe('loadShared（?s= 分享链接还原）', () => {
+  it('命令 + 设置合并进真源（sim 与当前状态合并）', () => {
+    const cmds = parseCommands('particleex normal flame 0 0 0 1 0 0 1 0 0 0 0 0 0 9\n');
+    loadShared({ commands: cmds, sim: { ...SIM_BASE, defaultLifetime: 7 } });
+    expect(getState().commands).toEqual(cmds);
+    expect(getState().input).toBe(cmds.map(serialize).join('\n'));
+    expect(getState().sim.defaultLifetime).toBe(7);
+    expect(getState().sim.maxParticles).toBe(20000);
+  });
+});
+
+describe('其余更新函数', () => {
+  it('setSim 合并 patch（未动字段保留）', () => {
     setSim({ maxParticles: 5000 });
     expect(getState().sim.maxParticles).toBe(5000);
-    expect(getState().sim.defaultLifetime).toBe(20); // 未动字段保留
+    expect(getState().sim.defaultLifetime).toBe(20);
     setSim({ playerPos: { x: 1, y: 2, z: 3 } });
     expect(getState().sim.playerPos).toEqual({ x: 1, y: 2, z: 3 });
   });
-});
 
-describe('round-trip：表单默认值 → serialize → parse → 结构等价', () => {
-  const cases: { label: string; c: ParticleCommand }[] = [
-    { label: 'normal', c: structuredClone(DEFAULT_NORMAL) },
-    { label: 'parameter', c: structuredClone(DEFAULT_PARAMETER) },
-    { label: 'rgbatickpolarparameter', c: makeParameter('rgbatickpolarparameter') },
-    { label: 'group remove', c: structuredClone(DEFAULT_GROUP_REMOVE) },
-    { label: 'vanilla', c: structuredClone(DEFAULT_VANILLA) },
-  ];
-  for (const { label, c } of cases) {
-    it(label, () => {
-      const reparsed = parseCommands(serialize(c))[0];
-      expect(reparsed).toEqual(c);
-    });
-  }
+  it('setPlaying / setSpeed 镜像', () => {
+    setPlaying(true);
+    expect(getState().playing).toBe(true);
+    setSpeed(4);
+    expect(getState().speed).toBe(4);
+  });
+
+  it('setHud 相同值不触发更新；pushToast 截断到最近 5 条', () => {
+    const before = getState();
+    setHud({ tick: 0, count: 0, dropped: 0 });
+    expect(getState()).toBe(before); // 无变化 → 不产生新对象
+    for (let i = 0; i < 7; i++) pushToast('e' + i);
+    expect(getState().toasts).toEqual(['e2', 'e3', 'e4', 'e5', 'e6']);
+  });
 });

@@ -38,7 +38,7 @@ export function SettingsDrawer() {
                 checked={sim.nativeKinematics}
                 onChange={(e) => setSim({ nativeKinematics: e.target.checked })}
               />
-              原版运动学 <em className="muted">（摩擦/重力/淡出/随机寿命，目前仅 end_rod 有反编译证据）</em>
+              原版运动学 <em className="muted">（摩擦/重力/淡出/随机寿命，按类型的反编译证据取值；1.21.11 分区仅 end_rod 入表）</em>
             </label>
           </div>
           <div className="field-row">

@@ -184,69 +184,6 @@ button.active {
   margin-bottom: 6px;
 }
 
-.tabs {
-  align-items: flex-start;
-}
-
-.tab-wrap {
-  position: relative;
-  display: inline-block;
-}
-
-.tab-sub {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px;
-  background: var(--bg-pane);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
-  min-width: 190px;
-}
-
-.cmd-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.cmd-form {
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
-}
-
-.cmd-form-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  cursor: default;
-}
-
-.cmd-form-title {
-  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
-  font-size: 12.5px;
-}
-
-.cmd-form-head .spacer {
-  flex: 1;
-}
-
-.cmd-form-body {
-  padding: 4px 10px 10px;
-  border-top: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
 button.small {
   font-size: 12px;
   padding: 2px 8px;
@@ -316,80 +253,6 @@ button.small {
   user-select: none;
 }
 
-/* ---------- ExprField ---------- */
-
-.expr-field {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.expr-input {
-  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
-  font-size: 12.5px;
-  border-radius: 4px;
-  padding: 5px 8px;
-}
-
-.expr-field.ok .expr-input {
-  border-color: #34d399;
-}
-
-.expr-field.err .expr-input {
-  border-color: #f87171;
-}
-
-.expr-hint {
-  font-weight: 400;
-}
-
-.expr-status {
-  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
-  font-size: 11.5px;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-
-.expr-status.ok {
-  color: #34d399;
-}
-
-.expr-status.err {
-  color: #f87171;
-}
-
-.expr-status-cn {
-  color: var(--muted);
-  font-family: 'Segoe UI', system-ui, sans-serif;
-}
-
-.expr-preview {
-  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
-  font-size: 12px;
-  background: var(--bg-pane);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 4px 8px;
-  overflow-x: auto;
-  white-space: pre;
-}
-
-.tok-field {
-  color: #7dd3fc;
-}
-
-.tok-func {
-  color: #fbbf24;
-}
-
-.tok-num {
-  color: #c4b5fd;
-}
-
-.tok-op {
-  color: #94a3b8;
-}
-
 /* ---------- PlaybackBar / HUD ---------- */
 
 .playback-bar {
@@ -406,9 +269,15 @@ button.small {
   z-index: 10;
 }
 
-.speed-group {
-  display: inline-flex;
-  gap: 2px;
+/* 倍速下拉（播放条第 4 个控件） */
+.speed-select {
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 6px;
   margin-left: 4px;
 }
 
@@ -479,13 +348,6 @@ button.small {
   background: var(--bg);
   color: var(--fg);
   border: 1px solid var(--border);
-}
-.template-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 52vh;
-  overflow-y: auto;
 }
 .template-card {
   border: 1px solid var(--border);
