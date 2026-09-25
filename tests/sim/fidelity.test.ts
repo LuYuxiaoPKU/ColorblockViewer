@@ -75,7 +75,7 @@ describe('fidelityFor（26.2）', () => {
     expect(fidelityFor('ambient_entity_effect', '26.2', TYPES_262)).toBe('approx');
   });
 
-  it('版本分区：1.21.11 仅 end_rod 是 full（§10 证据边界：不臆想跨版本一致）', () => {
+  it('版本分区：1.21.11 仅 end_rod 是 full（2026-09-25 已逐类型核对 115 类型全覆盖：13 个非默认运动学类型与 26.2 一致 → 差异优先口径不新增表项，见 docs/evidence/name_particle_map_1.21.11.json）', () => {
     expect(fidelityFor('end_rod', '1.21.11', TYPES_12111)).toBe('full');
     // 26.2 表内的 totem_of_undying 在 1.21.11 分区无表项 → approx
     expect(fidelityFor('totem_of_undying', '1.21.11', TYPES_12111)).toBe('approx');

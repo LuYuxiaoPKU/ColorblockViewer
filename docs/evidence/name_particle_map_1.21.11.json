@@ -1,0 +1,1058 @@
+{
+ "version": "1.21.11",
+ "date": "2026-09-25",
+ "source": "Mojang 官方 1.21.11 client.jar（全混淆）逐类 javap -c -p 全量扫描",
+ "note": "115 注册表类型 → 混淆粒子类/provider 完整映射（115/115、0 歧义）。kin 字段：C=friction float 字段（含来源类）、B=gravity float 字段、lifetime=base|own（own=自管/构造器覆写寿命）。13 个非默认类型已逐字节码与 26.2 比对一致 → kinematics 表 1.21.11 分区不新增条目。",
+ "verifiedAgainst262": [
+  "explosion",
+  "sonic_boom",
+  "gust",
+  "small_gust",
+  "poof",
+  "portal",
+  "rain",
+  "snowflake",
+  "cherry_leaves",
+  "pale_oak_leaves",
+  "tinted_leaves",
+  "trial_spawner_detection",
+  "trial_spawner_detection_ominous"
+ ],
+ "types": {
+  "angry_villager": {
+   "particle": "hlg",
+   "provider": "hlg$a",
+   "how": "direct",
+   "friction": "0.98f@hlg.hlq-base",
+   "gravity": "1.0f@hlg.hlq-base",
+   "lifetime": "base",
+   "chain": "hlg<hmg<hlq"
+  },
+  "ash": {
+   "particle": "hkc",
+   "provider": "hkc$a",
+   "how": "direct",
+   "friction": "0.98f@hkc.hlq-base",
+   "gravity": "1.0f@hkc.hlq-base",
+   "lifetime": "base",
+   "chain": "hkc<hke<hmg<hlq"
+  },
+  "block": {
+   "particle": "hms",
+   "provider": "hms$c",
+   "how": "static-factory:hms",
+   "friction": "0.98f@hms.hlq-base",
+   "gravity": "1.0f@hms.hlq-base",
+   "lifetime": "base",
+   "chain": "hms<hmg<hlq"
+  },
+  "block_crumble": {
+   "particle": "hms",
+   "provider": "hms$a",
+   "how": "static-factory:hms",
+   "friction": "0.98f@hms.hlq-base",
+   "gravity": "1.0f@hms.hlq-base",
+   "lifetime": "base",
+   "chain": "hms<hmg<hlq"
+  },
+  "block_marker": {
+   "particle": "hkf",
+   "provider": "hkf$a",
+   "how": "direct",
+   "friction": "0.98f@hkf.hlq-base",
+   "gravity": "1.0f@hkf.hlq-base",
+   "lifetime": "base",
+   "chain": "hkf<hmg<hlq"
+  },
+  "bubble": {
+   "particle": "hki",
+   "provider": "hki$a",
+   "how": "direct",
+   "friction": "0.98f@hki.hlq-base",
+   "gravity": "1.0f@hki.hlq-base",
+   "lifetime": "base",
+   "chain": "hki<hmg<hlq"
+  },
+  "bubble_column_up": {
+   "particle": "hkh",
+   "provider": "hkh$a",
+   "how": "direct",
+   "friction": "0.98f@hkh.hlq-base",
+   "gravity": "1.0f@hkh.hlq-base",
+   "lifetime": "base",
+   "chain": "hkh<hmg<hlq"
+  },
+  "bubble_pop": {
+   "particle": "hkj",
+   "provider": "hkj$a",
+   "how": "direct",
+   "friction": "0.98f@hkj.hlq-base",
+   "gravity": "1.0f@hkj.hlq-base",
+   "lifetime": "base",
+   "chain": "hkj<hmg<hlq"
+  },
+  "campfire_cosy_smoke": {
+   "particle": "hkk",
+   "provider": "hkk$a",
+   "how": "direct",
+   "friction": "0.98f@hkk.hlq-base",
+   "gravity": "1.0f@hkk.hlq-base",
+   "lifetime": "base",
+   "chain": "hkk<hmg<hlq"
+  },
+  "campfire_signal_smoke": {
+   "particle": "hkk",
+   "provider": "hkk$b",
+   "how": "direct",
+   "friction": "0.98f@hkk.hlq-base",
+   "gravity": "1.0f@hkk.hlq-base",
+   "lifetime": "base",
+   "chain": "hkk<hmg<hlq"
+  },
+  "cherry_leaves": {
+   "particle": "hkx",
+   "provider": "hkx$a",
+   "how": "direct",
+   "friction": "0.98f@hkx.hlq-base",
+   "gravity": "1.0f@hkx.hlq-base",
+   "lifetime": "own",
+   "chain": "hkx<hmg<hlq"
+  },
+  "cloud": {
+   "particle": "hlx",
+   "provider": "hlx$a",
+   "how": "direct",
+   "friction": "0.98f@hlx.hlq-base",
+   "gravity": "1.0f@hlx.hlq-base",
+   "lifetime": "base",
+   "chain": "hlx<hmg<hlq"
+  },
+  "composter": {
+   "particle": "hmr",
+   "provider": "hmr$a",
+   "how": "direct",
+   "friction": "0.98f@hmr.hlq-base",
+   "gravity": "1.0f@hmr.hlq-base",
+   "lifetime": "base",
+   "chain": "hmr<hmg<hlq"
+  },
+  "copper_fire_flame": {
+   "particle": "hla",
+   "provider": "hla$a",
+   "how": "direct",
+   "friction": "0.98f@hla.hlq-base",
+   "gravity": "1.0f@hla.hlq-base",
+   "lifetime": "base",
+   "chain": "hla<hmb<hmg<hlq"
+  },
+  "crimson_spore": {
+   "particle": "hmq",
+   "provider": "hmq$a",
+   "how": "direct",
+   "friction": "0.98f@hmq.hlq-base",
+   "gravity": "1.0f@hmq.hlq-base",
+   "lifetime": "base",
+   "chain": "hmq<hmg<hlq"
+  },
+  "crit": {
+   "particle": "hkl",
+   "provider": "hkl$c",
+   "how": "direct",
+   "friction": "0.98f@hkl.hlq-base",
+   "gravity": "1.0f@hkl.hlq-base",
+   "lifetime": "base",
+   "chain": "hkl<hmg<hlq"
+  },
+  "current_down": {
+   "particle": "hmz",
+   "provider": "hmz$a",
+   "how": "direct",
+   "friction": "0.98f@hmz.hlq-base",
+   "gravity": "1.0f@hmz.hlq-base",
+   "lifetime": "base",
+   "chain": "hmz<hmg<hlq"
+  },
+  "damage_indicator": {
+   "particle": "hkl",
+   "provider": "hkl$a",
+   "how": "direct",
+   "friction": "0.98f@hkl.hlq-base",
+   "gravity": "1.0f@hkl.hlq-base",
+   "lifetime": "base",
+   "chain": "hkl<hmg<hlq"
+  },
+  "dolphin": {
+   "particle": "hmr",
+   "provider": "hmr$b",
+   "how": "direct",
+   "friction": "0.98f@hmr.hlq-base",
+   "gravity": "1.0f@hmr.hlq-base",
+   "lifetime": "base",
+   "chain": "hmr<hmg<hlq"
+  },
+  "dragon_breath": {
+   "particle": "hkm",
+   "provider": "hkm$a",
+   "how": "direct",
+   "friction": "0.98f@hkm.hlq-base",
+   "gravity": "1.0f@hkm.hlq-base",
+   "lifetime": "base",
+   "chain": "hkm<hmg<hlq"
+  },
+  "dripping_dripstone_lava": {
+   "particle": "hkn$a",
+   "provider": "hkn$f",
+   "how": "direct",
+   "friction": "0.98f@hkn$a.hlq-base",
+   "gravity": "1.0f@hkn$a.hlq-base",
+   "lifetime": "base",
+   "chain": "hkn$a<hkn$b<hkn<hmg<hlq"
+  },
+  "dripping_dripstone_water": {
+   "particle": "hkn$b",
+   "provider": "hkn$h",
+   "how": "direct",
+   "friction": "0.98f@hkn$b.hlq-base",
+   "gravity": "1.0f@hkn$b.hlq-base",
+   "lifetime": "base",
+   "chain": "hkn$b<hkn<hmg<hlq"
+  },
+  "dripping_honey": {
+   "particle": "hkn$b",
+   "provider": "hkn$m",
+   "how": "direct",
+   "friction": "0.98f@hkn$b.hlq-base",
+   "gravity": "1.0f@hkn$b.hlq-base",
+   "lifetime": "base",
+   "chain": "hkn$b<hkn<hmg<hlq"
+  },
+  "dripping_lava": {
+   "particle": "hkn$a",
+   "provider": "hkn$p",
+   "how": "direct",
+   "friction": "0.98f@hkn$a.hlq-base",
+   "gravity": "1.0f@hkn$a.hlq-base",
+   "lifetime": "base",
+   "chain": "hkn$a<hkn$b<hkn<hmg<hlq"
+  },
+  "dripping_obsidian_tear": {
+   "particle": "hkn$b",
+   "provider": "hkn$t",
+   "how": "direct",
+   "friction": "0.98f@hkn$b.hlq-base",
+   "gravity": "1.0f@hkn$b.hlq-base",
+   "lifetime": "base",
+   "chain": "hkn$b<hkn<hmg<hlq"
+  },
+  "dripping_water": {
+   "particle": "hkn$b",
+   "provider": "hkn$x",
+   "how": "direct",
+   "friction": "0.98f@hkn$b.hlq-base",
+   "gravity": "1.0f@hkn$b.hlq-base",
+   "lifetime": "base",
+   "chain": "hkn$b<hkn<hmg<hlq"
+  },
+  "dust": {
+   "particle": "hkp",
+   "provider": "hkp$a",
+   "how": "direct",
+   "friction": "0.98f@hkp.hlq-base",
+   "gravity": "1.0f@hkp.hlq-base",
+   "lifetime": "base",
+   "chain": "hkp<hkq<ma"
+  },
+  "dust_color_transition": {
+   "particle": "hko",
+   "provider": "hko$a",
+   "how": "direct",
+   "friction": "0.98f@hko.hlq-base",
+   "gravity": "1.0f@hko.hlq-base",
+   "lifetime": "base",
+   "chain": "hko<hkq<ma"
+  },
+  "dust_pillar": {
+   "particle": "hms",
+   "provider": "hms$b",
+   "how": "static-factory:hms",
+   "friction": "0.98f@hms.hlq-base",
+   "gravity": "1.0f@hms.hlq-base",
+   "lifetime": "base",
+   "chain": "hms<hmg<hlq"
+  },
+  "dust_plume": {
+   "particle": "hkr",
+   "provider": "hkr$a",
+   "how": "direct",
+   "friction": "0.98f@hkr.hlq-base",
+   "gravity": "1.0f@hkr.hlq-base",
+   "lifetime": "base",
+   "chain": "hkr<hke<hmg<hlq"
+  },
+  "effect": {
+   "particle": "hml",
+   "provider": "hml$a",
+   "how": "direct",
+   "friction": "0.98f@hml.hlq-base",
+   "gravity": "1.0f@hml.hlq-base",
+   "lifetime": "base",
+   "chain": "hml<hmg<hlq"
+  },
+  "egg_crack": {
+   "particle": "hmr",
+   "provider": "hmr$c",
+   "how": "direct",
+   "friction": "0.98f@hmr.hlq-base",
+   "gravity": "1.0f@hmr.hlq-base",
+   "lifetime": "base",
+   "chain": "hmr<hmg<hlq"
+  },
+  "elder_guardian": {
+   "particle": "hks",
+   "provider": "hks$a",
+   "how": "direct",
+   "friction": "0.98f@hks.hlq-base",
+   "gravity": "1.0f@hks.hlq-base",
+   "lifetime": "base",
+   "chain": "hks<hlq"
+  },
+  "electric_spark": {
+   "particle": "hld",
+   "provider": "hld$a",
+   "how": "direct",
+   "friction": "0.98f@hld.hlq-base",
+   "gravity": "1.0f@hld.hlq-base",
+   "lifetime": "base",
+   "chain": "hld<hmg<hlq"
+  },
+  "enchant": {
+   "particle": "hlc",
+   "provider": "hlc$a",
+   "how": "direct",
+   "friction": "0.98f@hlc.hlq-base",
+   "gravity": "1.0f@hlc.hlq-base",
+   "lifetime": "base",
+   "chain": "hlc<hmg<hlq"
+  },
+  "enchanted_hit": {
+   "particle": "hkl",
+   "provider": "hkl$b",
+   "how": "direct",
+   "friction": "0.98f@hkl.hlq-base",
+   "gravity": "1.0f@hkl.hlq-base",
+   "lifetime": "base",
+   "chain": "hkl<hmg<hlq"
+  },
+  "end_rod": {
+   "particle": "hku",
+   "provider": "hku$a",
+   "how": "direct",
+   "friction": "0.98f@hku.hlq-base",
+   "gravity": "1.0f@hku.hlq-base",
+   "lifetime": "base",
+   "chain": "hku<hmf<hmg<hlq"
+  },
+  "entity_effect": {
+   "particle": "hml",
+   "provider": "hml$b",
+   "how": "direct",
+   "friction": "0.98f@hml.hlq-base",
+   "gravity": "1.0f@hml.hlq-base",
+   "lifetime": "base",
+   "chain": "hml<hmg<hlq"
+  },
+  "explosion": {
+   "particle": "hlh",
+   "provider": "hlh$a",
+   "how": "direct",
+   "friction": "0.98f@hlh.hlq-base",
+   "gravity": "1.0f@hlh.hlq-base",
+   "lifetime": "own",
+   "chain": "hlh<hmg<hlq"
+  },
+  "explosion_emitter": {
+   "particle": "hli",
+   "provider": "hli$a",
+   "how": "direct",
+   "friction": "0.98f@hli.hlq-base",
+   "gravity": "1.0f@hli.hlq-base",
+   "lifetime": "base",
+   "chain": "hli<hln<hlq"
+  },
+  "falling_dripstone_lava": {
+   "particle": "hkn$d",
+   "provider": "hkn$e",
+   "how": "direct",
+   "friction": "0.98f@hkn$d.hlq-base",
+   "gravity": "1.0f@hkn$d.hlq-base",
+   "lifetime": "base",
+   "chain": "hkn$d<hkn$i<hkn$j<hkn<hmg<hlq"
+  },
+  "falling_dripstone_water": {
+   "particle": "hkn$d",
+   "provider": "hkn$g",
+   "how": "direct",
+   "friction": "0.98f@hkn$d.hlq-base",
+   "gravity": "1.0f@hkn$d.hlq-base",
+   "lifetime": "base",
+   "chain": "hkn$d<hkn$i<hkn$j<hkn<hmg<hlq"
+  },
+  "falling_dust": {
+   "particle": "hkw",
+   "provider": "hkw$a",
+   "how": "direct",
+   "friction": "0.98f@hkw.hlq-base",
+   "gravity": "1.0f@hkw.hlq-base",
+   "lifetime": "base",
+   "chain": "hkw<hmg<hlq"
+  },
+  "falling_honey": {
+   "particle": "hkn$k",
+   "provider": "hkn$l",
+   "how": "direct",
+   "friction": "0.98f@hkn$k.hlq-base",
+   "gravity": "1.0f@hkn$k.hlq-base",
+   "lifetime": "base",
+   "chain": "hkn$k<hkn$i<hkn$j<hkn<hmg<hlq"
+  },
+  "falling_lava": {
+   "particle": "hkn$i",
+   "provider": "hkn$o",
+   "how": "direct",
+   "friction": "0.98f@hkn$i.hlq-base",
+   "gravity": "1.0f@hkn$i.hlq-base",
+   "lifetime": "base",
+   "chain": "hkn$i<hkn$j<hkn<hmg<hlq"
+  },
+  "falling_nectar": {
+   "particle": "hkn$j",
+   "provider": "hkn$r",
+   "how": "direct",
+   "friction": "0.98f@hkn$j.hlq-base",
+   "gravity": "1.0f@hkn$j.hlq-base",
+   "lifetime": "base",
+   "chain": "hkn$j<hkn<hmg<hlq"
+  },
+  "falling_obsidian_tear": {
+   "particle": "hkn$i",
+   "provider": "hkn$s",
+   "how": "direct",
+   "friction": "0.98f@hkn$i.hlq-base",
+   "gravity": "1.0f@hkn$i.hlq-base",
+   "lifetime": "base",
+   "chain": "hkn$i<hkn$j<hkn<hmg<hlq"
+  },
+  "falling_spore_blossom": {
+   "particle": "hkn$j",
+   "provider": "hkn$v",
+   "how": "direct",
+   "friction": "0.98f@hkn$j.hlq-base",
+   "gravity": "1.0f@hkn$j.hlq-base",
+   "lifetime": "base",
+   "chain": "hkn$j<hkn<hmg<hlq"
+  },
+  "falling_water": {
+   "particle": "hkn$i",
+   "provider": "hkn$w",
+   "how": "direct",
+   "friction": "0.98f@hkn$i.hlq-base",
+   "gravity": "1.0f@hkn$i.hlq-base",
+   "lifetime": "base",
+   "chain": "hkn$i<hkn$j<hkn<hmg<hlq"
+  },
+  "firefly": {
+   "particle": "hky",
+   "provider": "hky$a",
+   "how": "direct",
+   "friction": "0.98f@hky.hlq-base",
+   "gravity": "1.0f@hky.hlq-base",
+   "lifetime": "base",
+   "chain": "hky<hmg<hlq"
+  },
+  "firework": {
+   "particle": "hkz$c",
+   "provider": "hkz$d",
+   "how": "direct",
+   "friction": "0.98f@hkz$c.hlq-base",
+   "gravity": "1.0f@hkz$c.hlq-base",
+   "lifetime": "base",
+   "chain": "hkz$c<hmf<hmg<hlq"
+  },
+  "fishing": {
+   "particle": "hmy",
+   "provider": "hmy$a",
+   "how": "direct",
+   "friction": "0.98f@hmy.hlq-base",
+   "gravity": "1.0f@hmy.hlq-base",
+   "lifetime": "base",
+   "chain": "hmy<hmg<hlq"
+  },
+  "flame": {
+   "particle": "hla",
+   "provider": "hla$a",
+   "how": "direct",
+   "friction": "0.98f@hla.hlq-base",
+   "gravity": "1.0f@hla.hlq-base",
+   "lifetime": "base",
+   "chain": "hla<hmb<hmg<hlq"
+  },
+  "flash": {
+   "particle": "hkz$b",
+   "provider": "hkz$a",
+   "how": "direct",
+   "friction": "0.98f@hkz$b.hlq-base",
+   "gravity": "1.0f@hkz$b.hlq-base",
+   "lifetime": "base",
+   "chain": "hkz$b<hmg<hlq"
+  },
+  "glow": {
+   "particle": "hld",
+   "provider": "hld$b",
+   "how": "direct",
+   "friction": "0.98f@hld.hlq-base",
+   "gravity": "1.0f@hld.hlq-base",
+   "lifetime": "base",
+   "chain": "hld<hmg<hlq"
+  },
+  "glow_squid_ink": {
+   "particle": "hmp",
+   "provider": "hmp$a",
+   "how": "direct",
+   "friction": "0.98f@hmp.hlq-base",
+   "gravity": "1.0f@hmp.hlq-base",
+   "lifetime": "base",
+   "chain": "hmp<hmf<hmg<hlq"
+  },
+  "gust": {
+   "particle": "hle",
+   "provider": "hle$a",
+   "how": "direct",
+   "friction": "0.98f@hle.hlq-base",
+   "gravity": "1.0f@hle.hlq-base",
+   "lifetime": "own",
+   "chain": "hle<hmg<hlq"
+  },
+  "gust_emitter_large": {
+   "particle": "hlf",
+   "provider": "hlf$a",
+   "how": "direct",
+   "friction": "0.98f@hlf.hlq-base",
+   "gravity": "1.0f@hlf.hlq-base",
+   "lifetime": "base",
+   "chain": "hlf<hln<hlq"
+  },
+  "gust_emitter_small": {
+   "particle": "hlf",
+   "provider": "hlf$a",
+   "how": "direct",
+   "friction": "0.98f@hlf.hlq-base",
+   "gravity": "1.0f@hlf.hlq-base",
+   "lifetime": "base",
+   "chain": "hlf<hln<hlq"
+  },
+  "happy_villager": {
+   "particle": "hmr",
+   "provider": "hmr$d",
+   "how": "direct",
+   "friction": "0.98f@hmr.hlq-base",
+   "gravity": "1.0f@hmr.hlq-base",
+   "lifetime": "base",
+   "chain": "hmr<hmg<hlq"
+  },
+  "heart": {
+   "particle": "hlg",
+   "provider": "hlg$b",
+   "how": "direct",
+   "friction": "0.98f@hlg.hlq-base",
+   "gravity": "1.0f@hlg.hlq-base",
+   "lifetime": "base",
+   "chain": "hlg<hmg<hlq"
+  },
+  "infested": {
+   "particle": "hml",
+   "provider": "hml$c",
+   "how": "direct",
+   "friction": "0.98f@hml.hlq-base",
+   "gravity": "1.0f@hml.hlq-base",
+   "lifetime": "base",
+   "chain": "hml<hmg<hlq"
+  },
+  "instant_effect": {
+   "particle": "hml",
+   "provider": "hml$a",
+   "how": "direct",
+   "friction": "0.98f@hml.hlq-base",
+   "gravity": "1.0f@hml.hlq-base",
+   "lifetime": "base",
+   "chain": "hml<hmg<hlq"
+  },
+  "item": {
+   "particle": "hkg",
+   "provider": "hkg$c",
+   "how": "direct",
+   "friction": "0.98f@hkg.hlq-base",
+   "gravity": "1.0f@hkg.hlq-base",
+   "lifetime": "base",
+   "chain": "hkg<hmg<hlq"
+  },
+  "item_cobweb": {
+   "particle": "hkg",
+   "provider": "hkg$a",
+   "how": "direct",
+   "friction": "0.98f@hkg.hlq-base",
+   "gravity": "1.0f@hkg.hlq-base",
+   "lifetime": "base",
+   "chain": "hkg<hmg<hlq"
+  },
+  "item_slime": {
+   "particle": "hkg",
+   "provider": "hkg$d",
+   "how": "direct",
+   "friction": "0.98f@hkg.hlq-base",
+   "gravity": "1.0f@hkg.hlq-base",
+   "lifetime": "base",
+   "chain": "hkg<hmg<hlq"
+  },
+  "item_snowball": {
+   "particle": "hkg",
+   "provider": "hkg$e",
+   "how": "direct",
+   "friction": "0.98f@hkg.hlq-base",
+   "gravity": "1.0f@hkg.hlq-base",
+   "lifetime": "base",
+   "chain": "hkg<hmg<hlq"
+  },
+  "landing_honey": {
+   "particle": "hkn$c",
+   "provider": "hkn$n",
+   "how": "direct",
+   "friction": "0.98f@hkn$c.hlq-base",
+   "gravity": "1.0f@hkn$c.hlq-base",
+   "lifetime": "base",
+   "chain": "hkn$c<hkn<hmg<hlq"
+  },
+  "landing_lava": {
+   "particle": "hkn$c",
+   "provider": "hkn$q",
+   "how": "direct",
+   "friction": "0.98f@hkn$c.hlq-base",
+   "gravity": "1.0f@hkn$c.hlq-base",
+   "lifetime": "base",
+   "chain": "hkn$c<hkn<hmg<hlq"
+  },
+  "landing_obsidian_tear": {
+   "particle": "hkn$c",
+   "provider": "hkn$u",
+   "how": "direct",
+   "friction": "0.98f@hkn$c.hlq-base",
+   "gravity": "1.0f@hkn$c.hlq-base",
+   "lifetime": "base",
+   "chain": "hkn$c<hkn<hmg<hlq"
+  },
+  "large_smoke": {
+   "particle": "hll",
+   "provider": "hll$a",
+   "how": "direct",
+   "friction": "0.98f@hll.hlq-base",
+   "gravity": "1.0f@hll.hlq-base",
+   "lifetime": "base",
+   "chain": "hll<hmh<hke<hmg<hlq"
+  },
+  "lava": {
+   "particle": "hlm",
+   "provider": "hlm$a",
+   "how": "direct",
+   "friction": "0.98f@hlm.hlq-base",
+   "gravity": "1.0f@hlm.hlq-base",
+   "lifetime": "base",
+   "chain": "hlm<hmg<hlq"
+  },
+  "mycelium": {
+   "particle": "hmr",
+   "provider": "hmr$e",
+   "how": "direct",
+   "friction": "0.98f@hmr.hlq-base",
+   "gravity": "1.0f@hmr.hlq-base",
+   "lifetime": "base",
+   "chain": "hmr<hmg<hlq"
+  },
+  "nautilus": {
+   "particle": "hlc",
+   "provider": "hlc$b",
+   "how": "direct",
+   "friction": "0.98f@hlc.hlq-base",
+   "gravity": "1.0f@hlc.hlq-base",
+   "lifetime": "base",
+   "chain": "hlc<hmg<hlq"
+  },
+  "note": {
+   "particle": "hlp",
+   "provider": "hlp$a",
+   "how": "direct",
+   "friction": "0.98f@hlp.hlq-base",
+   "gravity": "1.0f@hlp.hlq-base",
+   "lifetime": "base",
+   "chain": "hlp<hmg<hlq"
+  },
+  "ominous_spawning": {
+   "particle": "hlb",
+   "provider": "hlb$a",
+   "how": "direct",
+   "friction": "0.98f@hlb.hlq-base",
+   "gravity": "1.0f@hlb.hlq-base",
+   "lifetime": "base",
+   "chain": "hlb<hmg<hlq"
+  },
+  "pale_oak_leaves": {
+   "particle": "hkx",
+   "provider": "hkx$b",
+   "how": "direct",
+   "friction": "0.98f@hkx.hlq-base",
+   "gravity": "1.0f@hkx.hlq-base",
+   "lifetime": "own",
+   "chain": "hkx<hmg<hlq"
+  },
+  "poof": {
+   "particle": "hkv",
+   "provider": "hkv$a",
+   "how": "direct",
+   "friction": "0.98f@hkv.hlq-base",
+   "gravity": "1.0f@hkv.hlq-base",
+   "lifetime": "own",
+   "chain": "hkv<hmg<hlq"
+  },
+  "portal": {
+   "particle": "hly",
+   "provider": "hly$a",
+   "how": "direct",
+   "friction": "0.98f@hly.hlq-base",
+   "gravity": "1.0f@hly.hlq-base",
+   "lifetime": "own",
+   "chain": "hly<hmg<hlq"
+  },
+  "raid_omen": {
+   "particle": "hml",
+   "provider": "hml$c",
+   "how": "direct",
+   "friction": "0.98f@hml.hlq-base",
+   "gravity": "1.0f@hml.hlq-base",
+   "lifetime": "base",
+   "chain": "hml<hmg<hlq"
+  },
+  "rain": {
+   "particle": "hna",
+   "provider": "hna$a",
+   "how": "direct",
+   "friction": "0.98f@hna.hlq-base",
+   "gravity": "1.0f@hna.hlq-base",
+   "lifetime": "own",
+   "chain": "hna<hmg<hlq"
+  },
+  "reverse_portal": {
+   "particle": "hma",
+   "provider": "hma$a",
+   "how": "direct",
+   "friction": "0.98f@hma.hlq-base",
+   "gravity": "1.0f@hma.hlq-base",
+   "lifetime": "base",
+   "chain": "hma<hly<hmg<hlq"
+  },
+  "scrape": {
+   "particle": "hld",
+   "provider": "hld$c",
+   "how": "direct",
+   "friction": "0.98f@hld.hlq-base",
+   "gravity": "1.0f@hld.hlq-base",
+   "lifetime": "base",
+   "chain": "hld<hmg<hlq"
+  },
+  "sculk_charge": {
+   "particle": "hmc",
+   "provider": "hmc$a",
+   "how": "direct",
+   "friction": "0.98f@hmc.hlq-base",
+   "gravity": "1.0f@hmc.hlq-base",
+   "lifetime": "base",
+   "chain": "hmc<hmg<hlq"
+  },
+  "sculk_charge_pop": {
+   "particle": "hmd",
+   "provider": "hmd$a",
+   "how": "direct",
+   "friction": "0.98f@hmd.hlq-base",
+   "gravity": "1.0f@hmd.hlq-base",
+   "lifetime": "base",
+   "chain": "hmd<hmg<hlq"
+  },
+  "sculk_soul": {
+   "particle": "hmk",
+   "provider": "hmk$a",
+   "how": "direct",
+   "friction": "0.98f@hmk.hlq-base",
+   "gravity": "1.0f@hmk.hlq-base",
+   "lifetime": "base",
+   "chain": "hmk<hmb<hmg<hlq"
+  },
+  "shriek": {
+   "particle": "hme",
+   "provider": "hme$a",
+   "how": "direct",
+   "friction": "0.98f@hme.hlq-base",
+   "gravity": "1.0f@hme.hlq-base",
+   "lifetime": "base",
+   "chain": "hme<hmg<hlq"
+  },
+  "small_flame": {
+   "particle": "hla",
+   "provider": "hla$b",
+   "how": "direct",
+   "friction": "0.98f@hla.hlq-base",
+   "gravity": "1.0f@hla.hlq-base",
+   "lifetime": "base",
+   "chain": "hla<hmb<hmg<hlq"
+  },
+  "small_gust": {
+   "particle": "hle",
+   "provider": "hle$b",
+   "how": "direct",
+   "friction": "0.98f@hle.hlq-base",
+   "gravity": "1.0f@hle.hlq-base",
+   "lifetime": "own",
+   "chain": "hle<hmg<hlq"
+  },
+  "smoke": {
+   "particle": "hmh",
+   "provider": "hmh$a",
+   "how": "direct",
+   "friction": "0.98f@hmh.hlq-base",
+   "gravity": "1.0f@hmh.hlq-base",
+   "lifetime": "base",
+   "chain": "hmh<hke<hmg<hlq"
+  },
+  "sneeze": {
+   "particle": "hlx",
+   "provider": "hlx$b",
+   "how": "direct",
+   "friction": "0.98f@hlx.hlq-base",
+   "gravity": "1.0f@hlx.hlq-base",
+   "lifetime": "base",
+   "chain": "hlx<hmg<hlq"
+  },
+  "snowflake": {
+   "particle": "hmi",
+   "provider": "hmi$a",
+   "how": "direct",
+   "friction": "0.98f@hmi.hlq-base",
+   "gravity": "1.0f@hmi.hlq-base",
+   "lifetime": "own",
+   "chain": "hmi<hmg<hlq"
+  },
+  "sonic_boom": {
+   "particle": "hmj",
+   "provider": "hmj$a",
+   "how": "direct",
+   "friction": "0.98f@hmj.hlq-base",
+   "gravity": "1.0f@hmj.hlq-base",
+   "lifetime": "own",
+   "chain": "hmj<hlh<hmg<hlq"
+  },
+  "soul": {
+   "particle": "hmk",
+   "provider": "hmk$b",
+   "how": "direct",
+   "friction": "0.98f@hmk.hlq-base",
+   "gravity": "1.0f@hmk.hlq-base",
+   "lifetime": "base",
+   "chain": "hmk<hmb<hmg<hlq"
+  },
+  "soul_fire_flame": {
+   "particle": "hla",
+   "provider": "hla$a",
+   "how": "direct",
+   "friction": "0.98f@hla.hlq-base",
+   "gravity": "1.0f@hla.hlq-base",
+   "lifetime": "base",
+   "chain": "hla<hmb<hmg<hlq"
+  },
+  "spit": {
+   "particle": "hmm",
+   "provider": "hmm$a",
+   "how": "direct",
+   "friction": "0.98f@hmm.hlq-base",
+   "gravity": "1.0f@hmm.hlq-base",
+   "lifetime": "base",
+   "chain": "hmm<hkv<hmg<hlq"
+  },
+  "splash": {
+   "particle": "hmn",
+   "provider": "hmn$a",
+   "how": "direct",
+   "friction": "0.98f@hmn.hlq-base",
+   "gravity": "1.0f@hmn.hlq-base",
+   "lifetime": "base",
+   "chain": "hmn<hna<hmg<hlq"
+  },
+  "spore_blossom_air": {
+   "particle": "hmq$b$1",
+   "provider": "hmq$b",
+   "how": "direct",
+   "friction": "0.98f@hmq$b$1.hlq-base",
+   "gravity": "1.0f@hmq$b$1.hlq-base",
+   "lifetime": "base",
+   "chain": "hmq$b$1<hmq<hmg<hlq"
+  },
+  "squid_ink": {
+   "particle": "hmp",
+   "provider": "hmp$b",
+   "how": "direct",
+   "friction": "0.98f@hmp.hlq-base",
+   "gravity": "1.0f@hmp.hlq-base",
+   "lifetime": "base",
+   "chain": "hmp<hmf<hmg<hlq"
+  },
+  "sweep_attack": {
+   "particle": "hkd",
+   "provider": "hkd$a",
+   "how": "direct",
+   "friction": "0.98f@hkd.hlq-base",
+   "gravity": "1.0f@hkd.hlq-base",
+   "lifetime": "base",
+   "chain": "hkd<hmg<hlq"
+  },
+  "tinted_leaves": {
+   "particle": "hkx",
+   "provider": "hkx$c",
+   "how": "direct",
+   "friction": "0.98f@hkx.hlq-base",
+   "gravity": "1.0f@hkx.hlq-base",
+   "lifetime": "own",
+   "chain": "hkx<hmg<hlq"
+  },
+  "totem_of_undying": {
+   "particle": "hmt",
+   "provider": "hmt$a",
+   "how": "direct",
+   "friction": "0.98f@hmt.hlq-base",
+   "gravity": "1.0f@hmt.hlq-base",
+   "lifetime": "base",
+   "chain": "hmt<hmf<hmg<hlq"
+  },
+  "trail": {
+   "particle": "hmv",
+   "provider": "hmv$a",
+   "how": "direct",
+   "friction": "0.98f@hmv.hlq-base",
+   "gravity": "1.0f@hmv.hlq-base",
+   "lifetime": "base",
+   "chain": "hmv<hmg<hlq"
+  },
+  "trial_omen": {
+   "particle": "hml",
+   "provider": "hml$c",
+   "how": "direct",
+   "friction": "0.98f@hml.hlq-base",
+   "gravity": "1.0f@hml.hlq-base",
+   "lifetime": "base",
+   "chain": "hml<hmg<hlq"
+  },
+  "trial_spawner_detection": {
+   "particle": "hmw",
+   "provider": "hmw$a",
+   "how": "direct",
+   "friction": "0.98f@hmw.hlq-base",
+   "gravity": "1.0f@hmw.hlq-base",
+   "lifetime": "own",
+   "chain": "hmw<hmg<hlq"
+  },
+  "trial_spawner_detection_ominous": {
+   "particle": "hmw",
+   "provider": "hmw$a",
+   "how": "direct",
+   "friction": "0.98f@hmw.hlq-base",
+   "gravity": "1.0f@hmw.hlq-base",
+   "lifetime": "own",
+   "chain": "hmw<hmg<hlq"
+  },
+  "underwater": {
+   "particle": "hmq",
+   "provider": "hmq$c",
+   "how": "direct",
+   "friction": "0.98f@hmq.hlq-base",
+   "gravity": "1.0f@hmq.hlq-base",
+   "lifetime": "base",
+   "chain": "hmq<hmg<hlq"
+  },
+  "vault_connection": {
+   "particle": "hlc",
+   "provider": "hlc$c",
+   "how": "direct",
+   "friction": "0.98f@hlc.hlq-base",
+   "gravity": "1.0f@hlc.hlq-base",
+   "lifetime": "base",
+   "chain": "hlc<hmg<hlq"
+  },
+  "vibration": {
+   "particle": "hmx",
+   "provider": "hmx$a",
+   "how": "direct",
+   "friction": "0.98f@hmx.hlq-base",
+   "gravity": "1.0f@hmx.hlq-base",
+   "lifetime": "base",
+   "chain": "hmx<hmg<hlq"
+  },
+  "warped_spore": {
+   "particle": "hmq",
+   "provider": "hmq$d",
+   "how": "direct",
+   "friction": "0.98f@hmq.hlq-base",
+   "gravity": "1.0f@hmq.hlq-base",
+   "lifetime": "base",
+   "chain": "hmq<hmg<hlq"
+  },
+  "wax_off": {
+   "particle": "hld",
+   "provider": "hld$d",
+   "how": "direct",
+   "friction": "0.98f@hld.hlq-base",
+   "gravity": "1.0f@hld.hlq-base",
+   "lifetime": "base",
+   "chain": "hld<hmg<hlq"
+  },
+  "wax_on": {
+   "particle": "hld",
+   "provider": "hld$e",
+   "how": "direct",
+   "friction": "0.98f@hld.hlq-base",
+   "gravity": "1.0f@hld.hlq-base",
+   "lifetime": "base",
+   "chain": "hld<hmg<hlq"
+  },
+  "white_ash": {
+   "particle": "hnb",
+   "provider": "hnb$a",
+   "how": "direct",
+   "friction": "0.98f@hnb.hlq-base",
+   "gravity": "1.0f@hnb.hlq-base",
+   "lifetime": "base",
+   "chain": "hnb<hke<hmg<hlq"
+  },
+  "white_smoke": {
+   "particle": "hnc",
+   "provider": "hnc$a",
+   "how": "direct",
+   "friction": "0.98f@hnc.hlq-base",
+   "gravity": "1.0f@hnc.hlq-base",
+   "lifetime": "base",
+   "chain": "hnc<hke<hmg<hlq"
+  },
+  "witch": {
+   "particle": "hml",
+   "provider": "hml$d",
+   "how": "direct",
+   "friction": "0.98f@hml.hlq-base",
+   "gravity": "1.0f@hml.hlq-base",
+   "lifetime": "base",
+   "chain": "hml<hmg<hlq"
+  }
+ }
+}
