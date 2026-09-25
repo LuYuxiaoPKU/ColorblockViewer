@@ -143,8 +143,13 @@
 // ambient_entity_effect：粒子数据表里有名字，但 26.2 注册表未注册（type map
 // 无条目）——命令用它会走模组报错路径，不进本表。
 //
-// 版本分区：本表证据仅来自 26.2 字节码 → 新类型只进 '26.2'；'1.21.11' 保留
-// end_rod（1.21.1 反编译核对）。1.21.1 未逐类型核对，不臆测（八荣八耻 #1）。
+// 版本分区：26.2 分区证据来自 26.2 字节码。'1.21.11' 分区 2026-09-25 已逐类型
+// 核对混淆版 client.jar（115 注册表类型全覆盖，映射见 data/name_particle_map.json）：
+// 13 个非默认运动学类型（explosion/sonic_boom/gust/small_gust/poof/portal/rain/
+// snowflake/cherry_leaves/pale_oak_leaves/tinted_leaves/trial_spawner_detection/
+// trial_spawner_detection_ominous）常量与自管 tick 均与 26.2 一致（rain 初速
+// x/z 系数 0.3d vs f2d(0.3f) 为 ULP 级差异，落在既有近似内，且引擎本不建模
+// rain 初速）→ 按"差异优先"口径不新增条目，仅保留 end_rod。
 
 export type MotionKind = 'base' | 'portal' | 'reverse_portal' | 'vibration' | 'fly_straight' | 'fly_towards' | 'leaves';
 
