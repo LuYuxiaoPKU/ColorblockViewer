@@ -16,9 +16,11 @@ import { tokenizeWithMeta, CommandParseError } from './tokens';
 /** brigadier `StringReader.isAllowedInUnquotedString` 允许的字符集 */
 export const UNQUOTED_OK = /^[0-9A-Za-z_.+-]+$/;
 
-/** 括号配平检查：表达式里 `()`/`[]`/`{}` 必须成对出现。
+/** 括号配平检查：引号内的文本参数里 `()`/`[]`/`{}` 必须成对出现。
  *  预览的表达式引擎分词宽松（多余的 `)` 会被当块结束忽略，括号少一个则
- *  运行期才报错甚至不报），游戏内会直接解析失败 → 在格式检查层如实标出。 */
+ *  运行期才报错甚至不报），游戏内会直接解析失败 → 在格式检查层如实标出。
+ *  括号**外**的 token 不做逐 token 配平（去掉引号的表达式被拆成多 token 后
+ *  单独看必然"未闭合"，属假警报；那种形态由「未加引号字符截断」提示覆盖）。 */
 function bracketImbalance(s: string): string | null {
   const stack: string[] = [];
   for (const ch of s) {
@@ -154,14 +156,17 @@ export function checkCommandFormat(line: string): FormatIssue[] {
           message: `第 ${k - i + 1} 个参数是${KIND_HINT.text}，含未加引号字符「${bad}」——游戏内 brigadier 会在此截断（未加引号字符串只允许 0-9 A-Z a-z _ - . +），必须写成 '${t.value}'`,
         });
       }
-      const imbalance = bracketImbalance(t.value);
-      if (imbalance) {
-        issues.push({
-          index: k,
-          token: t.value,
-          fatal: true,
-          message: `第 ${k - i + 1} 个参数是${KIND_HINT.text}，${imbalance}——游戏内表达式解析会失败（预览分词宽松，可能不报错或延迟到运行期）`,
-        });
+      if (t.quoted) {
+        // 括号配平只对**引号字面量**做（见函数头注释；裸 token 拆散后单看必然假警报）
+        const imbalance = bracketImbalance(t.value);
+        if (imbalance) {
+          issues.push({
+            index: k,
+            token: t.value,
+            fatal: true,
+            message: `第 ${k - i + 1} 个参数是${KIND_HINT.text}，${imbalance}——游戏内表达式解析会失败（预览分词宽松，可能不报错或延迟到运行期）`,
+          });
+        }
       }
     } else if (t.quoted) {
       issues.push({

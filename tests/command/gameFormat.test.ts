@@ -119,6 +119,17 @@ describe('checkCommandFormat：游戏内格式查验', () => {
     expect(checkCommandFormat("particleex normal flame 0 0 0 1 1 1 1 0 0 0 1 0 1 5 5 'vy=0.5*exp(-(x^2))/3' 2 g")).toEqual([]);
   });
 
+  it("含 `)`/`'` 的裸 token 落在坐标/数值位 → 不报假「括号不配平」（拆散后单 token 必然未闭合；截断形态由未加引号字符提示覆盖）", () => {
+    // 用户实际输入（位置参数只写了 ~ 一个，其余位形参错位）：预览解析会失败
+    // （invalid 位置 coordinate），格式检查不应再叠一条「还有 1 个「(」未闭合」
+    expect(checkCommandFormat("particleex polarparameter minecraft:end_rod ~ (s1))' 1 null")).toEqual([]);
+    // 对照：同样的内容若**去掉引号**（未加引号字符截断形态）→ 仍精确报错
+    const unquoted = checkCommandFormat("particleex conditional flame 0 0 0 1 1 1 1 0 0 0 1 0 0 (x==1 0.1 5");
+    expect(unquoted).toHaveLength(1);
+    expect(unquoted[0].message).toMatch(/第 15 个参数/);
+    expect(unquoted[0].message).toMatch(/「\(」/);
+  });
+
   it('多行文本：只报有问题的行（跳过空行与 # 注释）', () => {
     const text = ['# 注释', '', COND, COND_UNQUOTED, 'particleex clearparticle'].join('\n');
     const reports = checkCommandsFormat(text);
