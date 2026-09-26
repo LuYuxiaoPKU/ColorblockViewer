@@ -2,7 +2,7 @@
  "version": "1.21.11",
  "date": "2026-09-25",
  "source": "Mojang 官方 1.21.11 client.jar（全混淆）逐类 javap -c -p 全量扫描",
- "note": "115 注册表类型 → 混淆粒子类/provider 完整映射（115/115、0 歧义）。kin 字段：C=friction float 字段（含来源类）、B=gravity float 字段、lifetime=base|own（own=自管/构造器覆写寿命）。13 个非默认类型已逐字节码与 26.2 比对一致 → kinematics 表 1.21.11 分区不新增条目。",
+ "note": "115 注册表类型 → 混淆粒子类/provider 完整映射（115/115、0 歧义）。kin 字段：C=friction float 字段（含来源类）、B=gravity float 字段、lifetime=base|own（own=自管/构造器覆写寿命）。19 个非默认类型已逐字节码与 26.2 比对一致（13 个 2026-09-25 + current_down/explosion_emitter/gust_emitter_large/gust_emitter_small/trail/firefly 2026-09-26）→ kinematics 表 1.21.11 分区不新增条目。",
  "verifiedAgainst262": [
   "explosion",
   "sonic_boom",
@@ -16,7 +16,13 @@
   "pale_oak_leaves",
   "tinted_leaves",
   "trial_spawner_detection",
-  "trial_spawner_detection_ominous"
+  "trial_spawner_detection_ominous",
+  "current_down",
+  "explosion_emitter",
+  "gust_emitter_large",
+  "gust_emitter_small",
+  "trail",
+  "firefly"
  ],
  "types": {
   "angry_villager": {
