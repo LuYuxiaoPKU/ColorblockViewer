@@ -144,12 +144,16 @@
 // 无条目）——命令用它会走模组报错路径，不进本表。
 //
 // 版本分区：26.2 分区证据来自 26.2 字节码。'1.21.11' 分区 2026-09-25 已逐类型
-// 核对混淆版 client.jar（115 注册表类型全覆盖，映射见 data/name_particle_map.json）：
-// 13 个非默认运动学类型（explosion/sonic_boom/gust/small_gust/poof/portal/rain/
+// 核对混淆版 client.jar（115 注册表类型全覆盖，映射见 docs/evidence/
+// name_particle_map_1.21.11.json）：19 个非默认运动学类型与 26.2 一致
+// （13 个 2026-09-25：explosion/sonic_boom/gust/small_gust/poof/portal/rain/
 // snowflake/cherry_leaves/pale_oak_leaves/tinted_leaves/trial_spawner_detection/
-// trial_spawner_detection_ominous）常量与自管 tick 均与 26.2 一致（rain 初速
-// x/z 系数 0.3d vs f2d(0.3f) 为 ULP 级差异，落在既有近似内，且引擎本不建模
-// rain 初速）→ 按"差异优先"口径不新增条目，仅保留 end_rod。
+// trial_spawner_detection_ominous；6 个 2026-09-26：current_down/hmz、
+// explosion_emitter/hli、gust_emitter_large+small 共用 hlf、trail/hmv、
+// firefly/hky——常量与管道顺序均与 26.2 对应类一致，仍属"近似收录"注释
+// 所列的世界状态/发射器口径）（rain 初速 x/z 系数 0.3d vs f2d(0.3f) 为 ULP
+// 级差异，落在既有近似内，且引擎本不建模 rain 初速）→ 按"差异优先"口径
+// 不新增条目，仅保留 end_rod。
 
 export type MotionKind = 'base' | 'portal' | 'reverse_portal' | 'vibration' | 'fly_straight' | 'fly_towards' | 'leaves';
 
