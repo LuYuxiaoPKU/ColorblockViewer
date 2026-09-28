@@ -145,7 +145,7 @@
 //
 // 版本分区：26.2 分区证据来自 26.2 字节码。'1.21.11' 分区 2026-09-25 已逐类型
 // 核对混淆版 client.jar（115 注册表类型全覆盖，映射见 docs/evidence/
-// name_particle_map_1.21.11.json）：73 个非默认运动学类型与 26.2 一致
+// name_particle_map_1.21.11.json）：77 个非默认运动学类型与 26.2 一致
 // （13 个 2026-09-25：explosion/sonic_boom/gust/small_gust/poof/portal/rain/
 // snowflake/cherry_leaves/pale_oak_leaves/tinted_leaves/trial_spawner_detection/
 // trial_spawner_detection_ominous；6 个 2026-09-26：current_down/hmz、
@@ -216,7 +216,16 @@
 // provider 逐一一致：hmr$a ≡ ComposterFillProvider 白色+setLifetime
 // (nextInt(5)+3)、hmr$b ≡ DolphinSpeedProvider 颜色 (0.3f,0.5f,1.0f)+
 // setAlpha(1.0f·0.7f)、hmr$c ≡ EggCrackProvider 白色、hmr$d ≡
-// HappyVillagerProvider 白色、hmr$e ≡ Provider 无覆写）
+// HappyVillagerProvider 白色、hmr$e ≡ Provider 无覆写）+ 4 个 2026-09-29
+// 批次 H：item 族（hkg ≡ BreakingItemParticle：公共构造器三轴初速
+// ×0.10000000149011612d 后 + 命令速度、5 参构造器 gravity 1.0f 显式、
+// quadSize ÷2、uo/vo = nextFloat·3.0f 两次、layer 按 sprite 缺失态选
+// OPAQUE/TRANSLUCENT（26.2 侧 bySprite 同语义）、getU0/U1/V0/V1 四式同式；
+// 4 个 provider 与 26.2 BreakingItemParticle 系逐一一致：hkg$b ≡
+// ItemParticleProvider getSprite 管道（updateForTopItem GROUND+
+// pickParticleMaterial、缺失态回退 missingSprite）、hkg$c ≡ Provider 直接
+// 取 item、hkg$a ≡ CobwebProvider cobweb 固定项、hkg$d ≡ SlimeProvider
+// slime_ball 固定项、hkg$e ≡ SnowballProvider snowball 固定项）
 // （rain 初速 x/z 系数 0.3d vs f2d(0.3f) 为 ULP 级差异，落在既有近似内，
 // 且引擎本不建模 rain 初速）→ 按"差异优先"口径不新增条目，仅保留 end_rod。
 
