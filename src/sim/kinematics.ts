@@ -145,7 +145,7 @@
 //
 // 版本分区：26.2 分区证据来自 26.2 字节码。'1.21.11' 分区 2026-09-25 已逐类型
 // 核对混淆版 client.jar（115 注册表类型全覆盖，映射见 docs/evidence/
-// name_particle_map_1.21.11.json）：103 个非默认运动学类型与 26.2 一致
+// name_particle_map_1.21.11.json）：114 个非默认运动学类型与 26.2 一致
 // （13 个 2026-09-25：explosion/sonic_boom/gust/small_gust/poof/portal/rain/
 // snowflake/cherry_leaves/pale_oak_leaves/tinted_leaves/trial_spawner_detection/
 // trial_spawner_detection_ominous；6 个 2026-09-26：current_down/hmz、
@@ -292,7 +292,8 @@
 // 0.6666667f 偏移）·0.65f+0.35f 同式、quadSize ×1.5f、寿命 6 固定；
 // hmm ≡ SpitParticle：基类 hkv（≡ 26.2 ExplodeParticle）+gravity 0.5f 构造器
 // 显式；hmn ≡ SplashParticle：基类 hna（≡ 26.2 WaterDropParticle 已随 rain
-// 核对）+gravity 0.04f 构造器显式+(vx,vy,vz) 全零时以 (vx,0.1d,vz) 覆写初速；
+// 核对）+gravity 0.04f 构造器显式+vy==0 且 (vx!=0 或 vz!=0) 时以 (vx,0.1d,vz)
+// 覆写初速；
 // hmt ≡ TotemParticle：基类 hmf（≡ 26.2 SimpleAnimatedParticle）+1.25f 传入
 // 基类、friction 0.6f 显式、三轴初速覆写为命令速度、quadSize ×0.75f、寿命
 // 60+nextInt(12)、构造器末 setSpriteFromAge、颜色 nextInt(4) 分支（0 →
@@ -305,7 +306,26 @@
 // super+withBlock(15)、TRANSLUCENT 层、tick = delay>0 时 delay−− 不 super 否
 // 则 super.tick；6 个 provider 与 26.2 对应 provider 逐一一致：hlm$a/hlp$a/
 // hmm$a/hmn$a 直传（hmn sprite get(random)）、hmt$a/hme$a 构造器+setAlpha(1.0f)
-// （hme 经选项 delay() 传构造器））
+// （hme 经选项 delay() 传构造器））；新批 K6 11 个 2026-09-29 批次 K6：
+// ominous_spawning/enchant/nautilus/vault_connection/dragon_breath/dust_plume/
+// elder_guardian/vibration/firework/flash/fishing（hlb ≡ FlyStraightTowardsParticle
+// 位置式 tick srgbLerp 同式+withBlock(15)+provider scale randomBetween(3.0f,5.0f)；
+// hlc ≡ FlyTowardsPositionParticle y 带 −1.2f·f2d(t⁴)+发光分支 withBlock(15)/
+// addSmoothBlockEmission(t⁴)、hlc$c = true+LifetimeAlpha(0.0f,0.6f,0.25f,1.0f)+
+// scale 1.5f；hkm ≡ DragonBreathParticle friction 0.96f+落体 yd += 0.002d+
+// move 后 xz ×1.1d/×f2d(0.96f)、hkm$a setPower；hkr ≡ DustPlumeParticle
+// hke 15 参 dx+0.15000000596046448d+颜色 ARGB(12235202)/255f−nextFloat·0.2f+
+// tick gravity×0.88f+friction×0.92f；hks ≡ ElderGuardianParticle 直接继承
+// hlq+entityTranslucent+Guardian 模型+gravity fconst_0+lifetime 30；hmx ≡
+// VibrationSignalParticle rot/pitch = atan2 同式+tick t = 1.0d/(lifetime−age)
+// 三轴 Mth.lerp 归位+双四边 rotateX(−t6)/rotateX(t6)；hkz$c ≡ SparkParticle
+// 寿命 48+nextInt(12)+extract 跳过 (age+lifetime)/3%2==0+tick trail 派生新
+// Spark age = lifetime/2；hkz$b ≡ OverlayParticle lifetime 4+alpha = 0.6f−
+// ((age+delta)−1.0f)·0.25f·0.5f+7.1f·sin 尺寸；hmy ≡ WakeParticle ×
+// 0.30000001192092896d 两轴+yd = nextFloat·0.2f+0.1f+gravity fconst_0+
+// tick istore_1 = 60−lifetime+三轴 ×0.9800000190734863d+sprites.get(
+// istore_1%4, 4)；hkz$e ≡ FireworkParticles$Starter+四路音效/shape
+// tableswitch/256.0d 远判、hkz$1/hkz$a/hkz$d 与 26.2 对应类逐一一致）
 // （rain 初速 x/z 系数 0.3d vs f2d(0.3f) 为 ULP 级差异，落在既有近似内，
 // 且引擎本不建模 rain 初速）→ 按"差异优先"口径不新增条目，仅保留 end_rod。
 
