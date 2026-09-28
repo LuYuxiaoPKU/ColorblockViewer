@@ -145,7 +145,7 @@
 //
 // 版本分区：26.2 分区证据来自 26.2 字节码。'1.21.11' 分区 2026-09-25 已逐类型
 // 核对混淆版 client.jar（115 注册表类型全覆盖，映射见 docs/evidence/
-// name_particle_map_1.21.11.json）：114 个非默认运动学类型与 26.2 一致
+// name_particle_map_1.21.11.json）：115 个非默认运动学类型与 26.2 一致
 // （13 个 2026-09-25：explosion/sonic_boom/gust/small_gust/poof/portal/rain/
 // snowflake/cherry_leaves/pale_oak_leaves/tinted_leaves/trial_spawner_detection/
 // trial_spawner_detection_ominous；6 个 2026-09-26：current_down/hmz、
@@ -326,6 +326,12 @@
 // tick istore_1 = 60−lifetime+三轴 ×0.9800000190734863d+sprites.get(
 // istore_1%4, 4)；hkz$e ≡ FireworkParticles$Starter+四路音效/shape
 // tableswitch/256.0d 远判、hkz$1/hkz$a/hkz$d 与 26.2 对应类逐一一致）
+// （批次 K7 1 个 2026-09-29：end_rod（hku ≡ EndRodParticle：构造器 hmf.<init>(…,
+// 0.0125f) ≡ SimpleAnimatedParticle.<init>(…, 0.0125f) 逐指令一致、基类
+// friction 0.91f 同源、三轴速度直传、quadSize ×0.75f、寿命 60+nextInt(12)、
+// 颜色 15916745（c(I) ≡ setFadeColor(I)）、构造器末 setSpriteFromAge、move =
+// AABB.move+setBoundingBox+setLocationFromBoundingbox、hku$a 直传一致；
+// 1.21.11 分区唯一表项为引擎 motion 自管口径而非版本差异）
 // （rain 初速 x/z 系数 0.3d vs f2d(0.3f) 为 ULP 级差异，落在既有近似内，
 // 且引擎本不建模 rain 初速）→ 按"差异优先"口径不新增条目，仅保留 end_rod。
 
