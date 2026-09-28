@@ -145,7 +145,7 @@
 //
 // 版本分区：26.2 分区证据来自 26.2 字节码。'1.21.11' 分区 2026-09-25 已逐类型
 // 核对混淆版 client.jar（115 注册表类型全覆盖，映射见 docs/evidence/
-// name_particle_map_1.21.11.json）：88 个非默认运动学类型与 26.2 一致
+// name_particle_map_1.21.11.json）：90 个非默认运动学类型与 26.2 一致
 // （13 个 2026-09-25：explosion/sonic_boom/gust/small_gust/poof/portal/rain/
 // snowflake/cherry_leaves/pale_oak_leaves/tinted_leaves/trial_spawner_detection/
 // trial_spawner_detection_ominous；6 个 2026-09-26：current_down/hmz、
@@ -247,7 +247,13 @@
 // gravity 0.01f、颜色 (0.32f,0.5f,0.22f)、getParticleLimit 覆写 SPORE_BLOSSOM
 // 两侧同式）、hmq$c ≡ UnderwaterProvider 5 参构造器直传+颜色 (0.4f,0.4f,0.7f)、
 // hmq$d ≡ WarpedSporeProvider 初速 y f2d(nextFloat)·(−1.9d)·0.1d（nextFloat
-// 两次）+颜色 (0.1f,0.1f,0.3f)+setSize 0.001f²，常量序列两侧逐字节一致）
+// 两次）+颜色 (0.1f,0.1f,0.3f)+setSize 0.001f²，常量序列两侧逐字节一致；
+// 批次 K1 2 个 2026-09-29：Heart 族（hlg ≡ HeartParticle：
+// speedUpWhenYMotionIsBlocked、friction 0.86f 显式、三轴初速
+// ×0.009999999776482582d、yd 再 +0.1d、quadSize ×1.5f、寿命 16、无物理、
+// getQuadSize (age+delta)/lifetime·32.0f·clamp 同式；2 个 provider 与 26.2
+// 对应 provider 逐一一致：hlg$a ≡ AngryVillagerProvider y+0.5d 出生+
+// setColor(1,1,1)、hlg$b ≡ Provider 直传无覆写）
 // （rain 初速 x/z 系数 0.3d vs f2d(0.3f) 为 ULP 级差异，落在既有近似内，
 // 且引擎本不建模 rain 初速）→ 按"差异优先"口径不新增条目，仅保留 end_rod。
 

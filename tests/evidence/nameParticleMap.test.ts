@@ -2,7 +2,7 @@
 // 完整性锁：115 注册表类型全覆盖、字段完备、与 kinematics 表 1.21.11 分区交叉一致。
 // 取证来源：Mojang 官方 1.21.11 client.jar（全混淆）逐类 javap -c -p；
 // 构造器调用逐条对 provider dump 核验（112 个 `<init>` + 3 个 static-factory `hms.a`，
-// 与 how 字段一致，2026-09-25）。88 个非默认运动学类型已逐字节码与 26.2 比对一致
+// 与 how 字段一致，2026-09-25）。90 个非默认运动学类型已逐字节码与 26.2 比对一致
 // （13 个 2026-09-25 + current_down/explosion_emitter/gust_emitter_large+small/
 // trail/firefly 2026-09-26 + dust_color_transition 2026-09-29 + 批次 A 10 个
 // 2026-09-29：campfire×2/dust/crit/damage_indicator/enchanted_hit/falling_dust/
@@ -14,7 +14,7 @@
 // （hms$b ≡ TerrainParticle$Provider 随 block 系追加）+ 批次 G 5 个 2026-09-29：
 // SuspendedTown 族（hmr 族）+ 批次 H 4 个 2026-09-29：item 族（hkg 族）+ 批次 I 7 个
 // 2026-09-29：Spell 族（hml 族）+ 批次 J 4 个 2026-09-29：Suspended 族
-// （hmq 族））
+// （hmq 族）+ 批次 K1 2 个 2026-09-29：Heart 族（hlg 族））
 // → kinematics 表 1.21.11 分区按"差异优先"口径
 // 不新增条目（见 kinematics.ts 版本分区注释）。
 
@@ -78,7 +78,7 @@ describe('1.21.11 类型→混淆粒子类映射（取证文件完整性）', ()
     expect(sf).toEqual(['block', 'block_crumble', 'dust_pillar']);
   });
 
-  it('88 个已核对一致类型 + end_rod 的粒子类与 javap 抽样核验一致', () => {
+  it('90 个已核对一致类型 + end_rod 的粒子类与 javap 抽样核验一致', () => {
     expect(map.types.end_rod.particle).toBe('hku');
     expect(map.types.explosion.particle).toBe('hlh');
     expect(map.types.sonic_boom.particle).toBe('hmj');
@@ -214,13 +214,20 @@ describe('1.21.11 类型→混淆粒子类映射（取证文件完整性）', ()
     expect(map.types.spore_blossom_air.particle).toBe('hmq$b$1');
     expect(map.types.underwater.particle).toBe('hmq');
     expect(map.types.warped_spore.particle).toBe('hmq');
-    expect(map.verifiedAgainst262).toHaveLength(88);
+    // 2026-09-29 批次 K1：Heart 族 2 型 → hlg（≡ HeartParticle：
+    // speedUpWhenYMotionIsBlocked、friction 0.86f 显式、三轴初速
+    // ×0.009999999776482582d、yd 再 +0.1d、quadSize ×1.5f、寿命 16、
+    // 无物理、getQuadSize (age+delta)/lifetime·32.0f·clamp 同式；2 个
+    // provider 与 26.2 对应 provider 逐一一致）
+    expect(map.types.angry_villager.particle).toBe('hlg');
+    expect(map.types.heart.particle).toBe('hlg');
+    expect(map.verifiedAgainst262).toHaveLength(90);
   });
 
-  it('交叉一致：kinematics 表 1.21.11 分区只含 end_rod（88 类型与 26.2 一致 → 不新增条目，差异优先口径）', () => {
+  it('交叉一致：kinematics 表 1.21.11 分区只含 end_rod（90 类型与 26.2 一致 → 不新增条目，差异优先口径）', () => {
     expect(Object.keys(NATIVE_KINEMATICS['1.21.11'])).toEqual(['end_rod']);
     expect(Object.keys(NATIVE_LIFETIME['1.21.11'])).toEqual(['end_rod']);
-    // 已核对一致的类型分两类：82 个在 26.2 分区有表项（常量一致、表内不重复）；
+    // 已核对一致的类型分两类：84 个在 26.2 分区有表项（常量一致、表内不重复）；
     // current_down/explosion_emitter/gust_emitter_* /firefly 在 26.2 分区亦无表项
     // （世界状态/发射器近似，两版本同一口径）；trail 是引擎元例外（p.trailTarget
     // 分支，两版本均不在表内）
