@@ -2,7 +2,7 @@
 // 完整性锁：115 注册表类型全覆盖、字段完备、与 kinematics 表 1.21.11 分区交叉一致。
 // 取证来源：Mojang 官方 1.21.11 client.jar（全混淆）逐类 javap -c -p；
 // 构造器调用逐条对 provider dump 核验（112 个 `<init>` + 3 个 static-factory `hms.a`，
-// 与 how 字段一致，2026-09-25）。77 个非默认运动学类型已逐字节码与 26.2 比对一致
+// 与 how 字段一致，2026-09-25）。84 个非默认运动学类型已逐字节码与 26.2 比对一致
 // （13 个 2026-09-25 + current_down/explosion_emitter/gust_emitter_large+small/
 // trail/firefly 2026-09-26 + dust_color_transition 2026-09-29 + 批次 A 10 个
 // 2026-09-29：campfire×2/dust/crit/damage_indicator/enchanted_hit/falling_dust/
@@ -12,7 +12,8 @@
 // GlowParticle 系（hld 族）+ glow_squid_ink/squid_ink（hmp 族）+ 批次 F 8 个
 // 2026-09-29：smoke/ash 系（hke 族）与 block 系（hms 族）+ dust_pillar
 // （hms$b ≡ TerrainParticle$Provider 随 block 系追加）+ 批次 G 5 个 2026-09-29：
-// SuspendedTown 族（hmr 族）+ 批次 H 4 个 2026-09-29：item 族（hkg 族））
+// SuspendedTown 族（hmr 族）+ 批次 H 4 个 2026-09-29：item 族（hkg 族）+ 批次 I 7 个
+// 2026-09-29：Spell 族（hml 族））
 // → kinematics 表 1.21.11 分区按"差异优先"口径
 // 不新增条目（见 kinematics.ts 版本分区注释）。
 
@@ -76,7 +77,7 @@ describe('1.21.11 类型→混淆粒子类映射（取证文件完整性）', ()
     expect(sf).toEqual(['block', 'block_crumble', 'dust_pillar']);
   });
 
-  it('77 个已核对一致类型 + end_rod 的粒子类与 javap 抽样核验一致', () => {
+  it('84 个已核对一致类型 + end_rod 的粒子类与 javap 抽样核验一致', () => {
     expect(map.types.end_rod.particle).toBe('hku');
     expect(map.types.explosion.particle).toBe('hlh');
     expect(map.types.sonic_boom.particle).toBe('hmj');
@@ -190,13 +191,26 @@ describe('1.21.11 类型→混淆粒子类映射（取证文件完整性）', ()
     expect(map.types.item_cobweb.particle).toBe('hkg');
     expect(map.types.item_slime.particle).toBe('hkg');
     expect(map.types.item_snowball.particle).toBe('hkg');
-    expect(map.verifiedAgainst262).toHaveLength(77);
+    // 2026-09-29 批次 I：Spell 族 7 型 → hml（≡ SpellParticle：friction
+    // 0.96f/gravity −0.1f/speedUpWhenYMotionIsBlocked、yd ×0.20000000298023224d、
+    // 零速时 xz ×0.10000000149011612d、尺寸 ×0.75f、寿命 (int)(8.0d/(F·0.8d+0.2d))
+    // 同式、无物理、TRANSLUCENT、tick 自管 alpha 0.05f·lerp 衰减+
+    // isCloseToScopingPlayer（9.0d/旁观者/非创造）清零；4 个 provider 与 26.2
+    // SpellParticle 系逐一一致）
+    expect(map.types.effect.particle).toBe('hml');
+    expect(map.types.instant_effect.particle).toBe('hml');
+    expect(map.types.witch.particle).toBe('hml');
+    expect(map.types.entity_effect.particle).toBe('hml');
+    expect(map.types.infested.particle).toBe('hml');
+    expect(map.types.raid_omen.particle).toBe('hml');
+    expect(map.types.trial_omen.particle).toBe('hml');
+    expect(map.verifiedAgainst262).toHaveLength(84);
   });
 
-  it('交叉一致：kinematics 表 1.21.11 分区只含 end_rod（77 类型与 26.2 一致 → 不新增条目，差异优先口径）', () => {
+  it('交叉一致：kinematics 表 1.21.11 分区只含 end_rod（84 类型与 26.2 一致 → 不新增条目，差异优先口径）', () => {
     expect(Object.keys(NATIVE_KINEMATICS['1.21.11'])).toEqual(['end_rod']);
     expect(Object.keys(NATIVE_LIFETIME['1.21.11'])).toEqual(['end_rod']);
-    // 已核对一致的类型分两类：71 个在 26.2 分区有表项（常量一致、表内不重复）；
+    // 已核对一致的类型分两类：78 个在 26.2 分区有表项（常量一致、表内不重复）；
     // current_down/explosion_emitter/gust_emitter_* /firefly 在 26.2 分区亦无表项
     // （世界状态/发射器近似，两版本同一口径）；trail 是引擎元例外（p.trailTarget
     // 分支，两版本均不在表内）

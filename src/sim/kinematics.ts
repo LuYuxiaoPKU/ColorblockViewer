@@ -145,7 +145,7 @@
 //
 // 版本分区：26.2 分区证据来自 26.2 字节码。'1.21.11' 分区 2026-09-25 已逐类型
 // 核对混淆版 client.jar（115 注册表类型全覆盖，映射见 docs/evidence/
-// name_particle_map_1.21.11.json）：77 个非默认运动学类型与 26.2 一致
+// name_particle_map_1.21.11.json）：84 个非默认运动学类型与 26.2 一致
 // （13 个 2026-09-25：explosion/sonic_boom/gust/small_gust/poof/portal/rain/
 // snowflake/cherry_leaves/pale_oak_leaves/tinted_leaves/trial_spawner_detection/
 // trial_spawner_detection_ominous；6 个 2026-09-26：current_down/hmz、
@@ -225,7 +225,18 @@
 // ItemParticleProvider getSprite 管道（updateForTopItem GROUND+
 // pickParticleMaterial、缺失态回退 missingSprite）、hkg$c ≡ Provider 直接
 // 取 item、hkg$a ≡ CobwebProvider cobweb 固定项、hkg$d ≡ SlimeProvider
-// slime_ball 固定项、hkg$e ≡ SnowballProvider snowball 固定项）
+// slime_ball 固定项、hkg$e ≡ SnowballProvider snowball 固定项）+ 7 个
+// 2026-09-29 批次 I：Spell 族（hml ≡ SpellParticle：出生位置
+// y+0.5d−nextDouble 两轴、originalAlpha 1.0f、friction 0.96f、gravity
+// −0.1f、speedUpWhenYMotionIsBlocked、yd ×0.20000000298023224d、零速时
+// xz ×0.10000000149011612d、尺寸 ×0.75f、寿命 (int)(8.0d/(F·0.8d+0.2d))
+// 同式、无物理、TRANSLUCENT 层、tick 自管 alpha =
+// isCloseToScopingPlayer?0.0f:0.05f·lerp(alpha,originalAlpha)、setAlpha
+// 覆写同步 originalAlpha、isCloseToScopingPlayer = 玩家距 ≤9.0d+旁观者+
+// 非创造（两侧同式）；4 个 provider 与 26.2 对应 provider 逐一一致：hml$a
+// ≡ Provider 颜色取选项 RGB+setAlpha(选项 alpha)、hml$b ≡ MobEffectProvider
+// 颜色+setAlpha(选项 alpha)、hml$c ≡ InstantProvider 无覆写、hml$d ≡
+// WitchProvider 1.0f/(nextFloat·0.5f+0.35f)/1.0f 颜色（nextFloat 一次））
 // （rain 初速 x/z 系数 0.3d vs f2d(0.3f) 为 ULP 级差异，落在既有近似内，
 // 且引擎本不建模 rain 初速）→ 按"差异优先"口径不新增条目，仅保留 end_rod。
 
