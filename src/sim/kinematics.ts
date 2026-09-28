@@ -145,7 +145,7 @@
 //
 // 版本分区：26.2 分区证据来自 26.2 字节码。'1.21.11' 分区 2026-09-25 已逐类型
 // 核对混淆版 client.jar（115 注册表类型全覆盖，映射见 docs/evidence/
-// name_particle_map_1.21.11.json）：95 个非默认运动学类型与 26.2 一致
+// name_particle_map_1.21.11.json）：97 个非默认运动学类型与 26.2 一致
 // （13 个 2026-09-25：explosion/sonic_boom/gust/small_gust/poof/portal/rain/
 // snowflake/cherry_leaves/pale_oak_leaves/tinted_leaves/trial_spawner_detection/
 // trial_spawner_detection_ominous；6 个 2026-09-26：current_down/hmz、
@@ -273,7 +273,15 @@
 // lifetime·32.0f·clamp 同式、tick = super.tick+removed 检查+
 // setSpriteFromAge+2.0d 半径内最近玩家 y 高时 y/yd ×(1+0.2d) 修正；
 // 2 个 provider 与 26.2 对应 provider 逐一一致：hlx$a ≡ Provider 直传、
-// hlx$b ≡ SneezeProvider setColor(0.22f,1.0f,0.53f)+setAlpha(0.4f)）
+// hlx$b ≡ SneezeProvider setColor(0.22f,1.0f,0.53f)+setAlpha(0.4f)；
+// 批次 K4 2 个 2026-09-29：SculkCharge 族（hmc ≡ SculkChargeParticle/
+// hmd ≡ SculkChargePopParticle：同构——初速直传+sprite first 出生+
+// friction 0.96f 构造器显式、scale 1.5f/1.0f、无物理、TRANSLUCENT 层、
+// getLightCoords 覆写 super+withBlock(15)（sipush 240）、tick = super.tick
+// +setSpriteFromAge；2 个 Record provider 与 26.2 对应 provider 逐一一致：
+// hmc$a setAlpha(1.0f)+setParticleSpeed 直传+oRoll/roll 取选项 roll()+
+// setLifetime(nextInt(12)+8)、hmd$a setAlpha(1.0f)+setParticleSpeed 直传
+// +setLifetime(nextInt(4)+6)）
 // （rain 初速 x/z 系数 0.3d vs f2d(0.3f) 为 ULP 级差异，落在既有近似内，
 // 且引擎本不建模 rain 初速）→ 按"差异优先"口径不新增条目，仅保留 end_rod。
 
