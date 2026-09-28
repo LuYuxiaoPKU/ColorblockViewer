@@ -17,9 +17,9 @@ Minecraft 玩家调粒子效果的痛点：`/particle` 或模组的粒子命令�
 
 ## 预览对象
 
-### 1. AnotherColorBlock 模组的 `/particleex` 命令
+### 1. ColorBlock 模组的 `/particleex` 命令
 
-**AnotherColorBlock** 是一个 Minecraft Fabric 粒子效果模组：它用自定义
+**ColorBlock** 是一个 Minecraft Fabric 粒子效果模组：它用自定义
 `/particleex` 命令生成位置/颜色/速度随表达式逐 tick 变化的粒子——例如极坐标
 运动（`x,y,z=4*cos(t*0.2),0,4*sin(t*0.2)` 的环形火焰）、颜色随时间渐变、
 条件触发生成、粒子分组批量修改。命令家族共 13 个子命令：
@@ -36,10 +36,11 @@ Minecraft 玩家调粒子效果的痛点：`/particle` 或模组的粒子命令�
 模组 1.21.1–26.2 各版本分支的命令树与表达式引擎经源码 diff 确认完全一致，
 因此本预览对模组支持的**全部 MC 版本**语义有效。
 
-（注：原模组以 CC0 发布在 MCBBS（该论坛已关闭）且已停止维护；2026-08 出现
-社区维护版 [noone89A/AnotherColorBlock](https://github.com/noone89A/AnotherColorBlock)
-（1.21~26.2 独立分支）。本预览器的 1:1 移植以原版模组 jar 字节码为准，不受
-社区版重写影响。）
+（注：原版模组 **ColorBlock** 以 CC0 发布在 MCBBS（该论坛已关闭）且已停止维护；
+2026-08 出现社区维护版
+[AnotherColorBlock（noone89A）](https://github.com/noone89A/AnotherColorBlock)
+（内部名 ParticleEx，1.21~26.2 独立分支）。本预览器的 1:1 移植以**原版
+ColorBlock** jar 字节码为准，不受社区版重写影响。）
 
 ### 2. 原版 `/particle` 命令
 

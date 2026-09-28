@@ -3,7 +3,7 @@
 //
 // 素材来源与口径：
 //  - 教程的 translate/scale/rotate/rotateDeg 是 ExParticle 扩展函数，本引擎
-//    （AnotherColorBlock 1:1 移植）**无这些函数** → 变换类用例改用 4x4 齐次矩阵
+//    （ColorBlock 1:1 移植）**无这些函数** → 变换类用例改用 4x4 齐次矩阵
 //    字面量（行向量约定，与教程一致）手写等价矩阵；
 //  - 行向量齐次矩阵的平移分量在**第 4 行**末三列：
 //    translate(tx,ty,tz) = (1,0,0,0,,0,1,0,0,,0,0,1,0,,tx,ty,tz,1)；
