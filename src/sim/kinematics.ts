@@ -145,7 +145,7 @@
 //
 // 版本分区：26.2 分区证据来自 26.2 字节码。'1.21.11' 分区 2026-09-25 已逐类型
 // 核对混淆版 client.jar（115 注册表类型全覆盖，映射见 docs/evidence/
-// name_particle_map_1.21.11.json）：68 个非默认运动学类型与 26.2 一致
+// name_particle_map_1.21.11.json）：73 个非默认运动学类型与 26.2 一致
 // （13 个 2026-09-25：explosion/sonic_boom/gust/small_gust/poof/portal/rain/
 // snowflake/cherry_leaves/pale_oak_leaves/tinted_leaves/trial_spawner_detection/
 // trial_spawner_detection_ominous；6 个 2026-09-26：current_down/hmz、
@@ -208,7 +208,15 @@
 // TerrainParticle 三 provider 逐一一致）+ 1 个 2026-09-29 批次 F 追加：
 // dust_pillar（hms$b ≡ TerrainParticle$Provider 三高斯 /30·(vy+g/2)·/30+
 // nextInt(20)+20 寿命与 26.2 表 dust_pillar providerSpawn 条目逐一一致，
-// 随 block 系入列）
+// 随 block 系入列）+ 5 个 2026-09-29 批次 G：SuspendedTown 族（hmr ≡
+// SuspendedTownParticle：颜色 nextFloat·0.1f+0.2f 三轴同值、setSize 0.02f²、
+// quadSize ×= (nextFloat·0.6f+0.5f)、三轴初速 ×0.02d、寿命 (int)(20.0d/
+// (F·0.8d+0.2d)) 同式、tick 自管三轴 ×0.99d 无重力、move 仅位移+
+// setLocationFromBoundingbox、OPAQUE 层；5 个 provider 覆写与 26.2 对应
+// provider 逐一一致：hmr$a ≡ ComposterFillProvider 白色+setLifetime
+// (nextInt(5)+3)、hmr$b ≡ DolphinSpeedProvider 颜色 (0.3f,0.5f,1.0f)+
+// setAlpha(1.0f·0.7f)、hmr$c ≡ EggCrackProvider 白色、hmr$d ≡
+// HappyVillagerProvider 白色、hmr$e ≡ Provider 无覆写）
 // （rain 初速 x/z 系数 0.3d vs f2d(0.3f) 为 ULP 级差异，落在既有近似内，
 // 且引擎本不建模 rain 初速）→ 按"差异优先"口径不新增条目，仅保留 end_rod。
 
