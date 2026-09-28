@@ -145,7 +145,7 @@
 //
 // 版本分区：26.2 分区证据来自 26.2 字节码。'1.21.11' 分区 2026-09-25 已逐类型
 // 核对混淆版 client.jar（115 注册表类型全覆盖，映射见 docs/evidence/
-// name_particle_map_1.21.11.json）：60 个非默认运动学类型与 26.2 一致
+// name_particle_map_1.21.11.json）：68 个非默认运动学类型与 26.2 一致
 // （13 个 2026-09-25：explosion/sonic_boom/gust/small_gust/poof/portal/rain/
 // snowflake/cherry_leaves/pale_oak_leaves/tinted_leaves/trial_spawner_detection/
 // trial_spawner_detection_ominous；6 个 2026-09-26：current_down/hmz、
@@ -192,7 +192,23 @@
 // （hmp ≡ SquidInkParticle：friction 0.92f、无物理、isAir 时
 // yd −= 0.0074d 同式、hmp$b ≡ SquidInkParticle$Provider 黑色两侧一致；
 // glow_squid_ink 同族 hmp$a ≡ GlowInkProvider colorFromFloat(1,0.2,0.8,0.6)，
-// 随批次 E 12 型入列）
+// 随批次 E 12 型入列）+ 7 个 2026-09-29 批次 F：smoke 系（hke ≡
+// BaseAshSmokeParticle：friction 0.96f、speedUpWhenYMotionIsBlocked、尺寸
+// ×0.75f、寿命 (int)(size/(0.8·F+0.2))·scale 同式；hmh ≡ SmokeParticle
+// scale 0.3f/lifetime 8/gravity −0.1f、hnc ≡ WhiteSmokeParticle +颜色
+// 0.7294118/0.69411767/0.7607843、hll ≡ LargeSmokeParticle scale 2.5f；
+// hkc ≡ AshParticle scale 0.5f/lifetime 20/gravity 0.1f/无物理、hnb ≡
+// WhiteAshParticle scale 0.0125f/颜色 12235202 拆 RGB——5 个 provider 覆写
+// 常量与 26.2 对应 provider 逐一一致，含 white_ash 初速 −1.9·g·0.1d 三轴）
+// + block 系（hms ≡ TerrainParticle：gravity 1.0f 显式、颜色 0.6f×3 乘
+// tint、尺寸 ÷2、uo/vo = nextFloat·3.0f、getU/V0/1 四式同式、static-factory
+// 过滤 isAir/moving_piston/shouldSpawnTerrainParticles 两侧一致；hms$a ≡
+// CrumblingProvider 零速+nextInt(10)+1 寿命、hms$b ≡ Provider 三高斯
+// /30·(vy+g/2)·/30+nextInt(20)+20 寿命、hms$c ≡ Provider 原速，与 26.2
+// TerrainParticle 三 provider 逐一一致）+ 1 个 2026-09-29 批次 F 追加：
+// dust_pillar（hms$b ≡ TerrainParticle$Provider 三高斯 /30·(vy+g/2)·/30+
+// nextInt(20)+20 寿命与 26.2 表 dust_pillar providerSpawn 条目逐一一致，
+// 随 block 系入列）
 // （rain 初速 x/z 系数 0.3d vs f2d(0.3f) 为 ULP 级差异，落在既有近似内，
 // 且引擎本不建模 rain 初速）→ 按"差异优先"口径不新增条目，仅保留 end_rod。
 
@@ -415,7 +431,7 @@ export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>>
     },
     dust_pillar: {
       friction: 0.9800000190734863, // TerrainParticle → Particle 构造器 fround(0.98f)
-      gravityY: -0.04, // TerrainParticle 基类 gravity 1.0f → −0.04d×1.0f（恰精确）
+      gravityY: -0.04, // TerrainParticle 构造器显式 gravity 1.0f（fconst_1 putfield）→ −0.04d×1.0f（恰精确）
       // Provider 覆写（构造器之后）：setParticleSpeed(g1/30.0d, cmdVy + g2/2.0d, g3/30.0d)
       // → setLifetime(20 + I(20))。x/z 命令速度被赋值覆写（setParticleSpeed 语义）。
       providerSpawn: (r, c) => {

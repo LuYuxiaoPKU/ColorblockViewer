@@ -2,14 +2,16 @@
 // 完整性锁：115 注册表类型全覆盖、字段完备、与 kinematics 表 1.21.11 分区交叉一致。
 // 取证来源：Mojang 官方 1.21.11 client.jar（全混淆）逐类 javap -c -p；
 // 构造器调用逐条对 provider dump 核验（112 个 `<init>` + 3 个 static-factory `hms.a`，
-// 与 how 字段一致，2026-09-25）。60 个非默认运动学类型已逐字节码与 26.2 比对一致
+// 与 how 字段一致，2026-09-25）。68 个非默认运动学类型已逐字节码与 26.2 比对一致
 // （13 个 2026-09-25 + current_down/explosion_emitter/gust_emitter_large+small/
 // trail/firefly 2026-09-26 + dust_color_transition 2026-09-29 + 批次 A 10 个
 // 2026-09-29：campfire×2/dust/crit/damage_indicator/enchanted_hit/falling_dust/
 // sweep_attack/block_marker/reverse_portal + 批次 B 6 个 2026-09-29：dripping 系
 // 全族 hkn 族 + 批次 C 3 个 2026-09-29：landing 系 + 批次 D 8 个 2026-09-29：
 // falling 系 + 批次 E 13 个 2026-09-29：RisingParticle 系（hmb 族）与
-// GlowParticle 系（hld 族）+ glow_squid_ink/squid_ink（hmp 族））
+// GlowParticle 系（hld 族）+ glow_squid_ink/squid_ink（hmp 族）+ 批次 F 8 个
+// 2026-09-29：smoke/ash 系（hke 族）与 block 系（hms 族）+ dust_pillar
+// （hms$b ≡ TerrainParticle$Provider 随 block 系追加））
 // → kinematics 表 1.21.11 分区按"差异优先"口径
 // 不新增条目（见 kinematics.ts 版本分区注释）。
 
@@ -53,9 +55,10 @@ describe('1.21.11 类型→混淆粒子类映射（取证文件完整性）', ()
       expect(v.particle, n).toMatch(/^[a-z0-9]+(\$[a-z0-9]+)*$/);
       expect(v.provider, n).toMatch(/^[a-z0-9]+\$[a-z]$/);
       expect(v.how, n).toMatch(/^direct$|^static-factory:/);
-      // friction/gravity = "<float>@" 前缀（如 "0.98f@hlg.hlq-base"，@ 后为来源类.字段路径）
+      // friction/gravity = "<float>@" 前缀（如 "0.98f@hlg.hlq-base"，@ 后为来源类.字段路径；
+      // gravity 可为负（批次 F smoke 系 −0.1f 构造器参数传入）
       expect(v.friction, n).toMatch(/^\d+(\.\d+)?f@/);
-      expect(v.gravity, n).toMatch(/^\d+(\.\d+)?f@/);
+      expect(v.gravity, n).toMatch(/^-?\d+(\.\d+)?f@/);
       expect(['base', 'own'], n).toContain(v.lifetime);
       // 继承链首 = 粒子类本身；链段全为小写混淆名（可含 $ 内部类段、$N 匿名类段；
       // dust 族链末 ma 是 hkq 的泛型上界 <T extends ma>，非继承终点——终点实为 hmg）
@@ -72,7 +75,7 @@ describe('1.21.11 类型→混淆粒子类映射（取证文件完整性）', ()
     expect(sf).toEqual(['block', 'block_crumble', 'dust_pillar']);
   });
 
-  it('60 个已核对一致类型 + end_rod 的粒子类与 javap 抽样核验一致', () => {
+  it('68 个已核对一致类型 + end_rod 的粒子类与 javap 抽样核验一致', () => {
     expect(map.types.end_rod.particle).toBe('hku');
     expect(map.types.explosion.particle).toBe('hlh');
     expect(map.types.sonic_boom.particle).toBe('hmj');
@@ -154,13 +157,27 @@ describe('1.21.11 类型→混淆粒子类映射（取证文件完整性）', ()
     expect(map.types.wax_off.particle).toBe('hld');
     expect(map.types.wax_on.particle).toBe('hld');
     expect(map.types.squid_ink.particle).toBe('hmp');
-    expect(map.verifiedAgainst262).toHaveLength(60);
+    // 2026-09-29 批次 F：smoke/ash 系 → hke 族（hke ≡ BaseAshSmokeParticle
+    // 构造器/tick/尺寸与 26.2 逐指令一致，5 个 provider 覆写常量逐一一致）
+    // + block 系 → hms（≡ TerrainParticle：gravity 1.0f 显式、颜色 0.6f×3
+    // 乘 tint、uo/vo = nextFloat·3.0f、getU/V0/1 四式同式；3 个 provider
+    // 与 26.2 TerrainParticle 系逐一一致）+ dust_pillar 追加（hms$b ≡
+    // TerrainParticle$Provider 随 block 系逐指令核对一致）
+    expect(map.types.smoke.particle).toBe('hmh');
+    expect(map.types.white_smoke.particle).toBe('hnc');
+    expect(map.types.large_smoke.particle).toBe('hll');
+    expect(map.types.ash.particle).toBe('hkc');
+    expect(map.types.white_ash.particle).toBe('hnb');
+    expect(map.types.block.particle).toBe('hms');
+    expect(map.types.block_crumble.particle).toBe('hms');
+    expect(map.types.dust_pillar.particle).toBe('hms');
+    expect(map.verifiedAgainst262).toHaveLength(68);
   });
 
-  it('交叉一致：kinematics 表 1.21.11 分区只含 end_rod（60 类型与 26.2 一致 → 不新增条目，差异优先口径）', () => {
+  it('交叉一致：kinematics 表 1.21.11 分区只含 end_rod（68 类型与 26.2 一致 → 不新增条目，差异优先口径）', () => {
     expect(Object.keys(NATIVE_KINEMATICS['1.21.11'])).toEqual(['end_rod']);
     expect(Object.keys(NATIVE_LIFETIME['1.21.11'])).toEqual(['end_rod']);
-    // 已核对一致的类型分两类：54 个在 26.2 分区有表项（常量一致、表内不重复）；
+    // 已核对一致的类型分两类：62 个在 26.2 分区有表项（常量一致、表内不重复）；
     // current_down/explosion_emitter/gust_emitter_* /firefly 在 26.2 分区亦无表项
     // （世界状态/发射器近似，两版本同一口径）；trail 是引擎元例外（p.trailTarget
     // 分支，两版本均不在表内）
