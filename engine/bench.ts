@@ -52,7 +52,7 @@ function nodeCount(block: CompiledBlock): number {
 }
 
 // 生成约 4×(leaves-1) 节点的混合表达式（int/double/字段/函数/比较），
-// 形态贴近 AnotherColorBlock 速度/颜色表达式（三角运动 + 系数的混合）。
+// 形态贴近 ColorBlock 速度/颜色表达式（三角运动 + 系数的混合）。
 //
 // 形状约束：用平衡二叉树拼接（leaves=8 时深度 ~3）。不能用左/右结合逐层外包——
 // Java 原版 Parser 对深嵌套存在指数级回溯（16 层 ≈ 0.7s，20 层挂死，Probe25
