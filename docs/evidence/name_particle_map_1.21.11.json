@@ -2,7 +2,7 @@
  "version": "1.21.11",
  "date": "2026-09-25",
  "source": "Mojang 官方 1.21.11 client.jar（全混淆）逐类 javap -c -p 全量扫描",
- "note": "115 注册表类型 → 混淆粒子类/provider 完整映射（115/115、0 歧义）。kin 字段：C=friction float 字段（含来源类）、B=gravity float 字段、lifetime=base|own（own=自管/构造器覆写寿命）。47 个非默认类型已逐字节码与 26.2 比对一致（13 个 2026-09-25 + current_down/explosion_emitter/gust_emitter_large/gust_emitter_small/trail/firefly 2026-09-26 + dust_color_transition 2026-09-29 + 10 个 2026-09-29 批次 A：campfire_cosy_smoke/campfire_signal_smoke/dust/crit/damage_indicator/enchanted_hit/falling_dust/sweep_attack/block_marker/reverse_portal + 6 个 2026-09-29 批次 B：dripping 系全族（hkn 族构造器/tick/冷却色与 14 个 provider 覆写常量与 DripParticle 系及 26.2 provider 全一致）+ 3 个 2026-09-29 批次 C：landing 系（hkn$c ≡ DripLandParticle（构造器 16.0d 同式）、3 个 provider 覆写常量与 26.2 LavaLand/HoneyLand/ObsidianTearLand 逐一一致）+ 8 个 2026-09-29 批次 D：falling 系（hkn$j/i/k/d ≡ FallingParticle/FallAndLand/HoneyFallAndLand/DripstoneFallAndLand、8 个 provider 覆写常量逐一一致））→ kinematics 表 1.21.11 分区不新增条目。",
+ "note": "115 注册表类型 → 混淆粒子类/provider 完整映射（115/115、0 歧义）。kin 字段：C=friction float 字段（含来源类）、B=gravity float 字段、lifetime=base|own（own=自管/构造器覆写寿命）。60 个非默认类型已逐字节码与 26.2 比对一致（13 个 2026-09-25 + current_down/explosion_emitter/gust_emitter_large/gust_emitter_small/trail/firefly 2026-09-26 + dust_color_transition 2026-09-29 + 10 个 2026-09-29 批次 A：campfire_cosy_smoke/campfire_signal_smoke/dust/crit/damage_indicator/enchanted_hit/falling_dust/sweep_attack/block_marker/reverse_portal + 6 个 2026-09-29 批次 B：dripping 系全族（hkn 族构造器/tick/冷却色与 14 个 provider 覆写常量与 DripParticle 系及 26.2 provider 全一致）+ 3 个 2026-09-29 批次 C：landing 系（hkn$c ≡ DripLandParticle（构造器 16.0d 同式）、3 个 provider 覆写常量与 26.2 LavaLand/HoneyLand/ObsidianTearLand 逐一一致）+ 8 个 2026-09-29 批次 D：falling 系（hkn$j/i/k/d ≡ FallingParticle/FallAndLand/HoneyFallAndLand/DripstoneFallAndLand、8 个 provider 覆写常量逐一一致）+ 12 个 2026-09-29 批次 E：RisingParticle 系与 GlowParticle 系（hmb ≡ RisingParticle（friction 0.96f、初速 ×0.01d+0.05f·fsub、寿命 (int)(8.0d/(F·0.8d+0.2d))+4 同式）→ hla ≡ FlameParticle（OPAQUE、move 自管、尺寸 quadSize·(1−(t+age)/2)、光照 addSmoothBlockEmission 同式）、hmk ≡ SoulParticle（scale 1.5f、isGlowing→240 亮度、TRANSLUCENT、tick 自管 setSpriteFromAge）+ hld ≡ GlowParticle（friction 0.96f、speedUpWhenYMotionIsBlocked、尺寸 ×0.75f、无物理、同式）；7 个 provider 覆写常量（hla$b scale 0.5f、hmk$a setAlpha(1)+isGlowing、hld$a 1/0.9/1+×0.25d+nextInt(2)+2、hld$b 0.5d−nextDouble 双轴+(0.6,1,0.8)/(0.08,0.4,0.4)+yd×0.2d+零速 xz×0.1d+8.0d 寿命、hld$c (0.29,0.58,0.51)/(0.43,0.77,0.62)+×0.01d+nextInt(30)+10、hld$d 1/0.9/1+×0.01d/2、hld$e (0.91,0.55,0.08)+×0.01d/2）与 26.2 对应 provider 逐一一致）+ 1 个 2026-09-29 批次 E 追加：squid_ink（hmp ≡ SquidInkParticle：friction 0.92f、无物理、isAir 时 yd −= 0.007400000002235174d 同式、provider hmp$b ≡ SquidInkParticle$Provider 黑色 -16777216 两侧一致；glow_squid_ink 同族，provider hmp$a ≡ SquidInkParticle$GlowInkProvider colorFromFloat(1,0.2f,0.8f,0.6f) 两侧一致，随批次 E 入列；注：1.21.11 gravity 字段 B 与 26.2 gravity 均未被构造器显式初始化（Java 默认 0f），26.2 引擎语义 gravityY=−0.04d×f2d(B) → B=0f 的 flame/soul 系、glow 系、ink 系在 26.2 表均为 gravityY 0）→ kinematics 表 1.21.11 分区不新增条目。",
  "verifiedAgainst262": [
   "explosion",
   "sonic_boom",
@@ -50,7 +50,20 @@
   "falling_dripstone_water",
   "falling_honey",
   "falling_nectar",
-  "falling_spore_blossom"
+  "falling_spore_blossom",
+  "flame",
+  "small_flame",
+  "copper_fire_flame",
+  "soul_fire_flame",
+  "soul",
+  "sculk_soul",
+  "glow",
+  "glow_squid_ink",
+  "electric_spark",
+  "scrape",
+  "wax_off",
+  "wax_on",
+  "squid_ink"
  ],
  "types": {
   "angry_villager": {
@@ -174,7 +187,7 @@
    "particle": "hla",
    "provider": "hla$a",
    "how": "direct",
-   "friction": "0.98f@hla.hlq-base",
+   "friction": "0.96f@hmb.C",
    "gravity": "1.0f@hla.hlq-base",
    "lifetime": "base",
    "chain": "hla<hmb<hmg<hlq"
@@ -354,7 +367,7 @@
    "particle": "hld",
    "provider": "hld$a",
    "how": "direct",
-   "friction": "0.98f@hld.hlq-base",
+   "friction": "0.96f@hld.C",
    "gravity": "1.0f@hld.hlq-base",
    "lifetime": "base",
    "chain": "hld<hmg<hlq"
@@ -525,7 +538,7 @@
    "particle": "hla",
    "provider": "hla$a",
    "how": "direct",
-   "friction": "0.98f@hla.hlq-base",
+   "friction": "0.96f@hmb.C",
    "gravity": "1.0f@hla.hlq-base",
    "lifetime": "base",
    "chain": "hla<hmb<hmg<hlq"
@@ -543,7 +556,7 @@
    "particle": "hld",
    "provider": "hld$b",
    "how": "direct",
-   "friction": "0.98f@hld.hlq-base",
+   "friction": "0.96f@hld.C",
    "gravity": "1.0f@hld.hlq-base",
    "lifetime": "base",
    "chain": "hld<hmg<hlq"
@@ -552,8 +565,8 @@
    "particle": "hmp",
    "provider": "hmp$a",
    "how": "direct",
-   "friction": "0.98f@hmp.hlq-base",
-   "gravity": "1.0f@hmp.hlq-base",
+   "friction": "0.92f@hmp.C",
+   "gravity": "0.0f@hmf-B-fconst_0",
    "lifetime": "base",
    "chain": "hmp<hmf<hmg<hlq"
   },
@@ -795,7 +808,7 @@
    "particle": "hld",
    "provider": "hld$c",
    "how": "direct",
-   "friction": "0.98f@hld.hlq-base",
+   "friction": "0.96f@hld.C",
    "gravity": "1.0f@hld.hlq-base",
    "lifetime": "base",
    "chain": "hld<hmg<hlq"
@@ -822,7 +835,7 @@
    "particle": "hmk",
    "provider": "hmk$a",
    "how": "direct",
-   "friction": "0.98f@hmk.hlq-base",
+   "friction": "0.96f@hmb.C",
    "gravity": "1.0f@hmk.hlq-base",
    "lifetime": "base",
    "chain": "hmk<hmb<hmg<hlq"
@@ -840,7 +853,7 @@
    "particle": "hla",
    "provider": "hla$b",
    "how": "direct",
-   "friction": "0.98f@hla.hlq-base",
+   "friction": "0.96f@hmb.C",
    "gravity": "1.0f@hla.hlq-base",
    "lifetime": "base",
    "chain": "hla<hmb<hmg<hlq"
@@ -894,7 +907,7 @@
    "particle": "hmk",
    "provider": "hmk$b",
    "how": "direct",
-   "friction": "0.98f@hmk.hlq-base",
+   "friction": "0.96f@hmk.C",
    "gravity": "1.0f@hmk.hlq-base",
    "lifetime": "base",
    "chain": "hmk<hmb<hmg<hlq"
@@ -903,7 +916,7 @@
    "particle": "hla",
    "provider": "hla$a",
    "how": "direct",
-   "friction": "0.98f@hla.hlq-base",
+   "friction": "0.96f@hmb.C",
    "gravity": "1.0f@hla.hlq-base",
    "lifetime": "base",
    "chain": "hla<hmb<hmg<hlq"
@@ -939,8 +952,8 @@
    "particle": "hmp",
    "provider": "hmp$b",
    "how": "direct",
-   "friction": "0.98f@hmp.hlq-base",
-   "gravity": "1.0f@hmp.hlq-base",
+   "friction": "0.92f@hmp.C",
+   "gravity": "0.0f@hmf-B-fconst_0",
    "lifetime": "base",
    "chain": "hmp<hmf<hmg<hlq"
   },
@@ -1047,7 +1060,7 @@
    "particle": "hld",
    "provider": "hld$d",
    "how": "direct",
-   "friction": "0.98f@hld.hlq-base",
+   "friction": "0.96f@hld.C",
    "gravity": "1.0f@hld.hlq-base",
    "lifetime": "base",
    "chain": "hld<hmg<hlq"
@@ -1056,7 +1069,7 @@
    "particle": "hld",
    "provider": "hld$e",
    "how": "direct",
-   "friction": "0.98f@hld.hlq-base",
+   "friction": "0.96f@hld.C",
    "gravity": "1.0f@hld.hlq-base",
    "lifetime": "base",
    "chain": "hld<hmg<hlq"
