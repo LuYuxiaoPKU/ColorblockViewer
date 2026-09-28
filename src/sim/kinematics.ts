@@ -145,7 +145,7 @@
 //
 // 版本分区：26.2 分区证据来自 26.2 字节码。'1.21.11' 分区 2026-09-25 已逐类型
 // 核对混淆版 client.jar（115 注册表类型全覆盖，映射见 docs/evidence/
-// name_particle_map_1.21.11.json）：84 个非默认运动学类型与 26.2 一致
+// name_particle_map_1.21.11.json）：88 个非默认运动学类型与 26.2 一致
 // （13 个 2026-09-25：explosion/sonic_boom/gust/small_gust/poof/portal/rain/
 // snowflake/cherry_leaves/pale_oak_leaves/tinted_leaves/trial_spawner_detection/
 // trial_spawner_detection_ominous；6 个 2026-09-26：current_down/hmz、
@@ -236,7 +236,18 @@
 // 非创造（两侧同式）；4 个 provider 与 26.2 对应 provider 逐一一致：hml$a
 // ≡ Provider 颜色取选项 RGB+setAlpha(选项 alpha)、hml$b ≡ MobEffectProvider
 // 颜色+setAlpha(选项 alpha)、hml$c ≡ InstantProvider 无覆写、hml$d ≡
-// WitchProvider 1.0f/(nextFloat·0.5f+0.35f)/1.0f 颜色（nextFloat 一次））
+// WitchProvider 1.0f/(nextFloat·0.5f+0.35f)/1.0f 颜色（nextFloat 一次）；
+// 批次 J 4 个 2026-09-29：Suspended 族（hmq ≡ SuspendedParticle：出生 y−0.125d、
+// setSize 0.01f²、quadSize ×= (nextFloat·0.6f+0.2f)、寿命 (int)(16.0d/(F·0.8d+0.2d))
+// 同式、无物理、friction fconst_1 显式、gravity fconst_0 显式、OPAQUE；4 个
+// provider 与 26.2 对应 provider 逐一一致：hmq$a ≡ CrimsonSporeProvider
+// x/z 初速 ×9.999999974752427E-7d、y 初速 ×9.999999747378752E-5d+颜色
+// (0.9f,0.4f,0.5f)、hmq$b ≡ SporeBlossomAirProvider 走匿名子类 hmq$b$1
+// （7 参构造器、初速 y −0.800000011920929d、寿命 randomBetween(500,1000)、
+// gravity 0.01f、颜色 (0.32f,0.5f,0.22f)、getParticleLimit 覆写 SPORE_BLOSSOM
+// 两侧同式）、hmq$c ≡ UnderwaterProvider 5 参构造器直传+颜色 (0.4f,0.4f,0.7f)、
+// hmq$d ≡ WarpedSporeProvider 初速 y f2d(nextFloat)·(−1.9d)·0.1d（nextFloat
+// 两次）+颜色 (0.1f,0.1f,0.3f)+setSize 0.001f²，常量序列两侧逐字节一致）
 // （rain 初速 x/z 系数 0.3d vs f2d(0.3f) 为 ULP 级差异，落在既有近似内，
 // 且引擎本不建模 rain 初速）→ 按"差异优先"口径不新增条目，仅保留 end_rod。
 
