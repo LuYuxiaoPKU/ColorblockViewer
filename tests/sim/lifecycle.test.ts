@@ -1453,10 +1453,12 @@ describe('type{NBT} 渲染消费（nbtVisuals）', () => {
     expect([p1.r, p1.g, p1.b]).toEqual([1, 0, 0]);
   });
 
-  it('dust_color_transition：出生色 = from_color（age 插值不模拟），scale 消费', () => {
+  it('dust_color_transition：from_color = 出生色、to_color 存 colorTo，scale 消费', () => {
     const p1 = v('particle dust_color_transition{from_color:0x0000FF,to_color:0xFF0000,scale:2f}');
     expect(p1.nbtTint).toBe(true);
-    expect([p1.r, p1.g, p1.b]).toEqual([0, 0, 1]);
+    expect([p1.r, p1.g, p1.b]).toEqual([0, 0, 1]); // from_color = 出生色
+    expect(p1.colorFrom).toEqual({ r: 0, g: 0, b: 1 });
+    expect(p1.colorTo).toEqual({ r: 1, g: 0, b: 0 });
     expect(p1.sizeMul).toBe(2);
   });
 

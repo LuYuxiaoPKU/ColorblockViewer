@@ -55,6 +55,10 @@ export interface SpawnRequest {
   vanilla?: boolean;
   /** type{NBT} 解析出的渲染色（dust 的 color）：true 时渲染层不强制出生色为白 */
   nbtTint?: boolean;
+  /** dust_color_transition 的 from_color（= 出生色，r/g/b 初值；渐变插值起点） */
+  colorFrom?: { r: number; g: number; b: number };
+  /** dust_color_transition 的 to_color（渐变终点；渲染层按 age 插值） */
+  colorTo?: { r: number; g: number; b: number };
   /** 点大小倍数（dust 的 scale，缺省 1） */
   sizeMul?: number;
   /** trail{NBT} 的 target（绝对坐标终点；引擎每 tick lerp 归位，TrailParticle.tick 字节码） */
@@ -204,7 +208,8 @@ function nbtVibrationExtra(nbt: string): {
  *  - 渲染色：dust 的 color（DustParticle 构造器把 getColor() 写入 rCol/gCol/bCol；
  *    **逐粒子 ±20% 抖动** randomizeColor —— 预览不抖动，用基准色，已知近似）
  *    与 ARGB 类型（entity_effect/tinted_leaves/flash）的 color；
- *    dust_color_transition 取 from_color 作为出生色（age 插值不模拟，取动画起点）；
+ *    dust_color_transition 的 from_color/to_color（from = 出生色 = r/g/b；
+ *    to = 渐变终点存 colorTo，渲染层按 lerpColors 字节码做 age 插值，见 points.ts）；
  *    trail 的 color（TrailParticle 构造器 scaleRGB(color, 0.875+0.25·jitter) 三轴各自
  *    抖动——预览不抖动且亮度取 1.0，已知近似）。
  *  - 点大小倍数：scale（仅 dust/dust_color_transition 有该字段，
@@ -215,7 +220,15 @@ function nbtVibrationExtra(nbt: string): {
  *    → 不消费，近似清单见 kinematics）；trail 的 target/duration 由 execVanilla
  *    经 nbtTrailExtra 消费。
  *  非收录类型或空载荷 → 全缺省（白 + 1）。 */
-function nbtVisuals(name: string, nbt: string | null): { nbtTint: boolean; sizeMul: number; r: number; g: number; b: number } {
+function nbtVisuals(name: string, nbt: string | null): {
+  nbtTint: boolean;
+  sizeMul: number;
+  r: number;
+  g: number;
+  b: number;
+  colorFrom?: { r: number; g: number; b: number };
+  colorTo?: { r: number; g: number; b: number };
+} {
   const def = { nbtTint: false, sizeMul: 1, r: 1, g: 1, b: 1 };
   if (nbt === null) return def;
   const base = name.replace(/^minecraft:/i, '').toLowerCase();
@@ -230,24 +243,39 @@ function nbtVisuals(name: string, nbt: string | null): { nbtTint: boolean; sizeM
   let r = 1, g = 1, b = 1;
   let tint = false;
   let sizeMul = 1;
+  let colorFrom: { r: number; g: number; b: number } | undefined;
+  let colorTo: { r: number; g: number; b: number } | undefined;
   for (const sf of schema) {
     const f = fields.find(x => x.key === sf.key);
     if (!f) continue; // 可选字段缺省：不消费（渲染色/大小保持缺省）
     if (sf.kind === 'rgb' || sf.kind === 'argb') {
-      const isTintKey = sf.key === 'color' || (base === 'dust_color_transition' && sf.key === 'from_color');
+      const isTintKey =
+        sf.key === 'color' ||
+        (base === 'dust_color_transition' && (sf.key === 'from_color' || sf.key === 'to_color'));
       if (isTintKey) {
         const comp = parseColorField(f.val, sf.kind);
         if (comp) {
           // argb 首分量 = alpha（VECTOR4F 编码序）→ 渲染色取 RGB 三分量
           const rgb = sf.kind === 'argb' ? comp.slice(1) : comp;
-          r = rgb[0]; g = rgb[1]; b = rgb[2]; tint = true;
+          if (sf.key === 'to_color') {
+            colorTo = { r: rgb[0], g: rgb[1], b: rgb[2] };
+          } else {
+            r = rgb[0]; g = rgb[1]; b = rgb[2]; tint = true;
+            if (sf.key === 'from_color') colorFrom = { r: rgb[0], g: rgb[1], b: rgb[2] };
+          }
         }
       }
     } else if (sf.key === 'scale' && typeof f.val === 'number' && f.val >= 0.01 && f.val <= 4) {
       sizeMul = f.val;
     }
   }
-  return { nbtTint: tint, sizeMul, r, g, b };
+  return {
+    nbtTint: tint,
+    sizeMul,
+    r, g, b,
+    ...(colorFrom ? { colorFrom } : {}),
+    ...(colorTo ? { colorTo } : {}),
+  };
 }
 
 // ---------- 各命令入口（与 ClientNetworkHandler 各 handler 一一对应）----------
@@ -458,6 +486,8 @@ export function execVanilla(cmd: ParticleCommand & { kind: 'vanilla' }, sink: Sp
       group: null, exe: null, exeStruct: null,
       vanilla: true,
       nbtTint: vis.nbtTint,
+      colorFrom: vis.colorFrom,
+      colorTo: vis.colorTo,
       sizeMul: vis.sizeMul,
       trailTarget: trailExtra.target,
       trailDuration: trailExtra.duration,
@@ -484,6 +514,8 @@ export function execVanilla(cmd: ParticleCommand & { kind: 'vanilla' }, sink: Sp
       group: null, exe: null, exeStruct: null,
       vanilla: true,
       nbtTint: vis.nbtTint,
+      colorFrom: vis.colorFrom,
+      colorTo: vis.colorTo,
       sizeMul: vis.sizeMul,
       trailTarget: trailExtra.target,
       trailDuration: trailExtra.duration,

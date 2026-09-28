@@ -425,6 +425,11 @@ export interface RenderParticle {
   vanilla: boolean;
   /** type{NBT} 已解析出渲染色（dust 的 color）：true 时不强制出生色为白 */
   nbtTint?: boolean;
+  /** dust_color_transition 的 from_color（= 出生色；渐变插值起点） */
+  colorFrom?: { r: number; g: number; b: number };
+  /** dust_color_transition 的 to_color（渐变终点；按 frac = age/(lifetime+1) 插值，
+   *  DustColorTransitionParticle.lerpColors 字节码） */
+  colorTo?: { r: number; g: number; b: number };
   /** 点大小倍数（dust 的 scale，默认 1） */
   sizeMul?: number;
 }
@@ -466,6 +471,16 @@ export function syncToPoints(
         r = 1;
         g = 1;
         b = 1;
+      }
+      // dust_color_transition：渲染色随寿命进度 from→to 线性插值（DustColorTransitionParticle
+      // .lerpColors 字节码：frac = ((float)age + delta)/(lifetime+1)，JOML lerp =
+      // from + (to-from)·frac；颜色在渲染期计算（extract 每帧调用）非 tick 期。
+      // delta = 渲染帧内插值（0..1），tick 制预览取 0）
+      if (p.colorFrom && p.colorTo) {
+        const frac = p.age / (p.lifetime + 1);
+        r = p.colorFrom.r + (p.colorTo.r - p.colorFrom.r) * frac;
+        g = p.colorFrom.g + (p.colorTo.g - p.colorFrom.g) * frac;
+        b = p.colorFrom.b + (p.colorTo.b - p.colorFrom.b) * frac;
       }
       // end_rod：每 tick 向 targetColor 靠拢 20%（= (0.8)^age 剩余量，逐 tick
       // 递推的闭式解；1.21.1 反编译 EndRodParticle.setTargetColor(15916745)）

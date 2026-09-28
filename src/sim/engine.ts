@@ -219,8 +219,11 @@ export class SimEngine {
       exeStruct,
       alive: true,
       vanilla: req.vanilla === true,
-      // type{NBT} 渲染色/大小（dust 的 color/scale；缺省 = 白 + 1，不进对象字面量）
+      // type{NBT} 渲染色/大小（dust 的 color/scale；dust_color_transition 的
+      // from/to_color 渐变色对；缺省 = 白 + 1，不进对象字面量）
       ...(req.nbtTint ? { nbtTint: true } : {}),
+      ...(req.colorFrom ? { colorFrom: req.colorFrom } : {}),
+      ...(req.colorTo ? { colorTo: req.colorTo } : {}),
       ...(req.sizeMul !== undefined ? { sizeMul: req.sizeMul } : {}),
       ...(req.trailTarget ? { trailTarget: req.trailTarget } : {}),
       ...(req.vibrationTarget ? { vibrationTarget: req.vibrationTarget } : {}),
