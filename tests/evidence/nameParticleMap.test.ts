@@ -2,7 +2,7 @@
 // 完整性锁：115 注册表类型全覆盖、字段完备、与 kinematics 表 1.21.11 分区交叉一致。
 // 取证来源：Mojang 官方 1.21.11 client.jar（全混淆）逐类 javap -c -p；
 // 构造器调用逐条对 provider dump 核验（112 个 `<init>` + 3 个 static-factory `hms.a`，
-// 与 how 字段一致，2026-09-25）。103 个非默认运动学类型已逐字节码与 26.2 比对一致
+// 与 how 字段一致，2026-09-25）。114 个非默认运动学类型已逐字节码与 26.2 比对一致
 // （13 个 2026-09-25 + current_down/explosion_emitter/gust_emitter_large+small/
 // trail/firefly 2026-09-26 + dust_color_transition 2026-09-29 + 批次 A 10 个
 // 2026-09-29：campfire×2/dust/crit/damage_indicator/enchanted_hit/falling_dust/
@@ -18,7 +18,11 @@
 // 2026-09-29：bubble 系（hki/hkh/hkj）+ 批次 K3 2 个 2026-09-29：
 // PlayerCloud 族（hlx 族）+ 批次 K4 2 个 2026-09-29：SculkCharge 族
 // （hmc/hmd）+ 批次 K5 6 个 2026-09-29：
-// lava/note/spit/splash/totem_of_undying/shriek（hlm/hlp/hmm/hmn/hmt/hme））
+// lava/note/spit/splash/totem_of_undying/shriek（hlm/hlp/hmm/hmn/hmt/hme）
+// + 批次 K6 11 个 2026-09-29：
+// ominous_spawning/enchant/nautilus/vault_connection/dragon_breath/dust_plume/
+// elder_guardian/vibration/firework/flash/fishing
+// （hlb/hlc×3/hkm/hkr/hks/hmx/hkz$c/hkz$b/hmy））
 // → kinematics 表 1.21.11 分区按"差异优先"口径
 // 不新增条目（见 kinematics.ts 版本分区注释）。
 
@@ -82,7 +86,7 @@ describe('1.21.11 类型→混淆粒子类映射（取证文件完整性）', ()
     expect(sf).toEqual(['block', 'block_crumble', 'dust_pillar']);
   });
 
-  it('103 个已核对一致类型 + end_rod 的粒子类与 javap 抽样核验一致', () => {
+  it('114 个已核对一致类型 + end_rod 的粒子类与 javap 抽样核验一致', () => {
     expect(map.types.end_rod.particle).toBe('hku');
     expect(map.types.explosion.particle).toBe('hlh');
     expect(map.types.sonic_boom.particle).toBe('hmj');
@@ -259,7 +263,8 @@ describe('1.21.11 类型→混淆粒子类映射（取证文件完整性）', ()
     // 显式、三轴 ×0.009999999776482582d 后 yd +0.2d、颜色 sin 三轴同式、
     // 寿命 6；hmm ≡ SpitParticle：基类 hkv（≡ ExplodeParticle）+gravity 0.5f
     // 显式；hmn ≡ SplashParticle：基类 hna（≡ WaterDropParticle）+gravity
-    // 0.04f 显式+零速时 (vx,0.1d,vz) 覆写；hmt ≡ TotemParticle：基类 hmf
+    // 0.04f 显式+vy==0 且 (vx!=0 或 vz!=0) 时 (vx,0.1d,vz) 覆写；hmt ≡
+    // TotemParticle：基类 hmf
     // （≡ SimpleAnimatedParticle）+1.25f+friction 0.6f+寿命 60+nextInt(12)+
     // 颜色 nextInt(4) 分支同式；hme ≡ ShriekParticle：quadSize 0.85f/delay
     // 选项/寿命 30/gravity 0f 显式/初速 (0,0.1d,0)/extract 双四边旋转同式；
@@ -270,10 +275,43 @@ describe('1.21.11 类型→混淆粒子类映射（取证文件完整性）', ()
     expect(map.types.splash.particle).toBe('hmn');
     expect(map.types.totem_of_undying.particle).toBe('hmt');
     expect(map.types.shriek.particle).toBe('hme');
-    expect(map.verifiedAgainst262).toHaveLength(103);
+    // 2026-09-29 批次 K6：ominous_spawning → hlb（≡ FlyStraightTowardsParticle：
+    // 零速、hasPhysics=false、寿命 (int)(nextFloat·5.0f)+25、位置式 tick
+    // srgbLerp 同式、withBlock(15)、provider scale randomBetween(3,5)）；
+    // enchant/nautilus/vault_connection 共用 hlc（≡ FlyTowardsPositionParticle：
+    // 位置式 tick y 带 −1.2f·f2d(t⁴)、发光?withBlock(15):addSmoothBlockEmission
+    // (t⁴)、hlc$c = true+LifetimeAlpha(0.0f,0.6f,0.25f,1.0f)+scale 1.5f）；
+    // dragon_breath → hkm（≡ DragonBreathParticle：friction 0.96f、寿命
+    // (int)(20.0d/(F·0.8d+0.2d))、落体 yd += 0.002d+move 后 xz ×1.1d/×f2d(0.96f)、
+    // hkm$a setPower）；dust_plume → hkr（≡ DustPlumeParticle：hke 15 参
+    // dx+0.15000000596046448d、颜色 ARGB(12235202)/255f−nextFloat·0.2f、
+    // tick gravity×0.88f+friction×0.92f）；elder_guardian → hks（≡
+    // ElderGuardianParticle：直接继承 hlq、entityTranslucent+Guardian 模型、
+    // gravity fconst_0、lifetime 30）；vibration → hmx（≡ VibrationSignalParticle：
+    // rot/pitch = atan2 同式、tick t = 1.0d/(lifetime−age) 三轴 Mth.lerp 归位、
+    // 双四边 rotateX(−t6)/rotateX(t6)）；firework → hkz$c（≡ SparkParticle：
+    // 寿命 48+nextInt(12)、extract 跳过 (age+lifetime)/3%2==0、tick trail 派生
+    // 新 Spark age = lifetime/2）；flash → hkz$b（≡ OverlayParticle：lifetime 4、
+    // alpha = 0.6f−((age+delta)−1.0f)·0.25f·0.5f、7.1f·sin 尺寸）；fishing → hmy
+    // （≡ WakeParticle：×0.30000001192092896d 两轴+yd = nextFloat·0.2f+0.1f、
+    // 寿命 (int)(8.0d/(F·0.8d+0.2d))、gravity fconst_0、tick istore_1 = 60−lifetime、
+    // 三轴 ×0.9800000190734863d、sprites.get(istore_1%4, 4)）；11 个 provider
+    // 与 26.2 对应 provider 逐一一致
+    expect(map.types.ominous_spawning.particle).toBe('hlb');
+    expect(map.types.enchant.particle).toBe('hlc');
+    expect(map.types.nautilus.particle).toBe('hlc');
+    expect(map.types.vault_connection.particle).toBe('hlc');
+    expect(map.types.dragon_breath.particle).toBe('hkm');
+    expect(map.types.dust_plume.particle).toBe('hkr');
+    expect(map.types.elder_guardian.particle).toBe('hks');
+    expect(map.types.vibration.particle).toBe('hmx');
+    expect(map.types.firework.particle).toBe('hkz$c');
+    expect(map.types.flash.particle).toBe('hkz$b');
+    expect(map.types.fishing.particle).toBe('hmy');
+    expect(map.verifiedAgainst262).toHaveLength(114);
   });
 
-  it('交叉一致：kinematics 表 1.21.11 分区只含 end_rod（103 类型与 26.2 一致 → 不新增条目，差异优先口径）', () => {
+  it('交叉一致：kinematics 表 1.21.11 分区只含 end_rod（114 类型与 26.2 一致 → 不新增条目，差异优先口径）', () => {
     expect(Object.keys(NATIVE_KINEMATICS['1.21.11'])).toEqual(['end_rod']);
     expect(Object.keys(NATIVE_LIFETIME['1.21.11'])).toEqual(['end_rod']);
     // 已核对一致的类型分两类：97 个在 26.2 分区有表项（常量一致、表内不重复）；
