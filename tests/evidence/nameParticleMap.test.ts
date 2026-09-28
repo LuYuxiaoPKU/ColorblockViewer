@@ -2,7 +2,7 @@
 // 完整性锁：115 注册表类型全覆盖、字段完备、与 kinematics 表 1.21.11 分区交叉一致。
 // 取证来源：Mojang 官方 1.21.11 client.jar（全混淆）逐类 javap -c -p；
 // 构造器调用逐条对 provider dump 核验（112 个 `<init>` + 3 个 static-factory `hms.a`，
-// 与 how 字段一致，2026-09-25）。97 个非默认运动学类型已逐字节码与 26.2 比对一致
+// 与 how 字段一致，2026-09-25）。103 个非默认运动学类型已逐字节码与 26.2 比对一致
 // （13 个 2026-09-25 + current_down/explosion_emitter/gust_emitter_large+small/
 // trail/firefly 2026-09-26 + dust_color_transition 2026-09-29 + 批次 A 10 个
 // 2026-09-29：campfire×2/dust/crit/damage_indicator/enchanted_hit/falling_dust/
@@ -17,7 +17,8 @@
 // （hmq 族）+ 批次 K1 2 个 2026-09-29：Heart 族（hlg 族）+ 批次 K2 3 个
 // 2026-09-29：bubble 系（hki/hkh/hkj）+ 批次 K3 2 个 2026-09-29：
 // PlayerCloud 族（hlx 族）+ 批次 K4 2 个 2026-09-29：SculkCharge 族
-// （hmc/hmd））
+// （hmc/hmd）+ 批次 K5 6 个 2026-09-29：
+// lava/note/spit/splash/totem_of_undying/shriek（hlm/hlp/hmm/hmn/hmt/hme））
 // → kinematics 表 1.21.11 分区按"差异优先"口径
 // 不新增条目（见 kinematics.ts 版本分区注释）。
 
@@ -81,7 +82,7 @@ describe('1.21.11 类型→混淆粒子类映射（取证文件完整性）', ()
     expect(sf).toEqual(['block', 'block_crumble', 'dust_pillar']);
   });
 
-  it('97 个已核对一致类型 + end_rod 的粒子类与 javap 抽样核验一致', () => {
+  it('103 个已核对一致类型 + end_rod 的粒子类与 javap 抽样核验一致', () => {
     expect(map.types.end_rod.particle).toBe('hku');
     expect(map.types.explosion.particle).toBe('hlh');
     expect(map.types.sonic_boom.particle).toBe('hmj');
@@ -251,13 +252,31 @@ describe('1.21.11 类型→混淆粒子类映射（取证文件完整性）', ()
     // (nextInt(12)+8)+oRoll/roll 取选项、pop setLifetime (nextInt(4)+6)）
     expect(map.types.sculk_charge.particle).toBe('hmc');
     expect(map.types.sculk_charge_pop.particle).toBe('hmd');
-    expect(map.verifiedAgainst262).toHaveLength(97);
+    // 2026-09-29 批次 K5：lava/note/spit/splash/totem_of_undying/shriek →
+    // hlm/hlp/hmm/hmn/hmt/hme（hlm ≡ LavaParticle：gravity 0.75f/friction
+    // 0.999f 显式、三轴 ×0.800000011920929d 后 yd = nextFloat·0.4f+0.05f、
+    // 寿命 16 同式、tick 派生 SMOKE 同式；hlp ≡ NoteParticle：friction 0.66f
+    // 显式、三轴 ×0.009999999776482582d 后 yd +0.2d、颜色 sin 三轴同式、
+    // 寿命 6；hmm ≡ SpitParticle：基类 hkv（≡ ExplodeParticle）+gravity 0.5f
+    // 显式；hmn ≡ SplashParticle：基类 hna（≡ WaterDropParticle）+gravity
+    // 0.04f 显式+零速时 (vx,0.1d,vz) 覆写；hmt ≡ TotemParticle：基类 hmf
+    // （≡ SimpleAnimatedParticle）+1.25f+friction 0.6f+寿命 60+nextInt(12)+
+    // 颜色 nextInt(4) 分支同式；hme ≡ ShriekParticle：quadSize 0.85f/delay
+    // 选项/寿命 30/gravity 0f 显式/初速 (0,0.1d,0)/extract 双四边旋转同式；
+    // 6 个 provider 与 26.2 对应 provider 逐一一致）
+    expect(map.types.lava.particle).toBe('hlm');
+    expect(map.types.note.particle).toBe('hlp');
+    expect(map.types.spit.particle).toBe('hmm');
+    expect(map.types.splash.particle).toBe('hmn');
+    expect(map.types.totem_of_undying.particle).toBe('hmt');
+    expect(map.types.shriek.particle).toBe('hme');
+    expect(map.verifiedAgainst262).toHaveLength(103);
   });
 
-  it('交叉一致：kinematics 表 1.21.11 分区只含 end_rod（97 类型与 26.2 一致 → 不新增条目，差异优先口径）', () => {
+  it('交叉一致：kinematics 表 1.21.11 分区只含 end_rod（103 类型与 26.2 一致 → 不新增条目，差异优先口径）', () => {
     expect(Object.keys(NATIVE_KINEMATICS['1.21.11'])).toEqual(['end_rod']);
     expect(Object.keys(NATIVE_LIFETIME['1.21.11'])).toEqual(['end_rod']);
-    // 已核对一致的类型分两类：91 个在 26.2 分区有表项（常量一致、表内不重复）；
+    // 已核对一致的类型分两类：97 个在 26.2 分区有表项（常量一致、表内不重复）；
     // current_down/explosion_emitter/gust_emitter_* /firefly 在 26.2 分区亦无表项
     // （世界状态/发射器近似，两版本同一口径）；trail 是引擎元例外（p.trailTarget
     // 分支，两版本均不在表内）

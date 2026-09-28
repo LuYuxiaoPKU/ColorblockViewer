@@ -145,7 +145,7 @@
 //
 // 版本分区：26.2 分区证据来自 26.2 字节码。'1.21.11' 分区 2026-09-25 已逐类型
 // 核对混淆版 client.jar（115 注册表类型全覆盖，映射见 docs/evidence/
-// name_particle_map_1.21.11.json）：97 个非默认运动学类型与 26.2 一致
+// name_particle_map_1.21.11.json）：103 个非默认运动学类型与 26.2 一致
 // （13 个 2026-09-25：explosion/sonic_boom/gust/small_gust/poof/portal/rain/
 // snowflake/cherry_leaves/pale_oak_leaves/tinted_leaves/trial_spawner_detection/
 // trial_spawner_detection_ominous；6 个 2026-09-26：current_down/hmz、
@@ -281,7 +281,31 @@
 // +setSpriteFromAge；2 个 Record provider 与 26.2 对应 provider 逐一一致：
 // hmc$a setAlpha(1.0f)+setParticleSpeed 直传+oRoll/roll 取选项 roll()+
 // setLifetime(nextInt(12)+8)、hmd$a setAlpha(1.0f)+setParticleSpeed 直传
-// +setLifetime(nextInt(4)+6)）
+// +setLifetime(nextInt(4)+6)）；
+// 批次 K5 6 个 2026-09-29：lava/note/spit/splash/totem_of_undying/shriek
+// （hlm ≡ LavaParticle：gravity 0.75f/friction 0.999f 构造器显式、三轴初速
+// ×0.800000011920929d 后 yd = nextFloat·0.4f+0.05f、quadSize ×= (nextFloat·
+// 2f+0.2f)、寿命 (int)(16.0d/(F·0.8d+0.2d)) 同式、tick = super.tick+
+// nextFloat > age/lifetime 时原位同速 addParticle 派生 SMOKE；hlp ≡
+// NoteParticle：friction 0.66f 显式、speedUpWhenYMotionIsBlocked、三轴初速
+// ×0.009999999776482582d 后 yd +0.2d、颜色 sin 三轴（+0/0.33333334f/
+// 0.6666667f 偏移）·0.65f+0.35f 同式、quadSize ×1.5f、寿命 6 固定；
+// hmm ≡ SpitParticle：基类 hkv（≡ 26.2 ExplodeParticle）+gravity 0.5f 构造器
+// 显式；hmn ≡ SplashParticle：基类 hna（≡ 26.2 WaterDropParticle 已随 rain
+// 核对）+gravity 0.04f 构造器显式+(vx,vy,vz) 全零时以 (vx,0.1d,vz) 覆写初速；
+// hmt ≡ TotemParticle：基类 hmf（≡ 26.2 SimpleAnimatedParticle）+1.25f 传入
+// 基类、friction 0.6f 显式、三轴初速覆写为命令速度、quadSize ×0.75f、寿命
+// 60+nextInt(12)、构造器末 setSpriteFromAge、颜色 nextInt(4) 分支（0 →
+// (0.6f+F·0.2f, 0.6f+F·0.3f, F·0.2f)、否则 → (0.1f+F·0.2f, 0.4f+F·0.3f,
+// F·0.2f)）两侧同式；hme ≡ ShriekParticle：quadSize 0.85f、delay = 选项 delay
+// 直传、寿命 30 固定、gravity fconst_0 显式、初速 (0,0.1d,0)、getQuadSize
+// quadSize·clamp((age+delta)/lifetime·0.75f) 同式、extract 覆写 delay>0 不
+// 渲染+alpha = 1−clamp((age+delta)/lifetime)+rotationX(−1.0472f)/
+// rotationYXZ(−3.1415927f, 1.0472f, 0.0f) 双四边两次同式、getLightCoords =
+// super+withBlock(15)、TRANSLUCENT 层、tick = delay>0 时 delay−− 不 super 否
+// 则 super.tick；6 个 provider 与 26.2 对应 provider 逐一一致：hlm$a/hlp$a/
+// hmm$a/hmn$a 直传（hmn sprite get(random)）、hmt$a/hme$a 构造器+setAlpha(1.0f)
+// （hme 经选项 delay() 传构造器））
 // （rain 初速 x/z 系数 0.3d vs f2d(0.3f) 为 ULP 级差异，落在既有近似内，
 // 且引擎本不建模 rain 初速）→ 按"差异优先"口径不新增条目，仅保留 end_rod。
 
