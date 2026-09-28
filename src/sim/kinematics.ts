@@ -145,7 +145,7 @@
 //
 // 版本分区：26.2 分区证据来自 26.2 字节码。'1.21.11' 分区 2026-09-25 已逐类型
 // 核对混淆版 client.jar（115 注册表类型全覆盖，映射见 docs/evidence/
-// name_particle_map_1.21.11.json）：47 个非默认运动学类型与 26.2 一致
+// name_particle_map_1.21.11.json）：60 个非默认运动学类型与 26.2 一致
 // （13 个 2026-09-25：explosion/sonic_boom/gust/small_gust/poof/portal/rain/
 // snowflake/cherry_leaves/pale_oak_leaves/tinted_leaves/trial_spawner_detection/
 // trial_spawner_detection_ominous；6 个 2026-09-26：current_down/hmz、
@@ -177,7 +177,22 @@
 // 落地 addParticle(landParticle,0,0,0) 零速；hkn$k ≡ HoneyFallAndLand 加
 // BEEHIVE_DRIP 音；hkn$d ≡ DripstoneFallAndLand 加 lav/water 滴水音 +
 // randomBetween(0.3f,1)；8 个 provider 覆写常量与 26.2 对应 provider 逐一
-// 一致）
+// 一致）；13 个 2026-09-29 批次 E：RisingParticle 系（hmb ≡ RisingParticle：
+// friction 0.96f、初速 ×0.01d 与位置 +f2d((a−a)·0.05f)、寿命 (int)(8.0d/
+// (F·0.8d+0.2d))+4 同式；hla ≡ FlameParticle：OPAQUE、move 自管、尺寸
+// quadSize·(1−(t+age)/2)、光照 addSmoothBlockEmission 同式；hmk ≡
+// SoulParticle：scale 1.5f、isGlowing→亮度 240、TRANSLUCENT、tick 自管
+// setSpriteFromAge）+ GlowParticle 系（hld ≡ GlowParticle：friction 0.96f、
+// speedUpWhenYMotionIsBlocked、尺寸 ×0.75f、无物理、同式；7 个 provider
+// 覆写常量（hla$b scale 0.5f、hmk$a setAlpha(1)+isGlowing、hld$a 1/0.9/1+
+// ×0.25d+nextInt(2)+2、hld$b 0.5d−nextDouble 双轴+(0.6,1,0.8)/(0.08,0.4,0.4)
+// +yd×0.2d+零速 xz×0.1d+8.0d 寿命、hld$c (0.29,0.58,0.51)/(0.43,0.77,0.62)+
+// ×0.01d+nextInt(30)+10、hld$d 1/0.9/1+×0.01d/2、hld$e (0.91,0.55,0.08)+
+// ×0.01d/2）与 26.2 对应 provider 逐一一致）+ 批次 E 追加 1 个 squid_ink
+// （hmp ≡ SquidInkParticle：friction 0.92f、无物理、isAir 时
+// yd −= 0.0074d 同式、hmp$b ≡ SquidInkParticle$Provider 黑色两侧一致；
+// glow_squid_ink 同族 hmp$a ≡ GlowInkProvider colorFromFloat(1,0.2,0.8,0.6)，
+// 随批次 E 12 型入列）
 // （rain 初速 x/z 系数 0.3d vs f2d(0.3f) 为 ULP 级差异，落在既有近似内，
 // 且引擎本不建模 rain 初速）→ 按"差异优先"口径不新增条目，仅保留 end_rod。
 
