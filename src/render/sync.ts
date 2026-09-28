@@ -15,6 +15,8 @@ export interface SnapshotSource {
     lifetime: number;
     vanilla: boolean;
     nbtTint?: boolean;
+    colorFrom?: { r: number; g: number; b: number };
+    colorTo?: { r: number; g: number; b: number };
     sizeMul?: number;
   }[];
 }

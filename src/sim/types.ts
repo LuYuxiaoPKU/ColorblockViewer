@@ -46,6 +46,14 @@ export interface SimParticle {
    *  直接用 r/g/b（= NBT 色）。取证：DustParticle 构造器把 options.getColor()
    *  写入 rCol/gCol/bCol（非 SimpleParticle 的白）。 */
   nbtTint?: boolean;
+  /** dust_color_transition 的 from_color（出生色，= r/g/b 初值；Java 侧 final 字段，
+   *  渲染层渐变插值的起点 —— 渲染期每帧由 lerpColors 覆写 rCol/gCol/bCol，
+   *  group change color 改不到它，DustColorTransitionParticle 字节码） */
+  colorFrom?: { r: number; g: number; b: number };
+  /** dust_color_transition 的 to_color（渐变终点；渲染层按 frac = age/(lifetime+1)
+   *  从 colorFrom 线性插值到此处，DustColorTransitionParticle.lerpColors 字节码：
+   *  frac = ((float)age + delta)/(lifetime+1)，delta = 渲染帧内插值，tick 制预览取 0） */
+  colorTo?: { r: number; g: number; b: number };
   /** 点大小倍数（dust 的 scale，默认 1；原版 quadSize = 0.75·scale，预览按相对倍数） */
   sizeMul?: number;
   /** trail{NBT} 的 target（绝对坐标终点；每 tick lerp 归位，TrailParticle.tick 字节码） */

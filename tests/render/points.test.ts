@@ -174,6 +174,62 @@ describe('syncToPoints 原版帧动画行为（age-progress，1.21.1 反编译�
     expect(layer.color[2]).toBeCloseTo(0.5, 6);
     layer.dispose();
   });
+
+  it('dust_color_transition：渲染色随寿命进度 from→to 线性插值（lerpColors 字节码 frac=age/(lifetime+1)）', () => {
+    const layer = createPointsLayer(4);
+    // from = 蓝 (0,0,1)，to = 红 (1,0,0)；lifetime = 60 → 分母 61
+    const part = (age: number): RenderParticle =>
+      mkPart({
+        name: 'dust_color_transition',
+        age,
+        lifetime: 60,
+        nbtTint: true,
+        r: 0, g: 0, b: 1, // 出生色 = from_color
+        colorFrom: { r: 0, g: 0, b: 1 },
+        colorTo: { r: 1, g: 0, b: 0 },
+      });
+    const cAt = (age: number): [number, number, number] => {
+      syncToPoints(layer, [part(age)]);
+      return [layer.color[0], layer.color[1], layer.color[2]];
+    };
+    // age=0 → frac=0 → from 原样
+    expect(cAt(0)).toEqual([0, 0, 1]);
+    // age=30 → frac=30/61 → r = 30/61, b = 1-30/61（JOML lerp：from+(to-from)·frac）
+    const f = 30 / 61;
+    const c30 = cAt(30);
+    expect(c30[0]).toBeCloseTo(f, 6);
+    expect(c30[1]).toBeCloseTo(0, 6);
+    expect(c30[2]).toBeCloseTo(1 - f, 6);
+    // 单调逼近 to：age 越大 r 越大、b 越小
+    const c45 = cAt(45);
+    expect(c45[0]).toBeGreaterThan(c30[0]);
+    expect(c45[2]).toBeLessThan(c30[2]);
+    // 未带 colorFrom/colorTo 的多帧类型不受影响（smoke 颜色原样）
+    syncToPoints(layer, [mkPart({ name: 'smoke', age: 30, r: 0.3, g: 0.4, b: 0.5 })]);
+    expect(layer.color[0]).toBeCloseTo(0.3, 6);
+    layer.dispose();
+  });
+
+  it('dust_color_transition 渐变优先于 vanilla 出生白（nbtTint 已置位，不强制白）', () => {
+    const layer = createPointsLayer(4);
+    syncToPoints(layer, [
+      mkPart({
+        name: 'dust_color_transition',
+        age: 0,
+        lifetime: 60,
+        vanilla: true,
+        nbtTint: true,
+        r: 0.5, g: 0, b: 0,
+        colorFrom: { r: 0.5, g: 0, b: 0 },
+        colorTo: { r: 0, g: 0, b: 0.5 },
+      }),
+    ]);
+    // age=0 → from 原样（0.5,0,0），未被 vanilla 白覆盖
+    expect(layer.color[0]).toBeCloseTo(0.5, 6);
+    expect(layer.color[1]).toBeCloseTo(0, 6);
+    expect(layer.color[2]).toBeCloseTo(0, 6);
+    layer.dispose();
+  });
 });
 
 describe('atlasKey 版本分区', () => {
