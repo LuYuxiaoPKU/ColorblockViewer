@@ -145,7 +145,7 @@
 //
 // 版本分区：26.2 分区证据来自 26.2 字节码。'1.21.11' 分区 2026-09-25 已逐类型
 // 核对混淆版 client.jar（115 注册表类型全覆盖，映射见 docs/evidence/
-// name_particle_map_1.21.11.json）：20 个非默认运动学类型与 26.2 一致
+// name_particle_map_1.21.11.json）：30 个非默认运动学类型与 26.2 一致
 // （13 个 2026-09-25：explosion/sonic_boom/gust/small_gust/poof/portal/rain/
 // snowflake/cherry_leaves/pale_oak_leaves/tinted_leaves/trial_spawner_detection/
 // trial_spawner_detection_ominous；6 个 2026-09-26：current_down/hmz、
@@ -153,9 +153,19 @@
 // firefly/hky——常量与管道顺序均与 26.2 对应类一致，仍属"近似收录"注释
 // 所列的世界状态/发射器口径；1 个 2026-09-29：dust_color_transition/hko，
 // 基类 hkq ≡ DustParticleBase（friction 0.96f、三轴 ×0.1d、寿命
-// (int)max(f32((int)(8/(D·0.8d+0.2d)))·scale,1.0f) 同式））（rain 初速
-// x/z 系数 0.3d vs f2d(0.3f) 为 ULP 级差异，落在既有近似内，且引擎本不建模
-// rain 初速）→ 按"差异优先"口径不新增条目，仅保留 end_rod。
+// (int)max(f32((int)(8/(D·0.8d+0.2d)))·scale,1.0f) 同式）；10 个 2026-09-29
+// 批次 A：campfire_cosy_smoke+campfire_signal_smoke 共用 hkk（scale 3.0f、
+// 0.25² 尺寸、寿命 signal?nextInt(50)+280:nextInt(50)+80、gravity 3.0E-6f）、
+// dust/hkp（randomizeColor ×(nextFloat·0.4f+0.6f)）、crit+damage_indicator+
+// enchanted_hit 共用 hkl（friction 0.7f、gravity 0.5f、寿命
+// max((int)(6.0d/(F·0.8d+0.6d)),1)、无物理、tick 尾部 gCol×0.96f/bCol×0.9f）、
+// falling_dust/hkw（×0.67499995f 尺寸、自管 tick 落地 roll 归零、yd-=0.003d
+// 且 max(yd,-0.14d)）、sweep_attack/hkd（零速构造、寿命 4、无 move）、
+// block_marker/hkf（零速构造、gravity 0f、lifetime 80）、reverse_portal/hma
+//（portal 位置式，(float)age/lifetime 三轴推进）——常量与管道顺序均与 26.2
+// 对应类一致）（rain 初速 x/z 系数 0.3d vs f2d(0.3f) 为 ULP 级差异，落在既有
+// 近似内，且引擎本不建模 rain 初速）→ 按"差异优先"口径不新增条目，
+// 仅保留 end_rod。
 
 export type MotionKind = 'base' | 'portal' | 'reverse_portal' | 'vibration' | 'fly_straight' | 'fly_towards' | 'leaves';
 
