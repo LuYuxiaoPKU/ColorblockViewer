@@ -145,7 +145,7 @@
 //
 // 版本分区：26.2 分区证据来自 26.2 字节码。'1.21.11' 分区 2026-09-25 已逐类型
 // 核对混淆版 client.jar（115 注册表类型全覆盖，映射见 docs/evidence/
-// name_particle_map_1.21.11.json）：39 个非默认运动学类型与 26.2 一致
+// name_particle_map_1.21.11.json）：47 个非默认运动学类型与 26.2 一致
 // （13 个 2026-09-25：explosion/sonic_boom/gust/small_gust/poof/portal/rain/
 // snowflake/cherry_leaves/pale_oak_leaves/tinted_leaves/trial_spawner_detection/
 // trial_spawner_detection_ominous；6 个 2026-09-26：current_down/hmz、
@@ -171,7 +171,13 @@
 // 26.2 DripParticle provider 逐一一致）；3 个 2026-09-29 批次 C：landing 系
 // 共用 hkn$c ≡ DripLandParticle（构造器 16.0d 寿命同式）+ 3 个 provider 覆写
 // 常量（hkn$n 128.0d/0.522/0.408/0.082、hkn$q 1/0.2857143/0.083333336、
-// hkn$u glow+28.0d/0.51171875/0.03125/0.890625）与 26.2 对应 provider 一致）
+// hkn$u glow+28.0d/0.51171875/0.03125/0.890625）与 26.2 对应 provider 一致）；
+// 8 个 2026-09-29 批次 D：falling 系走 hkn 族（hkn$j ≡ FallingParticle
+// onGround→remove；hkn$i ≡ FallAndLandParticle A=(int)(64.0d/(F·0.8d+0.2d))、
+// 落地 addParticle(landParticle,0,0,0) 零速；hkn$k ≡ HoneyFallAndLand 加
+// BEEHIVE_DRIP 音；hkn$d ≡ DripstoneFallAndLand 加 lav/water 滴水音 +
+// randomBetween(0.3f,1)；8 个 provider 覆写常量与 26.2 对应 provider 逐一
+// 一致）
 // （rain 初速 x/z 系数 0.3d vs f2d(0.3f) 为 ULP 级差异，落在既有近似内，
 // 且引擎本不建模 rain 初速）→ 按"差异优先"口径不新增条目，仅保留 end_rod。
 
