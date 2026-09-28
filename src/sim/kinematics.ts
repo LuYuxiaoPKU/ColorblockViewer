@@ -145,7 +145,7 @@
 //
 // 版本分区：26.2 分区证据来自 26.2 字节码。'1.21.11' 分区 2026-09-25 已逐类型
 // 核对混淆版 client.jar（115 注册表类型全覆盖，映射见 docs/evidence/
-// name_particle_map_1.21.11.json）：90 个非默认运动学类型与 26.2 一致
+// name_particle_map_1.21.11.json）：93 个非默认运动学类型与 26.2 一致
 // （13 个 2026-09-25：explosion/sonic_boom/gust/small_gust/poof/portal/rain/
 // snowflake/cherry_leaves/pale_oak_leaves/tinted_leaves/trial_spawner_detection/
 // trial_spawner_detection_ominous；6 个 2026-09-26：current_down/hmz、
@@ -253,7 +253,18 @@
 // ×0.009999999776482582d、yd 再 +0.1d、quadSize ×1.5f、寿命 16、无物理、
 // getQuadSize (age+delta)/lifetime·32.0f·clamp 同式；2 个 provider 与 26.2
 // 对应 provider 逐一一致：hlg$a ≡ AngryVillagerProvider y+0.5d 出生+
-// setColor(1,1,1)、hlg$b ≡ Provider 直传无覆写）
+// setColor(1,1,1)、hlg$b ≡ Provider 直传无覆写；
+// 批次 K2 3 个 2026-09-29：bubble 系（hki ≡ BubbleParticle：
+// setSize 0.02f²、quadSize ×= (nextFloat·0.6f+0.2f)、三轴初速
+// ×0.20000000298023224d 后 + f2d(nextFloat·2−1)·0.02f 同式、寿命
+// (int)(8.0d/(F·0.8d+0.2d)) 同式、tick 自管（yd += 0.002d/三轴
+// ×0.8500000238418579d/不在水内 remove）、hkh ≡ BubbleColumnUpParticle：
+// gravity −0.125f/friction 0.85f 构造器显式、setSize 0.02f² 与初速/寿命
+// 40.0d 同式、tick = super.tick+removed 检查+不在水内 remove、hkj ≡
+// BubblePopParticle：sprite first 出生+lifetime 4 固定+gravity 0.008f
+// 字段、三轴初速直传、tick 自管（age 递增/age≥lifetime remove/yd −=
+// f2d(0.008f)/三轴 move/基类 hmg.a(hmo) = !removed 时 sprite.get(
+// age,lifetime)+setSprite 与 26.2 setSpriteFromAge 同式））
 // （rain 初速 x/z 系数 0.3d vs f2d(0.3f) 为 ULP 级差异，落在既有近似内，
 // 且引擎本不建模 rain 初速）→ 按"差异优先"口径不新增条目，仅保留 end_rod。
 
