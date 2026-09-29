@@ -41,7 +41,8 @@ export function parse(source: string): CompiledBlock {
   verifyBlock(block); // CodeGen + 类验证阶段的静态错误
   let run: (s: ParticleStruct) => number;
   try {
-    // 主后端：字节码 codegen（单大闭包，无节点级调用，~3–5× 快于闭包后端）；
+    // 主后端：字节码 codegen（单大闭包，无节点级调用；bench 中位 14.07ms 过
+    // 16ms 门槛，约 1.26× 于闭包后端，见 engine/bench.ts 文件头）；
     // new Function 不可用（CSP）或生成失败 → null → 回退闭包后端（同一 AST，
     // 数值/随机序列不变，1029 golden + 双后端对拍测试锁）
     run = codegenBlock(block) ?? compileBlock(block);
