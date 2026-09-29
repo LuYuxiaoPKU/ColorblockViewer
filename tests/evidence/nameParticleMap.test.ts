@@ -68,9 +68,10 @@ describe('1.21.11 类型→混淆粒子类映射（取证文件完整性）', ()
       expect(v.provider, n).toMatch(/^[a-z0-9]+\$[a-z]$/);
       expect(v.how, n).toMatch(/^direct$|^static-factory:/);
       // friction/gravity = "<float>@" 前缀（如 "0.98f@hlg.hlq-base"，@ 后为来源类.字段路径；
-      // gravity 可为负（批次 F smoke 系 −0.1f 构造器参数传入）
+      // gravity 可为负（批次 F smoke 系 −0.1f 构造器参数传入）；
+      // campfire 系 gravity 3.0E-6f 为 javap 原值科学计数法，单列放行
       expect(v.friction, n).toMatch(/^\d+(\.\d+)?f@/);
-      expect(v.gravity, n).toMatch(/^-?\d+(\.\d+)?f@/);
+      expect(v.gravity, n).toMatch(/^-?(\d+(\.\d+)?|3\.0E-6)f@/);
       expect(['base', 'own'], n).toContain(v.lifetime);
       // 继承链首 = 粒子类本身；链段全为小写混淆名（可含 $ 内部类段、$N 匿名类段；
       // dust 族链末 ma 是 hkq 的泛型上界 <T extends ma>，非继承终点——终点实为 hmg）
