@@ -70,7 +70,7 @@ interface Ctx {
 }
 
 // 静态类型推断（与 index.ts staticTypeOf 同款规则；-1 = 需运行期判定）
-function st(n: Node, vt: Map<string, number>): number {
+export function st(n: Node, vt: Map<string, number>): number {
   if (n.k === 'int') return 10;
   if (n.k === 'float') return 7;
   if (n.k === 'imat') return 12;
@@ -97,7 +97,7 @@ function st(n: Node, vt: Map<string, number>): number {
 }
 
 // startSimulation 复刻（类型求值；可抛 codegen 错误，时机与 Java 一致）
-function simulate(n: Node, vt: Map<string, number>): number {
+export function simulate(n: Node, vt: Map<string, number>): number {
   if (n.k === 'int') return 10;
   if (n.k === 'float') return 7;
   if (n.k === 'imat') return 12;
@@ -287,7 +287,7 @@ function compileNameNode(name: string, ctx: Ctx, target: number): C {
 }
 
 // ---- double 域比较（dcmpl/dcmpg + if*；Probe28：NaN 有序/相等比较恒 0）----
-function cmpD(op: string, a: number, b: number): number {
+export function cmpD(op: string, a: number, b: number): number {
   const nan = isNaN(a) || isNaN(b);
   switch (op) {
     case '<': return nan ? 0 : a < b ? 1 : 0;
@@ -300,7 +300,7 @@ function cmpD(op: string, a: number, b: number): number {
   throw new ExprError('bad operator: ' + op);
 }
 
-function cmpI(op: string, a: number, b: number): number {
+export function cmpI(op: string, a: number, b: number): number {
   switch (op) {
     case '<': return a < b ? 1 : 0;
     case '<=': return a <= b ? 1 : 0;

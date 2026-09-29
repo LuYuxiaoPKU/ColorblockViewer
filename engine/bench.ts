@@ -17,8 +17,13 @@
 //     Math.sin/cos 等内建 10–30ns/次 不受任何后端影响，Math 密集场景 3ms 不可达。
 //  16ms/tick 占 50ms tick 预算 ~32%，1× 倍速下每 50ms 墙钟窗可跑 3 tick、
 //  与渲染共存可维持 60fps。
-//  字节码保险丝（计划 §5.1）触发条件：M3 仿真层实测 > 25ms/tick，或 Math 密集
-//  表达式场景掉帧——届时实现 codegen.ts 的 emit 接口（同一 AST，预期 3–5×）。
+//  字节码保险丝（计划 §5.1）已实现：codegen.ts 的 emit 接口（同一 AST →
+//  new Function 单大闭包、无节点级调用）在 index.ts 接为主后端（new Function
+//  不可用/生成失败 → 回退闭包后端），tests/engine/codegenParity.test.ts 双后端
+//  对拍锁数值/错误序列不变（1029 golden 不变）。
+//  实测（2026-09-29）：bench 中位数 17.77 → 14.07 ms/tick（约 1.26×，低于预案
+//  预期 3–5×——瓶颈在 Math 内建与 25 字段 struct 访问，而非节点级调用开销）；
+//  中位数 <16ms 通过。
 //
 // 用法：npm run test 走 tests/engine/bench.test.ts（vitest 宿主，console 可捕获）。
 

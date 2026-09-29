@@ -285,6 +285,13 @@ export function hasMathFunc(name: string, argCount?: number): boolean {
   return argCount === undefined || sigs.some((s) => s.params.length === argCount);
 }
 
+/** 扁平签名表（注册顺序稳定；codegen 后端按索引引用，避免代码串内拼函数名） */
+export const MATH_SIGS: MathSig[] = (() => {
+  const a: MathSig[] = [];
+  for (const l of T.values()) a.push(...l);
+  return a;
+})();
+
 /**
  * 按 CodeGen 规则选重载（不执行）。
  * 实参类型合法性：仅 7/10/12/13 可打分；其它（0 = 名字矩阵静态 rt、8/9/11/-1）
