@@ -167,6 +167,10 @@ function parseNum(s: string): number {
     if (suf === 'b' && u > 0xff) throw new NbtParseError(`数值无效："${s}"`);
     if (suf === 's' && u > 0xffff) throw new NbtParseError(`数值无效："${s}"`);
     if (suf === 'i' && u > 0x7fffffff) throw new NbtParseError(`数值无效："${s}"`);
+    // L 后缀 = parseUnsignedLong（0..2^64-1 均合法 long）。预览数值域止于 int
+    // （schema 无 long 字段；>2^32-1 的 long 值 JS 亦不精确）→ 仅放行 ≤0xFFFFFFFF，
+    // 越界拒绝（文档化近似：0xFFFFFFFFFFFFFFFFL = -1 游戏内是合法 long，此处拒）
+    if (suf === 'l' && u > 0xffffffff) throw new NbtParseError(`数值无效："${s}"`);
     if (isSuffix) return u; // B/S/I/L 后缀：值本身
     return u >= 0x80000000 ? u - 0x100000000 : u; // 无后缀 INT：parseUnsignedInt 位模式
   }
