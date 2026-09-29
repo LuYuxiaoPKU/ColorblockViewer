@@ -1,6 +1,8 @@
 // 双后端对拍：codegen 后端（codegenBlock）vs 闭包后端（compileBlock）。
-// 同一 AST 两端各自执行：返回 int 逐位相等、struct 25 字段终值深度相等、
-// 错误消息逐字一致。随机语料（lcg 种子、深度≤2、排除 random——全局随机序列
+// 同一 AST 两端各自执行：每例连续 5 tick 的返回 int 序列逐位相等、
+// 每 tick struct 25 字段终值序列深度相等、错误消息逐字一致（多 tick 轨迹
+// 防槽位布局/局部残留类 bug——单 tick 对拍可能掩盖）。
+// 随机语料（lcg 种子、深度≤2、排除 random——全局随机序列
 // 无法跨后端对齐）+ 手工边角（int 回绕/除零/NaN 比较/矩阵/解构/短路/undefine
 // var/嵌套赋值/重载/溢出）。
 // 语义锁：codegen 上线后 1029 golden 不变 + 本对拍全过 = 数值/错误序列不变。
@@ -14,9 +16,7 @@ import { verifyBlock } from '../../src/engine/index';
 import { Node } from '../../src/engine/ast';
 import { ParticleStruct, FIELD_NAMES } from '../../src/engine/struct';
 
-type R =
-  | { ok: true; val: number; snap: string }
-  | { ok: false; msg: string };
+type R = { ok: boolean; vals: number[]; snaps: string[]; msg: string };
 
 // 非平凡初值（避免 0 掩盖转换 bug）
 function makeStruct(): ParticleStruct {
@@ -47,14 +47,27 @@ function snap(s: ParticleStruct): string {
   return out.join('|');
 }
 
+// 同一 struct 上连续 5 tick 轨迹（t/age 每 tick 推进，模拟 M3 动画调用模式；
+// 抛错即止，序列长度 = 已跑 tick 数，两端可比）
+const TICKS = 5;
+
 function one(run: ((s: ParticleStruct) => number) | null): R {
-  if (!run) return { ok: false, msg: '__CODEGEN_NULL__' };
+  const r: R = { ok: false, vals: [], snaps: [], msg: '' };
+  if (!run) { r.msg = '__CODEGEN_NULL__'; return r; }
   const s = makeStruct();
-  try {
-    return { ok: true, val: run(s), snap: snap(s) };
-  } catch (e) {
-    return { ok: false, msg: (e as Error).message };
+  for (let k = 0; k < TICKS; k++) {
+    try {
+      s.t += 0.25;
+      s.age += 1;
+      r.vals.push(run(s));
+      r.snaps.push(snap(s));
+    } catch (e) {
+      r.msg = (e as Error).message;
+      return r;
+    }
   }
+  r.ok = true;
+  return r;
 }
 
 // 后端构造 + 执行（镜像 parse 层语义：编译期同步错误 → run 时抛出）
@@ -63,7 +76,7 @@ function oneFromMake(make: () => ((s: ParticleStruct) => number) | null): R {
   try {
     run = make();
   } catch (e) {
-    return { ok: false, msg: (e as Error).message };
+    return { ok: false, vals: [], snaps: [], msg: (e as Error).message };
   }
   return one(run);
 }
@@ -75,7 +88,8 @@ function evalBoth(src: string): { parseErr?: string; a: R; b: R } {
     block = new Parser(new Lexer(src)).parseBlock();
     verifyBlock(block);
   } catch (e) {
-    return { parseErr: (e as Error).message, a: { ok: false, msg: '' }, b: { ok: false, msg: '' } };
+    const empty: R = { ok: false, vals: [], snaps: [], msg: '' };
+    return { parseErr: (e as Error).message, a: empty, b: empty };
   }
   return {
     a: oneFromMake(() => codegenBlock(block)),
@@ -90,8 +104,12 @@ function expectParity(src: string): void {
     throw new Error(`后端不一致（src=${src}）：codegen=${JSON.stringify(a)} closure=${JSON.stringify(b)}`);
   }
   if (a.ok && b.ok) {
-    if (a.val !== b.val) throw new Error(`返回值不一致（src=${src}）：codegen=${a.val} closure=${b.val}`);
-    if (a.snap !== b.snap) throw new Error(`struct 终值不一致（src=${src}）：\ncodegen=${a.snap}\nclosure=${b.snap}`);
+    if (a.vals.join(',') !== b.vals.join(',')) {
+      throw new Error(`返回序列不一致（src=${src}）：codegen=${a.vals} closure=${b.vals}`);
+    }
+    if (a.snaps.join(';') !== b.snaps.join(';')) {
+      throw new Error(`struct 终值序列不一致（src=${src}）：\ncodegen=${a.snaps}\nclosure=${b.snaps}`);
+    }
   } else if (!a.ok && !b.ok && a.msg !== b.msg) {
     throw new Error(`错误消息不一致（src=${src}）：codegen=${a.msg} closure=${b.msg}`);
   }
