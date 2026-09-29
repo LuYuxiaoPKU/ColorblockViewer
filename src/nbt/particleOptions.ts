@@ -54,6 +54,9 @@
 //  - 26.2 net/minecraft/nbt/SnbtGrammar：hex 数字集 [0-9a-fA-F]（F 是数字不是
 //    float 后缀）；无后缀默认 INT 且走 parseUnsignedInt（0x80000000 → 取补
 //    -2147483648 的 int 位模式），显式 I 后缀走有符号 parseInt。
+//    integer_suffix 规则对 b/s/i/l 后缀统一标 UNSIGNED（B/S/L 同走无符号分道：
+//    UnsignedBytes.parseUnsignedByte / parseUnsignedShort / parseUnsignedLong，
+//    即对 B/S/L 是位宽上界语义、对 INT 才是位模式取值）。
 //  - 1.21.11 混淆版 vt.class（= 同代 SnbtGrammar）：vt$c 数字字面量规则
 //    （base vt$b a/b/c → radix 2/10/16 三档 tableswitch）+ vt$3 hex 谓词
 //    tableswitch（48-57 '0'-'9'、65-70 'A'-'F'、97-102 'a'-'f'、95 '_'
@@ -163,15 +166,21 @@ const KIND_CN: Record<FieldKind, string> = {
  *  rgb → 3 分量；argb → 4 分量（alpha 在前，与 VECTOR4F 编码序一致）。 */
 export function parseColorField(val: NbtVal, kind: 'rgb' | 'argb'): number[] | null {
   const n = kind === 'rgb' ? 3 : 4;
-  const maxInt = n === 3 ? 0xffffff : 0xffffffff; // rgb → 0xFFFFFF；argb → 0xFFFFFFFF
   if (Array.isArray(val)) {
     if (val.length !== n || val.some(v => typeof v !== 'number' || v < 0 || v > 1)) return null;
     return (val as number[]).slice();
   }
-  if (typeof val === 'number' && Number.isInteger(val) && val >= 0 && val <= maxInt) {
-    // SNBT 整数字面量（十进制或 0x…，类型后缀剥除后已为 JS number）
+  if (typeof val === 'number' && Number.isInteger(val)) {
+    // 整数字面量（十进制或 0x…）。hex 无后缀 ≥2^31 经 parseUnsignedInt 取 int 位模式
+    // （如 0x80FF0000 → -8388608）→ 渲染色按无符号 32 位位模式取字节（>>> 0），
+    // 与 Java 的 (color >>> shift) & 0xFF 一致。rgb 限 24 位（0..0xFFFFFF，非负）；
+    // argb 限完整 int32/uint32 位模式（-0x80000000..0xFFFFFFFF）。
+    const lo = n === 3 ? 0 : -0x80000000;
+    const hi = n === 3 ? 0xffffff : 0xffffffff;
+    if (val < lo || val > hi) return null;
+    const u = val >>> 0;
     const out: number[] = [];
-    for (let i = n - 1; i >= 0; i--) out.push(((val >>> (i * 8)) & 0xff) / 255);
+    for (let i = n - 1; i >= 0; i--) out.push(((u >>> (i * 8)) & 0xff) / 255);
     return out;
   }
   return null;
