@@ -277,6 +277,41 @@ describe('播放条（播放 / 单步 / 重置 / 倍速）', () => {
       setPlaying(false);
     });
   });
+
+  it('活粒子超过挂载期点云容量 → HUD「渲染截断」（挂载后调大上限再生成）', () => {
+    // 点云容量在挂载时按 maxParticles（20000）固定；把上限调大到 21000 后
+    // 生成 20001 → 活粒子 20001 > 容量 20000 → 截断提示
+    setValue(ta(), 'particle flame 0 2 0 0.5 0.5 0.5 0.3 100\n');
+    click(button('加入播放器'));
+    expect(container.querySelector('.hud')!.textContent).not.toContain('渲染截断');
+    act(() => {
+      setSim({ maxParticles: 21000 });
+    });
+    click(button('重置'));
+    setValue(ta(), 'particle flame 0 2 0 0.5 0.5 0.5 0.3 20001\n');
+    click(button('加入播放器'));
+    const hud = container.querySelector('.hud')!.textContent;
+    expect(hud).toContain('粒子 20001');
+    expect(hud).toContain('渲染截断');
+  });
+
+  it('播放中寿命耗尽 → 自动暂停 + toast「已自动停止」（fake timers 驱动 rAF）', () => {
+    vi.useFakeTimers();
+    try {
+      // smoke 零 delta 零速度 + 默认寿命 20 tick → 推进 1.5s（30 tick）后全部消亡 → 自动停止分支
+      setValue(ta(), 'particle smoke 0 2 0 0 0 0 0 10\n');
+      click(button('▶ 播放'));
+      expect(getState().playing).toBe(true);
+      act(() => {
+        vi.advanceTimersByTime(1500);
+      });
+      expect(getState().playing).toBe(false);
+      expect(getState().toasts.at(-1)).toContain('已自动停止');
+      expect(container.querySelector('.hud')!.textContent).toContain('粒子 0');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('设置与视口联动', () => {
