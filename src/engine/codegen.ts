@@ -1,6 +1,8 @@
 // 字节码 codegen 后端（engine/bench.ts 文件头预案）：同一 AST → new Function 单大闭包。
-// 闭包后端（compiler.ts）每节点一次函数调用（~4-5ns/节点，bench 16.59ms/tick 贴 16ms
-// 门槛）；本后端每表达式一条函数（无节点级调用，预期 3–5×）。
+// 闭包后端（compiler.ts）每节点一次函数调用；本后端每表达式一条函数（无节点级
+// 调用）。实测（2026-09-29）：bench 中位 17.77 → 14.07 ms/tick（约 1.26×；
+// 瓶颈在 Math 内建与 25 字段 struct 访问而非节点级调用，预案 3–5× 未达，
+// 见 engine/bench.ts 文件头与 docs/技术路线.md §3）。
 // 1:1 语义保证：
 //  - 编译期错误与闭包后端同点同消息（镜像 compileNode 结构：call 先
 //    hasMathFunc/selectMathSig；bin 矩阵域三守卫；un NOT 对矩阵；assign 逆序
