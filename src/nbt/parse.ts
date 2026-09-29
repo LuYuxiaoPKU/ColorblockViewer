@@ -144,7 +144,7 @@ function parseVal(s: string): NbtVal {
  *  NumberFormatException，此处放行）——type{NBT} schema 无 byte/short 字段，
  *  该写法无实际消费场景。 */
 function parseNum(s: string): number {
-  if (/^0[xX][0-9a-fA-F]+[bBsSiIlLfFdD]?$/.test(s)) {
+  if (/^0[xX][0-9a-fA-F_]*[0-9a-fA-F][bBsSiIlLfFdD]?$/.test(s)) {
     // 类型后缀仅 b/s/i/l（B/S/I/L）可跟在十六进制后：F/f/D/d 本身是十六进制数字
     // （SnbtGrammar 的 hex 数字运行对 [0-9a-fA-F] 贪婪 → 0xFF 的尾 F 是数字，
     // 不是 float 后缀）。旧正则 [..fFdD]$ 会把 0x0000FF 的尾 F 当后缀剥掉 → 15。
@@ -156,7 +156,13 @@ function parseNum(s: string): number {
     //   I 后缀 → 有符号 parseInt（>0x7FFFFFFF 拒绝）
     const suf = (s[s.length - 1] || '').toLowerCase();
     const isSuffix = suf === 'b' || suf === 's' || suf === 'i' || suf === 'l';
-    const digits = isSuffix ? s.slice(2, -1) : s.slice(2);
+    // 下划线 = 数字分隔符（两版数字运行谓词 tableswitch 均含 95 '_'，
+    // cleanAndAppend 剥离后取值）——先剥再判位数/后缀
+    let digits = isSuffix ? s.slice(2, -1) : s.slice(2);
+    if (digits.includes('_')) {
+      digits = digits.replace(/_/g, '');
+      if (!/^[0-9a-fA-F]+$/.test(digits)) throw new NbtParseError(`数值无效："${s}"`);
+    }
     const u = parseInt(digits, 16);
     if (suf === 'b' && u > 0xff) throw new NbtParseError(`数值无效："${s}"`);
     if (suf === 's' && u > 0xffff) throw new NbtParseError(`数值无效："${s}"`);
@@ -164,9 +170,14 @@ function parseNum(s: string): number {
     if (isSuffix) return u; // B/S/I/L 后缀：值本身
     return u >= 0x80000000 ? u - 0x100000000 : u; // 无后缀 INT：parseUnsignedInt 位模式
   }
-  const m = s.match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)[fFdDIlBsS]?$/);
+  const m = s.match(
+    /^([+-]?(?:(?:\d+(?:_\d+)*\d*|\d)\.?\d*(?:[eE][+-]?\d+)?|\.\d+))[fFdDIlBsS]?$/,
+  );
   if (!m) throw new NbtParseError(`数值无效："${s}"`);
-  const v = Number(m[1]);
+  // 下划线 = 数字分隔符（两版数字运行谓词 tableswitch 均含 95 '_'，
+  // cleanAndAppend 剥离后取值）；仅支持整数部分（小数部分下划线 = 文档化近似，
+  // type{NBT} 无此用法）。Number() 前剥离
+  const v = Number(m[1].replace(/_/g, ''));
   if (!isFinite(v)) throw new NbtParseError(`数值无效："${s}"`);
   return v;
 }

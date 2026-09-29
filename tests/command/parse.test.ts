@@ -388,6 +388,11 @@ describe('原版 /particle（MC 26.2）', () => {
     expect(() => V('particle shriek{delay:0x10000S}')).toThrow(/数值无效/);
     // 0x0000FF 的尾 F 是十六进制数字不是 float 后缀（=255，回归旧 bug 255→15）
     expect(V('particle dust{color:0x0000FF,scale:1f}').nbt).toBe('color:0x0000FF,scale:1f');
+    // 下划线 = 数字分隔符（两版数字运行谓词 tableswitch 均含 95 '_'，剥离后取值）
+    expect(V('particle dust{color:0xFF_00_00,scale:1f}').nbt).toBe('color:0xFF_00_00,scale:1f');
+    expect(V('particle shriek{delay:1_000}').nbt).toBe('delay:1_000');
+    // 连续下划线 / 纯下划线 → 数值无效（parseInt 位宽拒绝同语义）
+    expect(() => V('particle dust{color:0x__,scale:1f}')).toThrow(/NBT 解析失败/);
   });
 
   it('geyser 系 NBT（仅 26.2）：water_blocks 必填 POSITIVE_INT（≥1）', () => {
