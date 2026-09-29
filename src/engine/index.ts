@@ -14,6 +14,7 @@ import { Parser } from './parser';
 import { Node, AssignTarget } from './ast';
 import { ParticleStruct, isField } from './struct';
 import { compileBlock } from './compiler';
+import { codegenBlock } from './codegen';
 import { hasMathFunc, selectMathSig } from './mathfuncs';
 import { AioobeError, ExprError, TypeTag } from './types';
 
@@ -40,7 +41,10 @@ export function parse(source: string): CompiledBlock {
   verifyBlock(block); // CodeGen + 类验证阶段的静态错误
   let run: (s: ParticleStruct) => number;
   try {
-    run = compileBlock(block); // 闭包编译（codegen 期错误在此抛出）
+    // 主后端：字节码 codegen（单大闭包，无节点级调用，~3–5× 快于闭包后端）；
+    // new Function 不可用（CSP）或生成失败 → null → 回退闭包后端（同一 AST，
+    // 数值/随机序列不变，1029 golden + 双后端对拍测试锁）
+    run = codegenBlock(block) ?? compileBlock(block);
   } catch (e) {
     CACHE.set(source, {
       block,
@@ -76,7 +80,7 @@ function matOf(n: Node): { r: number; c: number; isInt: boolean } | null {
   return null;
 }
 
-function verifyBlock(block: Node[]): void {
+export function verifyBlock(block: Node[]): void {
   // 局部变量静态类型表：复刻 CodeGen.localVars —— 变量在「首次 store 时定型」
   // （addLocalVar 只在 !localVars.containsKey(name) 时注册，之后 codeGenStore
   // 按已定型转换），同一块内后续语句可据此解析名字的类型（未出现 → -1）。
