@@ -137,14 +137,32 @@ function parseVal(s: string): NbtVal {
 }
 
 /** 解析 SNBT 数值：
- *  十六进制：0xFF / 0xFF0000 / 0xFFI（类型后缀 I/L/F/D/B/S 剥除）
- *  十进制：123 / -42 / 1.0 / 1.0f / 1.0d / 1I / 1L（后缀剥除后取数值） */
+ *  十六进制：0xFF / 0xFF0000 / 0xFFI（无后缀 = INT 无符号取值，B/S/I/L 后缀
+ *  按各自位宽语义——见函数内注释；两版字节码同构，见 particleOptions.ts 头注）
+ *  十进制：123 / -42 / 1.0 / 1.0f / 1.0d / 1I / 1L（后缀剥除后取数值）
+ *  近似边界（文档化）：十进制带 B/S/L 后缀不做 Java 的位宽越界拒绝（如 128B 游戏内
+ *  NumberFormatException，此处放行）——type{NBT} schema 无 byte/short 字段，
+ *  该写法无实际消费场景。 */
 function parseNum(s: string): number {
   if (/^0[xX][0-9a-fA-F]+[bBsSiIlLfFdD]?$/.test(s)) {
     // 类型后缀仅 b/s/i/l（B/S/I/L）可跟在十六进制后：F/f/D/d 本身是十六进制数字
     // （SnbtGrammar 的 hex 数字运行对 [0-9a-fA-F] 贪婪 → 0xFF 的尾 F 是数字，
     // 不是 float 后缀）。旧正则 [..fFdD]$ 会把 0x0000FF 的尾 F 当后缀剥掉 → 15。
-    return parseInt(s.replace(/[bBsSiIlL]$/, ''), 16);
+    // SnbtGrammar 字节码（两版同构，见 particleOptions.ts 头注）：
+    //   无后缀 → INT + parseUnsignedInt（0x80000000 → 位模式 -2147483648）
+    //   B 后缀 → UnsignedBytes.parseUnsignedByte（>0xFF 拒绝）
+    //   S 后缀 → parseUnsignedShort（>0xFFFF 拒绝）
+    //   L 后缀 → parseUnsignedLong（>0xFFFFFFFFFFFFFFFF 拒绝，JS 端不深查）
+    //   I 后缀 → 有符号 parseInt（>0x7FFFFFFF 拒绝）
+    const suf = (s[s.length - 1] || '').toLowerCase();
+    const isSuffix = suf === 'b' || suf === 's' || suf === 'i' || suf === 'l';
+    const digits = isSuffix ? s.slice(2, -1) : s.slice(2);
+    const u = parseInt(digits, 16);
+    if (suf === 'b' && u > 0xff) throw new NbtParseError(`数值无效："${s}"`);
+    if (suf === 's' && u > 0xffff) throw new NbtParseError(`数值无效："${s}"`);
+    if (suf === 'i' && u > 0x7fffffff) throw new NbtParseError(`数值无效："${s}"`);
+    if (isSuffix) return u; // B/S/I/L 后缀：值本身
+    return u >= 0x80000000 ? u - 0x100000000 : u; // 无后缀 INT：parseUnsignedInt 位模式
   }
   const m = s.match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)[fFdDIlBsS]?$/);
   if (!m) throw new NbtParseError(`数值无效："${s}"`);

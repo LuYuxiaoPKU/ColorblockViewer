@@ -370,6 +370,26 @@ describe('原版 /particle（MC 26.2）', () => {
     expect(() => V('particle shriek{delay:20.5f}')).toThrow(/"delay" 应为整数/);
   });
 
+  it('SNBT hex 语义（SnbtGrammar 字节码，两版同构）：无后缀 = INT 无符号位模式', () => {
+    // 无后缀 ≥ 2^31 → parseUnsignedInt 取 int 位模式（0x80000000 → -2147483648）
+    expect(V('particle shriek{delay:0x80000000}').nbt).toBe('delay:0x80000000');
+    expect(V('particle entity_effect{color:0xFFFFFFFF}').nbt).toBe('color:0xFFFFFFFF');
+    // 显式 I 后缀 = 唯一有符号路径：> 0x7FFFFFFF 拒绝（parseInt NumberFormatException）
+    expect(() => V('particle shriek{delay:0x80000000I}')).toThrow(/数值无效/);
+    expect(() => V('particle entity_effect{color:0xFFFFFFFFI}')).toThrow(/数值无效/);
+    // ARGB 高位模式（0x80FF0000 → -8388608）：渲染色按 0x80FF0000 位模式取 RGB（回归：
+    // 旧解析出 2155872256 → parseColorField 上界拒绝 → 渲染色回退白）
+    expect(V('particle entity_effect{color:0x80FF0000}').nbt).toBe('color:0x80FF0000');
+    expect(V('particle shriek{delay:0x7FFFFFFF}').nbt).toBe('delay:0x7FFFFFFF');
+    // B/S 后缀 = 无符号且按位宽上界（>0xFF / >0xFFFF 拒绝）
+    expect(V('particle shriek{delay:0xFFB}').nbt).toBe('delay:0xFFB');
+    expect(() => V('particle shriek{delay:0x100B}')).toThrow(/数值无效/);
+    expect(V('particle shriek{delay:0xFFFFS}').nbt).toBe('delay:0xFFFFS');
+    expect(() => V('particle shriek{delay:0x10000S}')).toThrow(/数值无效/);
+    // 0x0000FF 的尾 F 是十六进制数字不是 float 后缀（=255，回归旧 bug 255→15）
+    expect(V('particle dust{color:0x0000FF,scale:1f}').nbt).toBe('color:0x0000FF,scale:1f');
+  });
+
   it('geyser 系 NBT（仅 26.2）：water_blocks 必填 POSITIVE_INT（≥1）', () => {
     expect(V('particle geyser{water_blocks:4}').nbt).toBe('water_blocks:4');
     expect(V('particle geyser_plume{water_blocks:1}').nbt).toBe('water_blocks:1');
