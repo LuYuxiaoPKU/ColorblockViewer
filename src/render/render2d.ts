@@ -100,6 +100,10 @@ export class Render2DViewport {
   sizeMul = 1;
   alphaMul = 1;
 
+  /** 与 SimViewport 对齐的空操作字段（快速模式无预热阶段；App 无条件安装回调，
+   *  本类从不调用 → 无进度上报，进度条不出现）。 */
+  onProgress: ((stage: 'atlas' | 'ready', frac: number, label?: string) => void) | null = null;
+
   constructor(container: HTMLElement, maxParticles: number, atlasKey = '26.2') {
     this.max = maxParticles;
     this.atlasKey = atlasKey;

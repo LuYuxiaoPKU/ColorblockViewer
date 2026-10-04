@@ -85,10 +85,32 @@ function atlasMeta(key: string): AtlasMeta {
 
 let texPromise: { key: string; p: Promise<THREE.Texture | null> } | null = null;
 
-/** 加载帧图集（atlasKey 分区）：去重帧 → Image 解码 → CanvasTexture（Nearest，不生成 mipmap）。
- *  headless（无 document/Image）或加载失败 → resolve null（着色器走圆点分支）。
- *  切换 key 时旧 Promise/纹理失效重载。 */
-function loadAtlasTexture(key: string): Promise<THREE.Texture | null> {
+/** 测试钩子：清空图集 Promise 缓存（headless 下旧运行已把缓存固化为 null，
+ *  打桩 document/Image 后需清缓存才能重走加载路径）。 */
+export function _resetAtlasCache(): void {
+  texPromise = null;
+}
+
+/** 加载单帧 PNG（headless/加载失败 → null，缺帧跳过与旧串行实现一致）。 */
+function loadOneImage(key: string, file: string): Promise<HTMLImageElement | null> {
+  const img = new Image();
+  img.src = `${import.meta.env.BASE_URL}particles/${key}/${file}.png`;
+  return new Promise((resolve) => {
+    const done = (ok: boolean) => resolve(ok ? img : null);
+    img.onload = () => done(true);
+    img.onerror = () => done(false);
+  });
+}
+
+/** 加载帧图集（atlasKey 分区）：去重帧 → 并行 Image 解码 → 按序画入 canvas →
+ *  CanvasTexture（Nearest，不生成 mipmap）。onProgress 每画完一帧上报 (drew, total)
+ *  （含起始 (0,total)）；调用方按 _atlasEpoch 判废（切版本后旧 key 的迟到进度丢弃）。
+ *  headless（无 document/Image）或全部缺帧 → resolve null（着色器走圆点分支），
+ *  且 onProgress 不触发。切换 key 时旧 Promise/纹理失效重载。 */
+export function loadAtlasTexture(
+  key: string,
+  onProgress?: (drew: number, total: number) => void,
+): Promise<THREE.Texture | null> {
   if (!texPromise || texPromise.key !== key) {
     const p = (async () => {
       try {
@@ -100,15 +122,14 @@ function loadAtlasTexture(key: string): Promise<THREE.Texture | null> {
         cv.height = rows * TILE;
         const ctx = cv.getContext('2d');
         if (!ctx) return null;
+        onProgress?.(0, files.length);
+        // 并行解码全部帧（串行 await 是首屏最大延迟源）；画布绘制仍按 i 顺序
+        // 串行（格布局按 i 定列行，与旧实现逐字一致）。
+        const imgs = await Promise.all(files.map((f) => loadOneImage(key, f)));
         let drew = 0;
-        for (let i = 0; i < files.length; i++) {
-          const img = new Image();
-          img.src = `${import.meta.env.BASE_URL}particles/${key}/${files[i]}.png`;
-          await new Promise<void>((resolve) => {
-            img.onload = () => resolve();
-            img.onerror = () => resolve(); // 缺帧跳过（映射已校验过，正常不触发）
-          });
-          if (!img.complete || img.naturalWidth === 0) continue;
+        for (let i = 0; i < imgs.length; i++) {
+          const img = imgs[i];
+          if (!img || img.naturalWidth === 0) continue;
           // 居中贴入格子；>TILE 的大图按缩放贴入（保持方形观感）
           const scale = Math.min(1, TILE / img.naturalWidth, TILE / img.naturalHeight);
           const w = img.naturalWidth * scale;
@@ -121,7 +142,10 @@ function loadAtlasTexture(key: string): Promise<THREE.Texture | null> {
             w,
             h,
           );
+          // 计数与回调解耦：onProgress?.(++drew, …) 在回调缺省时短路不执行 ++drew
+          // → drew 恒 0 → 误判全缺帧（曾致无回调调用方静默拿 null）
           drew++;
+          onProgress?.(drew, files.length);
         }
         if (drew === 0) return null;
         const tex = new THREE.CanvasTexture(cv);
@@ -129,7 +153,8 @@ function loadAtlasTexture(key: string): Promise<THREE.Texture | null> {
         tex.minFilter = THREE.NearestFilter;
         tex.generateMipmaps = false;
         return tex;
-      } catch {
+      } catch (e) {
+        console.error('atlas load failed:', e); // 吞异常前留痕（浏览器控制台可见）
         return null;
       }
     })();
@@ -220,6 +245,9 @@ export interface PointsLayer {
   atlasLoaded: boolean;
   /** 图集 epoch：setPointsLayerAtlasKey 自增 → 在途旧 key 加载的迟到结果判废 */
   _atlasEpoch: number;
+  /** 图集加载进度上报（drew, total）；SimViewport 注入（按 _atlasEpoch 判废）。
+   *  测试可直接注入断言序列。 */
+  _onProgress: ((drew: number, total: number) => void) | null;
   /** 图集加载完成后调用（置 uAtlas/uHasAtlas；atlasLoaded 门禁保证同 key 只应用一次）。
    *  正常路径由内部 .then 带 epoch 判废后调用；测试可直接注入。 */
   applyAtlas(tex: THREE.Texture | null): void;
@@ -234,10 +262,19 @@ export function createPointsLayer(max: number, atlasKey = '26.2'): PointsLayer {
   const color = new Float32Array(max * 4);
   const size = new Float32Array(max);
   const uv = new Float32Array(max * 2);
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(color, 4));
-  geo.setAttribute('size', new THREE.BufferAttribute(size, 1));
-  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  // 每 tick 全量重写前缀 → DynamicDrawUsage（提示驱动端优先 CPU 侧缓冲策略）
+  const attrPos = new THREE.BufferAttribute(pos, 3);
+  const attrColor = new THREE.BufferAttribute(color, 4);
+  const attrSize = new THREE.BufferAttribute(size, 1);
+  const attrUv = new THREE.BufferAttribute(uv, 2);
+  attrPos.setUsage(THREE.DynamicDrawUsage);
+  attrColor.setUsage(THREE.DynamicDrawUsage);
+  attrSize.setUsage(THREE.DynamicDrawUsage);
+  attrUv.setUsage(THREE.DynamicDrawUsage);
+  geo.setAttribute('position', attrPos);
+  geo.setAttribute('color', attrColor);
+  geo.setAttribute('size', attrSize);
+  geo.setAttribute('uv', attrUv);
   // 无界包围球：粒子可能飞到很远，避免被视锥剔除
   geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1e6);
 
@@ -270,6 +307,7 @@ export function createPointsLayer(max: number, atlasKey = '26.2'): PointsLayer {
     uniforms,
     atlasLoaded: false,
     _atlasEpoch: 0,
+    _onProgress: null,
     applyAtlas(tex: THREE.Texture | null) {
       if (layer.atlasLoaded) return; // 同 key 只应用一次；切 key 走 SimViewport.setAtlasKey
       if (!tex) return; // 加载失败 → 保持圆点回退
@@ -286,8 +324,18 @@ export function createPointsLayer(max: number, atlasKey = '26.2'): PointsLayer {
     },
   };
   // 异步加载图集（headless/加载失败 → null，保持圆点）。
-  // epoch 判废：切换版本（setPointsLayerAtlasKey 自增 _atlasEpoch）后旧 key 的迟到结果丢弃。
-  void loadAtlasTexture(atlasKey).then((tex) => {
+  // 进度回调经 queueMicrotask 投递：构造期 loadAtlasTexture 开头的 onProgress?.(0, N)
+  // 会同步执行，此刻调用方（SimViewport）尚未把 _onProgress 赋上（构造器在
+  // createPointsLayer 返回后才赋值）→ (0,N) 会丢；microtask 一定在构造器同步体
+  // 结束之后才跑，时序上必然能收到。
+  // epoch 判废：切换版本（setPointsLayerAtlasKey 自增 _atlasEpoch）后旧 key 的
+  // 迟到结果与迟到进度都丢弃（进度回调按启动时 epoch 门控，与 .then 同口径）。
+  void loadAtlasTexture(atlasKey, (drew, total) => {
+    queueMicrotask(() => {
+      if (layer._atlasEpoch !== 0) return;
+      layer._onProgress?.(drew, total);
+    });
+  }).then((tex) => {
     if (layer._atlasEpoch !== 0) return;
     layer.applyAtlas(tex);
   });
@@ -306,7 +354,10 @@ export function setPointsLayerAtlasKey(layer: PointsLayer, atlasKey: string): vo
   layer.atlasLoaded = false;
   const { rows } = atlasMeta(atlasKey);
   layer.uniforms.uCell.value = new THREE.Vector2(1 / ATLAS_COLS, 1 / rows);
-  void loadAtlasTexture(atlasKey).then((tex) => {
+  void loadAtlasTexture(atlasKey, (drew, total) => {
+    if (layer._atlasEpoch !== e) return; // 又被切走 → 迟到进度判废
+    layer._onProgress?.(drew, total);
+  }).then((tex) => {
     if (layer._atlasEpoch !== e) return; // 又被切走 → 判废
     if (layer.atlasLoaded) return; // 已被更新一轮覆盖
     layer.applyAtlas(tex);

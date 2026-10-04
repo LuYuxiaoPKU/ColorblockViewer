@@ -30,12 +30,28 @@ interface ViewportApi {
   resize(): void;
   start(): void;
   dispose(): void;
+  /** 首帧预热进度。完整模式：'atlas' 贴图加载 / 'ready' 编译完成；
+   *  快速模式：无预热阶段，App 在 start 后直接上报一次 'ready'（空操作字段，
+   *  两模式恒存在——曾因快速模式缺字段导致 `if (vp.onProgress)` 整体跳过，
+   *  进度条永卡「加载渲染核心…」）。 */
+  onProgress: ((stage: 'atlas' | 'ready', frac: number, label?: string) => void) | null;
+}
+
+/** 视口覆盖进度条（完整模式首帧预热）：import = 渲染核心 chunk 加载中
+ *  （无真值，indeterminate 滑动条）；atlas/compile 带归一化进度。 */
+interface VpProgress {
+  label: string;
+  frac: number; // 0–1（overall 归一化后）
+  indeterminate?: boolean;
+  fading?: boolean;
 }
 
 export default function App() {
   const { playing, speed, sim } = useAppState();
 
   const [renderCapacity, setRenderCapacity] = useState(0);
+  const [vpProgress, setVpProgress] = useState<VpProgress | null>(null);
+  const readyRef = useRef(false);
   const engineRef = useRef<SimEngine | null>(null);
   const viewportRef = useRef<ViewportApi | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -54,7 +70,16 @@ export default function App() {
   useEffect(() => {
     let disposed = false;
     let vp: ViewportApi | null = null;
+    let fadeTimer = 0;
     const mode = sim.renderMode;
+    readyRef.current = false;
+    // 完整模式：立即显示「加载渲染核心」indeterminate 条（three chunk ~700KB
+    // 加载中，浏览器不给 chunk 进度事件 → 不假装 0→100）；快速模式无预热阶段。
+    if (mode === 'full') {
+      setVpProgress({ label: '加载渲染核心…', frac: 0, indeterminate: true });
+    } else {
+      setVpProgress(null);
+    }
     // 工厂经 Promise 解析后再建（disposed 先判，避免卸载后建视口）；
     // 两分支统一为 Promise<() => ViewportApi>（联合 Promise 本身不可调用）
     const load: Promise<() => ViewportApi> =
@@ -71,20 +96,44 @@ export default function App() {
       viewportRef.current = vp;
       // 点云缓冲容量 = 挂载时 maxParticles（运行期调大上限不扩容缓冲）→ 截断提示
       setRenderCapacity(engineRef.current!.config.maxParticles);
+      // 预热进度 → 视口覆盖条。overall 归一化：import 0–0.10 / atlas 0.10–0.90 /
+      // compile 0.90–1.00（贴图加载是首屏大头）。atlas 完成（frac=1）后 label
+      // 自动切「编译着色器」（compile 与贴图加载并行，完成先后不定）；'ready'
+      // （着色器编译完成）→ 淡出 400ms 后卸载；ready 后迟到进度忽略。
+      // 无条件安装：字段此刻尚未赋值（SimViewport 默认 null）——按字段当前值做
+      // 守卫会整体跳过安装、进度条永卡「加载渲染核心」（快速模式的空操作字段
+      // 同样被赋值，只是内部从不调用 → 无进度、无条，行为不变）。
+      vp.onProgress = (stage, frac, label) => {
+        if (stage === 'ready') {
+          readyRef.current = true;
+          setVpProgress({ label: '就绪', frac: 1, fading: true });
+          fadeTimer = window.setTimeout(() => {
+            if (readyRef.current) setVpProgress(null);
+          }, 400);
+        } else if (!readyRef.current) {
+          setVpProgress({
+            label: frac >= 1 ? '编译着色器…' : label ?? '加载贴图…',
+            frac: Math.max(0.1, 0.1 + frac * 0.8),
+          });
+        }
+      };
       vp.setPointScale(vp.size, 50); // 完整模式：fov 与 scene.ts 相机一致；快速模式空操作
       const cfg = engineRef.current!.config;
       vp.setAtlasKey(cfg.mcVersion); // 加载期间版本/网格变更由 ?. 跳过 → 这里补齐
       vp.setGrid(cfg.gridSize, cfg.gridVisible);
       vp.update(engineRef.current!); // 初始快照（模式切换后暂停态立即恢复显示，不空等下一 tick）
+      // start 内部 compileAsync（预热着色器，把 GL 编译从首帧 render 提前）
       vp.start();
     });
     const onResize = () => viewportRef.current?.resize();
     window.addEventListener('resize', onResize);
     return () => {
       disposed = true;
+      window.clearTimeout(fadeTimer);
       window.removeEventListener('resize', onResize);
       vp?.dispose();
       viewportRef.current = null;
+      readyRef.current = false;
     };
   }, [sim.renderMode]);
 
@@ -222,7 +271,13 @@ export default function App() {
         </p>
         <CommandPane onRun={run} onRunFresh={runFresh} onReset={reset} onPlayFresh={playFresh} />
       </aside>
-      <Viewport containerRef={containerRef} renderCapacity={renderCapacity} onStep={step} onReset={reset} />
+      <Viewport
+        containerRef={containerRef}
+        renderCapacity={renderCapacity}
+        onStep={step}
+        onReset={reset}
+        progress={vpProgress}
+      />
     </div>
   );
 }

@@ -77,6 +77,61 @@ body {
   display: block;
 }
 
+/* 首帧预热进度条（完整模式）：视口内覆盖层，pointer-events 不拦轨道拖拽 */
+.vp-progress {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--fg);
+  background: rgba(16, 20, 24, 0.72);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 1;
+  transition: opacity 400ms ease-out;
+}
+
+.vp-progress-hide {
+  opacity: 0;
+}
+
+.vp-progress-track {
+  width: 160px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.vp-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: #4f8cff;
+  transition: width 120ms linear;
+}
+
+.vp-progress-fill.indeterminate {
+  width: 40%;
+  animation: vp-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes vp-slide {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(280%);
+  }
+}
+
 .hud {
   position: absolute;
   left: 10px;

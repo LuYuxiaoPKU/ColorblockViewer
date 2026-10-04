@@ -11,21 +11,43 @@ interface PlaybackHandlers {
   onReset: () => void;
 }
 
+/** 首帧预热进度（完整模式）：null = 不显示；indeterminate = chunk 加载中
+ *  无真值（滑动条）；fading = 就绪后淡出。 */
+export interface VpProgressView {
+  label: string;
+  frac: number; // 0–1
+  indeterminate?: boolean;
+  fading?: boolean;
+}
+
 export function Viewport({
   containerRef,
   renderCapacity,
   onStep,
   onReset,
+  progress = null,
 }: PlaybackHandlers & {
   containerRef: React.RefObject<HTMLDivElement | null>;
   /** 点云缓冲容量（挂载时按当时 maxParticles 固定）；活粒子数超过它 → 显示「渲染截断」 */
   renderCapacity: number;
+  progress?: VpProgressView | null;
 }) {
   const { playing, speed, hud } = useAppState();
 
   return (
     <main className="viewport">
       <div className="viewport-canvas" ref={containerRef} />
+      {progress && (
+        <div className={'vp-progress' + (progress.fading ? ' vp-progress-hide' : '')}>
+          <span>{progress.label}</span>
+          <div className="vp-progress-track">
+            <div
+              className={'vp-progress-fill' + (progress.indeterminate ? ' indeterminate' : '')}
+              style={progress.indeterminate ? undefined : { width: `${Math.round(Math.min(1, Math.max(0, progress.frac)) * 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
       <div className="hud">
         tick {hud.tick} · 粒子 {hud.count} · 丢弃 {hud.dropped}
         {renderCapacity > 0 && hud.count > renderCapacity ? ' · 渲染截断' : ''}
