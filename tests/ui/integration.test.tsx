@@ -19,9 +19,17 @@ import { SimViewport } from '../../src/render/sync';
 
 vi.mock('../../src/render/sync', () => {
   const gridCalls: [number, boolean][] = [];
+  const progressState: {
+    last: { onProgress: ((stage: string, frac: number, label?: string) => void) | null } | null;
+  } = { last: null };
   return {
     SimViewport: class {
       static gridCalls = gridCalls;
+      static progressState = progressState;
+      onProgress: ((stage: string, frac: number, label?: string) => void) | null = null;
+      constructor() {
+        progressState.last = this;
+      }
       update(): number {
         return 0;
       }
@@ -431,5 +439,55 @@ describe('一键清空', () => {
     const card = container.querySelectorAll('.template-card')[0];
     click(buttonIn(card, '载入并执行'));
     expect(getState().commands.length).toBeGreaterThan(0);
+  });
+});
+
+describe('首帧预热进度（App ↔ 视口 onProgress 通道）', () => {
+  // 回归锁定：App 无条件安装 onProgress（曾因 `if (vp.onProgress)` 读到默认
+  // null 整体跳过安装 → 进度条永卡「加载渲染核心…」，fe2056d 修复）。
+
+  it('完整模式：视口建立后 App 安装 onProgress（无条件安装）', () => {
+    const vp = (SimViewport as unknown as { progressState: { last: { onProgress: unknown } | null } })
+      .progressState.last;
+    expect(vp).toBeTruthy();
+    expect(typeof vp!.onProgress).toBe('function');
+  });
+
+  it('完整模式：atlas → ready 进度链 → 视口覆盖进度条 → 就绪后淡出卸载', async () => {
+    vi.useFakeTimers();
+    try {
+      const vp = (SimViewport as unknown as { progressState: { last: { onProgress: ((stage: string, frac: number, label?: string) => void) | null } | null } })
+        .progressState.last!;
+      // 加载贴图 3/3（frac=1 → label 切「编译着色器」）
+      act(() => {
+        vp.onProgress!('atlas', 1, '加载贴图 3/3');
+      });
+      const bar = container.querySelector('.vp-progress');
+      expect(bar).toBeTruthy();
+      expect(bar!.textContent).toContain('编译着色器');
+      expect((bar!.querySelector('.vp-progress-fill') as HTMLElement).style.width).toBe('90%');
+      // 着色器编译完成 → 「就绪」+ 400ms 淡出后卸载（450ms 时已卸载）
+      act(() => {
+        vp.onProgress!('ready', 1);
+      });
+      expect(container.querySelector('.vp-progress')!.textContent).toContain('就绪');
+      act(() => {
+        vi.advanceTimersByTime(450);
+      });
+      expect(container.querySelector('.vp-progress')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('快速模式（Canvas 2D）：无预热阶段 → 进度条不出现', async () => {
+    act(() => {
+      setSim({ renderMode: 'fast' });
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    // render2d 的 onProgress 是空操作字段：App 安装后无任何上报
+    expect(container.querySelector('.vp-progress')).toBeNull();
   });
 });
