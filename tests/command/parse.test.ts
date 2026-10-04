@@ -416,6 +416,21 @@ describe('原版 /particle（MC 26.2）', () => {
     expect(V('particle shriek{delay:+5}').nbt).toBe('delay:+5');
     expect(() => V('particle dust{color:0x0000FF,scale:+1f}')).not.toThrow();
     expect(() => V('particle dust{color:0x0000FF,scale:+05}')).toThrow(/数值无效/);
+    // 二进制字面量（integer_literal: 0→b/B→binary_numeral，两版同构）：
+    // 数字运行仅 {0,1,_}（尾 f 不是数字 → 0b101f 拒）；无后缀 = BINARY base
+    // → signedOrDefault 兜底 UNSIGNED（同 hex：INT 位模式）
+    expect(V('particle shriek{delay:0b101}').nbt).toBe('delay:0b101');
+    expect(V('particle shriek{delay:0b1_0}').nbt).toBe('delay:0b1_0'); // 下划线分隔符
+    expect(V('particle shriek{delay:0b11111111}').nbt).toBe('delay:0b11111111'); // 255
+    // 32 位无后缀 → INT 无符号位模式（同 0x80000000 → -2147483648）
+    expect(V('particle shriek{delay:0b10000000000000000000000000000000}').nbt)
+      .toBe('delay:0b10000000000000000000000000000000');
+    // B 后缀位宽上界（>0xFF 拒）；f/F/d/D 不是二进制数字也不是整数后缀
+    expect(() => V('particle shriek{delay:0b100000000B}')).toThrow(/数值无效/);
+    expect(() => V('particle dust{color:0x0000FF,scale:0b101f}')).toThrow(/数值无效/);
+    // 运行首/尾下划线同样拒
+    expect(() => V('particle dust{color:0x0000FF,scale:0b_1}')).toThrow(/数值无效/);
+    expect(() => V('particle dust{color:0x0000FF,scale:0b1_}')).toThrow(/数值无效/);
   });
 
   it('geyser 系 NBT（仅 26.2）：water_blocks 必填 POSITIVE_INT（≥1）', () => {

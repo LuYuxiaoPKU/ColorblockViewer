@@ -157,8 +157,30 @@ function parseVal(s: string): NbtVal {
  *  ③ 十进制带 B/S/L 后缀且 >intMax（如 3000000000B）游戏内解析放行但 schema
  *  无 unsigned int 字段必拒，预览直接拒（命令结果一致）；
  *  ④ `+` 号字面量与游戏一致（canStartNumber 含 '+'：+5 / +1.0f 解析放行；
- *  +05 仍按前导零拒）——与 parseNum 的 `[+-]?` 正则吻合，无近似。 */
+ *  +05 仍按前导零拒）——与 parseNum 的 `[+-]?` 正则吻合，无近似。
+ *  ⑤ hex/二进制的显式符号：游戏内 **减号** 被拒（IntegerLiteral.create：
+ *  signedOrDefault(HEX/BINARY)=UNSIGNED + Sign.MINUS → ERROR_EXPECTED_NON_NEGATIVE
+ *  _NUMBER——-0xFF / -0b101 游戏拒，预览拒，一致）；**加号** 游戏放行
+ *  （+0xFF = 无符号 255），预览拒（hex/二进制正则不带符号）——NBT 值域内
+ *  正数均可无符号写法，命令结果一致，文档化近似。 */
 function parseNum(s: string): number {
+  // 二进制字面量（integer_literal: 0 → b/B → binary_numeral，两版同构）：
+  // 数字运行仅 {0,1,_}（无 a-f → 尾 f/F/d/D 不是数字，0b101f 游戏拒——
+  // 无 f/F/d/D 整数后缀）；无后缀 = BINARY base → signedOrDefault 兜底 UNSIGNED
+  //（同 hex：INT 位模式，0b1000…0（32 位）→ -2147483648）；B/S/I/L 后缀位宽
+  // 语义同 hex 分支（I 走有符号 parseInt，>0x7FFFFFFF 拒）
+  if (/^0[bB][01]+(?:_[01]+)*[bBsSiIlL]?$/.test(s)) {
+    const suf = (s[s.length - 1] || '').toLowerCase();
+    const isSuffix = suf === 'b' || suf === 's' || suf === 'i' || suf === 'l';
+    let digits = isSuffix ? s.slice(2, -1) : s.slice(2);
+    const u = parseInt(digits.replace(/_/g, ''), 2);
+    if (suf === 'b' && u > 0xff) throw new NbtParseError(`数值无效："${s}"`);
+    if (suf === 's' && u > 0xffff) throw new NbtParseError(`数值无效："${s}"`);
+    if (suf === 'i' && u > 0x7fffffff) throw new NbtParseError(`数值无效："${s}"`);
+    if (suf === 'l' && u > 0xffffffff) throw new NbtParseError(`数值无效："${s}"`);
+    if (isSuffix) return u;
+    return u >= 0x80000000 ? u - 0x100000000 : u; // 无后缀 INT：parseUnsignedInt 位模式
+  }
   if (/^0[xX][0-9a-fA-F]+(?:_[0-9a-fA-F]+)*[bBsSiIlLfFdD]?$/.test(s)) {
     // 类型后缀仅 b/s/i/l（B/S/I/L）可跟在十六进制后：F/f/D/d 本身是十六进制数字
     // （SnbtGrammar 的 hex 数字运行对 [0-9a-fA-F] 贪婪 → 0xFF 的尾 F 是数字，
