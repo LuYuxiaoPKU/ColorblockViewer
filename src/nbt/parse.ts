@@ -187,6 +187,9 @@ function parseNum(s: string): number {
     if (suf === 's' && u > 0xffff) throw new NbtParseError(`数值无效："${s}"`);
     if (suf === 'i' && u > 0xffffffff) throw new NbtParseError(`数值无效："${s}"`);
     if (suf === 'l' && u > 0xffffffff) throw new NbtParseError(`数值无效："${s}"`);
+    // 无后缀 = parseUnsignedInt（>0xFFFFFFFF 抛 NumberFormatException 游戏拒——
+    // 33 位二进制 0b1000…0（33 个 0）= 2^32 必须拒，否则 JS 静默回绕成 0）
+    if (!isSuffix && u > 0xffffffff) throw new NbtParseError(`数值无效："${s}"`);
     if (isSuffix) return suf === 'i' && u >= 0x80000000 ? u - 0x100000000 : u;
     return u >= 0x80000000 ? u - 0x100000000 : u; // 无后缀 INT：parseUnsignedInt 位模式
   }
@@ -215,6 +218,9 @@ function parseNum(s: string): number {
     // （schema 无 long 字段；>2^32-1 的 long 值 JS 亦不精确）→ 仅放行 ≤0xFFFFFFFF，
     // 越界拒绝（文档化近似：0xFFFFFFFFFFFFFFFFL = -1 游戏内是合法 long，此处拒）
     if (suf === 'l' && u > 0xffffffff) throw new NbtParseError(`数值无效："${s}"`);
+    // 无后缀 = parseUnsignedInt（>0xFFFFFFFF 抛 NumberFormatException 游戏拒——
+    // 0x100000000（2^32）必须拒，否则 JS 静默回绕成 0）
+    if (!isSuffix && u > 0xffffffff) throw new NbtParseError(`数值无效："${s}"`);
     if (isSuffix) return suf === 'i' && u >= 0x80000000 ? u - 0x100000000 : u; // I 后缀：parseInt 位模式
     return u >= 0x80000000 ? u - 0x100000000 : u; // 无后缀 INT：parseUnsignedInt 位模式
   }

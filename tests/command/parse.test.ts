@@ -388,9 +388,10 @@ describe('原版 /particle（MC 26.2）', () => {
     expect(() => V('particle shriek{delay:0x100B}')).toThrow(/数值无效/);
     expect(V('particle shriek{delay:0xFFFFS}').nbt).toBe('delay:0xFFFFS');
     expect(() => V('particle shriek{delay:0x10000S}')).toThrow(/数值无效/);
-    // L 后缀 = 无符号 long：预览数值域止于 int，仅放行 ≤2^32-1（0xFFFFFFFFL = 4294967295；
-    // 0x100000000L 游戏内是合法 long 但超出预览域 → 拒，文档化近似）
-    expect(V('particle shriek{delay:0xFFFFFFFFL}').nbt).toBe('delay:0xFFFFFFFFL');
+    // L 后缀 = 无符号 long：预览数值域止于 int，仅放行 ≤2^32-1（0xFFFFFFFFL = 4294967295
+    // 过 SNBT 层；但 INT codec 拒 >2^31-1 → 游戏拒，预览同拒——旧用例锁的「放行」是
+    // 1:1 违规，2026-10-05 改拒）。0x100000000L 超预览域 → SNBT 层拒（文档化近似）
+    expect(() => V('particle shriek{delay:0xFFFFFFFFL}')).toThrow(/int 范围/);
     expect(() => V('particle shriek{delay:0x100000000L}')).toThrow(/数值无效/);
     // 0x0000FF 的尾 F 是十六进制数字不是 float 后缀（=255，回归旧 bug 255→15）
     expect(V('particle dust{color:0x0000FF,scale:1f}').nbt).toBe('color:0x0000FF,scale:1f');

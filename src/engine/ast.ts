@@ -50,7 +50,8 @@ export function litType(n: Node): TypeTag | null {
 export function binReturnType(op: string, lt: TypeTag | null, rt: TypeTag | null): TypeTag {
   if (op === 'AND' || op === 'OR') return 10;
   if (lt === null || rt === null || lt === -1 || rt === -1) return -1;
-  if (lt === 10 && rt === 10) return op === 'POW' ? 7 : 10;
+  // op 是 token 文本（'+'/'-'/…/'^'），不是 EnumToken 名（对齐 Java op==EnumToken.POW）
+  if (lt === 10 && rt === 10) return op === '^' ? 7 : 10;
   // (lt!=10||rt!=7)&&(lt!=7||rt!=10)&&(lt!=7||rt!=7) → 非 10/7 混合（双矩阵/矩阵×标量等）
   if ((lt !== 10 || rt !== 7) && (lt !== 7 || rt !== 10) && (lt !== 7 || rt !== 7)) {
     // Java: lt!=12 || (rt!=10 && rt!=12) → 13；否则 12

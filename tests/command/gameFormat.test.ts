@@ -94,6 +94,16 @@ describe('checkCommandFormat：游戏内格式查验', () => {
     expect(issues[1].message).toMatch(/文本参数/);
   });
 
+  it('组名位是不透明字符串（StringArgumentType）：引号内括号不配平不报错', () => {
+    // 游戏 group 参数 = StringArgumentType.string()，不参与表达式解析
+    expect(checkCommandFormat("particleex group remove 'a(b'")).toEqual([]);
+    expect(checkCommandFormat("particleex group change parameter 'g(1' 'x=1'")).toEqual([]);
+    // 表达式位仍做括号配平检查（同一条命令内两种行为）
+    const issues = checkCommandFormat("particleex group remove 'g' 'x=1)');");
+    expect(issues).toHaveLength(1);
+    expect(issues[0].message).toMatch(/括号不匹配|没有对应的「\(」/);
+  });
+
   it('未闭合引号 → 单条致命问题（不抛异常，供 UI 提示）', () => {
     const issues = checkCommandFormat("particleex conditional flame 0 0 0 1 1 1 1 0 0 0 1 0 1 'x=1");
     expect(issues).toHaveLength(1);

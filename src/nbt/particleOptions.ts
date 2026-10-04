@@ -210,8 +210,10 @@ export function checkField(kind: FieldKind, val: NbtVal): string | null {
     return null;
   }
   if (kind === 'posint') return checkPosInt(val);
-  // int
+  // int（INT codec：-2^31..2^31-1；越界值游戏里 codec 拒——如 shriek{delay:2147483648L}
+  // SNBT 层 parseLong 放行但 INT 解码失败，预览须同拒）
   if (typeof val !== 'number' || !Number.isInteger(val)) return '应为整数';
+  if (val < -0x80000000 || val > 0x7fffffff) return '超出 int 范围 [-2147483648, 2147483647]';
   return null;
 }
 
