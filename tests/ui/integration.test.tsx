@@ -471,6 +471,12 @@ describe('首帧预热进度（App ↔ 视口 onProgress 通道）', () => {
         vp.onProgress!('ready', 1);
       });
       expect(container.querySelector('.vp-progress')!.textContent).toContain('就绪');
+      // ready 后迟到的 atlas 进度被忽略（双保险：sync 层 readyReported 已源头
+      // 拦截，App 层再挡一道）→ 进度条不因迟到进度回跳「加载贴图」
+      act(() => {
+        vp.onProgress!('atlas', 0.5, '加载贴图 1/2');
+      });
+      expect(container.querySelector('.vp-progress')!.textContent).toContain('就绪');
       act(() => {
         vi.advanceTimersByTime(450);
       });
