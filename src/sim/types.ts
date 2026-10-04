@@ -25,6 +25,10 @@ export interface SimConfig {
    *  逐类型见表头证据清单）套用原版摩擦/重力/运动模型 + 原版寿命公式；
    *  关闭 = 模组原生行为（匀速直线 + 命令寿命/默认寿命）。 */
   nativeKinematics: boolean;
+  /** 渲染模式：'full' = 完整（WebGL 点云 + 真实粒子贴图 + 帧动画，three 按需加载）；
+   *  'fast' = 快速（Canvas 2D 颜色圆点，不加载 three、无 WebGL，仿真照常 1:1 运行）。
+   *  纯渲染层设置，引擎不读（mcVersion 先例）。 */
+  renderMode: 'full' | 'fast';
 }
 
 export interface SimParticle {

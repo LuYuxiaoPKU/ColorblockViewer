@@ -1,25 +1,43 @@
 // 应用入口（M5）：左侧 CommandPane（粘贴框/表单双向同步/设置/toast），
-// 右侧 Viewport（Three 画布/播放条/HUD）。
+// 右侧 Viewport（完整模式 = WebGL 点云画布 / 快速模式 = Canvas 2D 圆点；
+// 播放条/HUD）。
 //
-// 热路径（计划 §九）：引擎与 Three 对象在 ref；播放状态以 store 为 UI 镜像，
+// 热路径（计划 §九）：引擎与渲染视口在 ref；播放状态以 store 为 UI 镜像，
 // rAF 循环读 ref（playing/speed 变化时重启 effect）。React state 只承担
 // 低频显示（HUD 10Hz 轮询）。
+//
+// 渲染模式（sim.renderMode）：'full' 动态加载 three（≈700KB 独立 chunk），
+// 'fast' 走 Canvas 2D（不加载 three、无 WebGL）。两模式共用 color.ts 色值口径
+// 与引擎 1:1 仿真，仅外观（贴图/帧动画 vs 圆点）不同。
 
 import { useEffect, useRef, useState } from 'react';
 import { SimEngine } from './sim/engine';
-import type { SimViewport } from './render/sync';
+import type { SnapshotSource } from './render/sync';
 import { useAppState, setHud, pushToast, getState, clearToasts, setPlaying, applyInputText } from './store/appState';
 import { CommandPane } from './ui/CommandPane';
 import { Viewport } from './ui/Viewport';
 
 const TICK_MS = 50; // 20 TPS
 
+/** 两种渲染视口的公共接口（SimViewport / Render2DViewport 结构兼容）：
+ *  App 只依赖它，不直接 import 具体渲染模块（按需动态加载）。 */
+interface ViewportApi {
+  size: number;
+  update(source: SnapshotSource): number;
+  setGrid(size: number, visible: boolean): void;
+  setAtlasKey(key: string): void;
+  setPointScale(heightPx: number, fovDeg: number): void;
+  resize(): void;
+  start(): void;
+  dispose(): void;
+}
+
 export default function App() {
   const { playing, speed, sim } = useAppState();
 
   const [renderCapacity, setRenderCapacity] = useState(0);
   const engineRef = useRef<SimEngine | null>(null);
-  const viewportRef = useRef<SimViewport | null>(null);
+  const viewportRef = useRef<ViewportApi | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const playRef = useRef({ acc: 0, last: 0 });
   const lastErrLen = useRef(0);
@@ -28,20 +46,32 @@ export default function App() {
     engineRef.current = new SimEngine({ ...getState().sim });
   }
 
-  // 挂载：**按需加载**渲染层（three ≈700KB → 独立 chunk，不阻塞首屏）——
-  // 命令面板/设置先可用，three 到达后再建 viewport + 渲染循环；期间
-  // viewportRef 为 null，其余 effect 的 `?.` 调用自动跳过，加载完成后补一次
-  // 当前设置（图集按版本、网格）以对齐状态。
+  // 挂载（或渲染模式切换）：**按需加载**对应渲染层——
+  // 完整模式：three ≈700KB → 独立 chunk，不阻塞首屏；快速模式：Canvas 2D
+  // （render2d，不碰 three）。命令面板/设置先可用，视口到达后再建 + 启动渲染
+  // 循环；期间 viewportRef 为 null，其余 effect 的 `?.` 调用自动跳过，加载
+  // 完成后补一次当前设置（图集按版本、网格）以对齐状态。
   useEffect(() => {
     let disposed = false;
-    let vp: SimViewport | null = null;
-    void import('./render/sync').then(({ SimViewport }) => {
+    let vp: ViewportApi | null = null;
+    const mode = sim.renderMode;
+    // 工厂经 Promise 解析后再建（disposed 先判，避免卸载后建视口）；
+    // 两分支统一为 Promise<() => ViewportApi>（联合 Promise 本身不可调用）
+    const load: Promise<() => ViewportApi> =
+      mode === 'fast'
+        ? import('./render/render2d').then((m) => () =>
+            new m.Render2DViewport(containerRef.current!, engineRef.current!.config.maxParticles, engineRef.current!.config.mcVersion),
+          )
+        : import('./render/sync').then((m) => () =>
+            new m.SimViewport(containerRef.current!, engineRef.current!.config.maxParticles, engineRef.current!.config.mcVersion),
+          );
+    void load.then((make) => {
       if (disposed || !containerRef.current) return;
-      vp = new SimViewport(containerRef.current, engineRef.current!.config.maxParticles, engineRef.current!.config.mcVersion);
+      vp = make();
       viewportRef.current = vp;
       // 点云缓冲容量 = 挂载时 maxParticles（运行期调大上限不扩容缓冲）→ 截断提示
       setRenderCapacity(engineRef.current!.config.maxParticles);
-      vp.setPointScale(vp.size, 50); // fov 与 scene.ts 相机一致；首帧前设定像素换算
+      vp.setPointScale(vp.size, 50); // 完整模式：fov 与 scene.ts 相机一致；快速模式空操作
       const cfg = engineRef.current!.config;
       vp.setAtlasKey(cfg.mcVersion); // 加载期间版本/网格变更由 ?. 跳过 → 这里补齐
       vp.setGrid(cfg.gridSize, cfg.gridVisible);
@@ -55,7 +85,7 @@ export default function App() {
       vp?.dispose();
       viewportRef.current = null;
     };
-  }, []);
+  }, [sim.renderMode]);
 
   // 设置变更 → 应用到引擎（playerPos/寿命/上限即时；seed → 重建 PRNG）
   useEffect(() => {

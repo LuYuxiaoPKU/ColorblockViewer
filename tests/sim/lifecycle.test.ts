@@ -23,6 +23,7 @@ function cfg(over: Partial<SimConfig> = {}): SimConfig {
     gridSize: 10,
     gridVisible: true,
     nativeKinematics: false,
+    renderMode: 'full',
     ...over,
   };
 }
