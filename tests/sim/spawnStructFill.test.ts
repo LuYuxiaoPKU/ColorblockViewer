@@ -630,6 +630,63 @@ describe('spawn：execVanilla（原版 /particle 客户端语义）', () => {
     expect(p.nbtTint).toBe(false);
     expect(p.sizeMul).toBe(1);
   });
+
+  it('dust_color_transition{NBT}：from_color = 出生色 r/g/b + colorFrom，to_color → colorTo，scale → sizeMul', () => {
+    resetParseState();
+    const sink = makeSink(new FakeRand());
+    const cmd = parseCommand(
+      'particle dust_color_transition{from_color:0x0000FF,to_color:0xFF0000,scale:2} 0 0 0 0 0 0 0 0',
+    ) as VanillaCmd;
+    execVanilla(cmd, sink);
+    const p = sink.spawns[0];
+    expect(p.nbtTint).toBe(true);
+    near(p.r, 0);
+    near(p.g, 0);
+    near(p.b, 1);
+    expect(p.colorFrom).toEqual({ r: 0, g: 0, b: 1 });
+    expect(p.colorTo).toEqual({ r: 1, g: 0, b: 0 });
+    expect(p.sizeMul).toBe(2);
+  });
+
+  it('effect{} 空载荷：可解析但无可选字段 → 全缺省（白 + 1，无 tint）', () => {
+    resetParseState();
+    const sink = makeSink(new FakeRand());
+    execVanilla(parseCommand('particle effect{} 0 0 0 0 0 0 0 0') as VanillaCmd, sink);
+    const p = sink.spawns[0];
+    expect([p.r, p.g, p.b]).toEqual([1, 1, 1]);
+    expect(p.nbtTint).toBe(false);
+    expect(p.sizeMul).toBe(1);
+  });
+
+  it('entity_effect{color:ARGB}：取 RGB 三分量（alpha 首分量不消费）', () => {
+    resetParseState();
+    const sink = makeSink(new FakeRand());
+    const cmd = parseCommand('particle entity_effect{color:0x80FF0000} 0 0 0 0 0 0 0 0') as VanillaCmd;
+    execVanilla(cmd, sink);
+    const p = sink.spawns[0];
+    expect(p.nbtTint).toBe(true);
+    near(p.r, 1);
+    near(p.g, 0);
+    near(p.b, 0);
+  });
+
+  it('dust scale 边界：[0.01, 4] 内取原值（越界由 parseVanillaNbt 解析期拒绝，到不了 nbtVisuals）', () => {
+    resetParseState();
+    let sink = makeSink(new FakeRand());
+    execVanilla(
+      parseCommand('particle dust{color:0xFF0000,scale:0.01} 0 0 0 0 0 0 0 0') as VanillaCmd,
+      sink,
+    );
+    expect(sink.spawns[0].sizeMul).toBe(0.01);
+    sink = makeSink(new FakeRand());
+    execVanilla(
+      parseCommand('particle dust{color:0xFF0000,scale:4} 0 0 0 0 0 0 0 0') as VanillaCmd,
+      sink,
+    );
+    expect(sink.spawns[0].sizeMul).toBe(4);
+    expect(() => parseCommand('particle dust{color:0xFF0000,scale:0.005} 0 0 0 0 0 0 0 0'))
+      .toThrow(/scale/);
+  });
 });
 
 // ---------- spawn：group 操作 ----------
