@@ -11,6 +11,16 @@
 // 同样不容空白）——本解析器遇到空白即报「命令模式 NBT 不容空白」。
 // 支持：compound（含嵌套）、list、int（十/十六进制 + 类型后缀）、float、
 // 布尔、引号字符串（"" 转义）。非法语法 → NbtParseError（中文消息）。
+// 文档化近似（CFR 反编译 SnbtGrammar/SnbtOperations 坐实的缺口，场景极低频不修）：
+// ① 字符串反斜杠转义（游戏内 \n \t \" \\ \xHH \uHHHH \UHHHHHHHH \N{name} 会
+//    转换，本解析器按字面原样保留；块名/物品名等本场景字符串值不含反斜杠）；
+// ② 单引号字符串的 '' 转义（游戏内单引号串不支持 '' 转义——首个 ' 即闭串，
+//    'a''b' 游戏拒；本解析器放行为 a'b'）；
+// ③ 内置操作 bool(x)/uuid(x)（游戏内裸词 bool(1) 可调用，本解析器无此路径——
+//    type{NBT} 的 22 个粒子 options codec 均无 boolean/UUID 字段，用不到）；
+// ④ 带 f/F 后缀的浮点按 double 解析（游戏内转 float32，如 0.1f 游戏内 =
+//    0.10000000149011612，预览 = 0.1；~2^-23 相对差，不影响可视化）；
+// ⑤ 十进制带 B/S/L 后缀的位宽越界不拒（见 parseNum 注释）。
 
 export class NbtParseError extends Error {
   constructor(msg: string) { super(msg); this.name = 'NbtParseError'; }
