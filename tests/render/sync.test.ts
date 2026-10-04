@@ -98,6 +98,11 @@ describe('SimViewport.start WebGL 门控', () => {
     expect(inner._onProgress).not.toBeNull();
     inner._onProgress!(1, 285);
     expect(events).toEqual(['ready']);
+    // 版本切换真实链路：setAtlasKey 触发新图集加载 → 进度经 queueMicrotask
+    // 投递（points.ts），同样须被 readyReported 拦截
+    vp.setAtlasKey('1.21.11');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(events).toEqual(['ready']);
     vp.stop();
   });
 });
