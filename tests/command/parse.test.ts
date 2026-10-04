@@ -412,6 +412,10 @@ describe('原版 /particle（MC 26.2）', () => {
     // 小数部分同为 decimalNumeral 运行 → 首/尾下划线同样拒：
     expect(() => V('particle dust{scale:0.5_,scale:1f}')).toThrow(/数值无效/);
     expect(() => V('particle dust{scale:0._5f}')).toThrow(/数值无效/);
+    // 正号字面量与游戏一致（canStartNumber 含 '+'）：+5 放行、+05 按前导零拒
+    expect(V('particle shriek{delay:+5}').nbt).toBe('delay:+5');
+    expect(() => V('particle dust{color:0x0000FF,scale:+1f}')).not.toThrow();
+    expect(() => V('particle dust{color:0x0000FF,scale:+05}')).toThrow(/数值无效/);
   });
 
   it('geyser 系 NBT（仅 26.2）：water_blocks 必填 POSITIVE_INT（≥1）', () => {
