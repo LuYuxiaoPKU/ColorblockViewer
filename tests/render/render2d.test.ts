@@ -3,9 +3,10 @@
 // 手工/preview 验证；色值口径共用 color.ts particleVisual（3D/2D 同一份，
 // tests/render/points.test.ts 已锁）。
 
-import { describe, expect, it } from 'vitest';
-import { fit, particleProjection } from '../../src/render/render2d';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Render2DViewport, fit, particleProjection } from '../../src/render/render2d';
 import type { RenderParticle } from '../../src/render/color';
+import type { SnapshotSource } from '../../src/render/sync';
 
 function mkPart(over: Partial<RenderParticle> = {}): RenderParticle {
   return { x: 0, y: 0, z: 0, r: 1, g: 0.5, b: 0.25, a: 0.8, name: 'flame', age: 0, lifetime: 60, vanilla: false, ...over };
@@ -63,5 +64,74 @@ describe('fit 视角自动适配', () => {
     const cy = (Math.sqrt(3) / 4) * 30 - 10;
     expect(f.ox).toBeCloseTo(500 - cx * f.scale, 4);
     expect(f.oy).toBeCloseTo(500 - cy * f.scale, 4);
+  });
+});
+
+// 生命周期用例用 fake DOM（真实 2D 绘制路径依赖浏览器上下文，headless 不测
+// 像素；ctx = null 时 draw 提前返回，只锁挂载/更新/截断/清理行为）
+function fakeEnv() {
+  const containerChildren: unknown[] = [];
+  const container = {
+    appendChild: (el: unknown) => containerChildren.push(el),
+    removeChild: (el: unknown) => {
+      const i = containerChildren.indexOf(el);
+      if (i >= 0) containerChildren.splice(i, 1);
+    },
+    get children() {
+      return containerChildren;
+    },
+  } as unknown as HTMLElement;
+  const canvas = {
+    style: {} as Record<string, string>,
+    clientWidth: 300,
+    clientHeight: 200,
+    width: 0,
+    height: 0,
+    getContext: () => null,
+    parentElement: container,
+  } as unknown as HTMLCanvasElement;
+  vi.stubGlobal('document', { createElement: () => canvas });
+  vi.stubGlobal('window', { devicePixelRatio: 1 });
+  vi.stubGlobal('requestAnimationFrame', () => 1);
+  vi.stubGlobal('cancelAnimationFrame', () => {});
+  return { container, canvas, containerChildren };
+}
+
+describe('Render2DViewport 生命周期（fake DOM）', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('构造挂 canvas 到容器；update 截断到容量上限', () => {
+    const { container, canvas, containerChildren } = fakeEnv();
+    const vp = new Render2DViewport(container, 10);
+    expect(containerChildren).toContain(canvas);
+    expect(vp.size).toBe(200);
+    const parts = Array.from({ length: 50 }, (_, i) => mkPart({ x: i, age: i % 10 }));
+    expect(vp.update({ snapshot: () => parts } as unknown as SnapshotSource)).toBe(10);
+  });
+
+  it('设置方法不抛错；start 幂等；倍数可读写', () => {
+    const { container } = fakeEnv();
+    const vp = new Render2DViewport(container, 100);
+    vp.setGrid(20, false);
+    vp.setAtlasKey('1.21.11');
+    vp.setSizeMul(2);
+    vp.setAlphaMul(0.5);
+    vp.setPointScale(400, 50); // 快速模式空操作
+    vp.start();
+    vp.start(); // 幂等
+    vp.stop();
+    expect(vp.sizeMul).toBe(2);
+    expect(vp.alphaMul).toBe(0.5);
+  });
+
+  it('dispose 从容器移除 canvas（size 归 0）', () => {
+    const { container, containerChildren } = fakeEnv();
+    const vp = new Render2DViewport(container, 10);
+    vp.start();
+    vp.dispose();
+    expect(containerChildren.length).toBe(0);
+    expect(vp.size).toBe(0);
   });
 });
