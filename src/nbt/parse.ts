@@ -144,7 +144,7 @@ function parseVal(s: string): NbtVal {
  *  NumberFormatException，此处放行）——type{NBT} schema 无 byte/short 字段，
  *  该写法无实际消费场景。 */
 function parseNum(s: string): number {
-  if (/^0[xX][0-9a-fA-F_]*[0-9a-fA-F][bBsSiIlLfFdD]?$/.test(s)) {
+  if (/^0[xX][0-9a-fA-F]+(?:_[0-9a-fA-F]+)*[bBsSiIlLfFdD]?$/.test(s)) {
     // 类型后缀仅 b/s/i/l（B/S/I/L）可跟在十六进制后：F/f/D/d 本身是十六进制数字
     // （SnbtGrammar 的 hex 数字运行对 [0-9a-fA-F] 贪婪 → 0xFF 的尾 F 是数字，
     // 不是 float 后缀）。旧正则 [..fFdD]$ 会把 0x0000FF 的尾 F 当后缀剥掉 → 15。
@@ -157,13 +157,10 @@ function parseNum(s: string): number {
     const suf = (s[s.length - 1] || '').toLowerCase();
     const isSuffix = suf === 'b' || suf === 's' || suf === 'i' || suf === 'l';
     // 下划线 = 数字分隔符（两版数字运行谓词 tableswitch 均含 95 '_'，
-    // cleanAndAppend 剥离后取值）——先剥再判位数/后缀
+    // cleanAndAppend 剥离后取值）。NumberRunParseRule 字节码：run 的**首/尾字符
+    // 为下划线 → underscoreNotAllowedError**；连续下划线允许（1_0_0 放行）
     let digits = isSuffix ? s.slice(2, -1) : s.slice(2);
-    if (digits.includes('_')) {
-      digits = digits.replace(/_/g, '');
-      if (!/^[0-9a-fA-F]+$/.test(digits)) throw new NbtParseError(`数值无效："${s}"`);
-    }
-    const u = parseInt(digits, 16);
+    const u = parseInt(digits.replace(/_/g, ''), 16);
     if (suf === 'b' && u > 0xff) throw new NbtParseError(`数值无效："${s}"`);
     if (suf === 's' && u > 0xffff) throw new NbtParseError(`数值无效："${s}"`);
     if (suf === 'i' && u > 0x7fffffff) throw new NbtParseError(`数值无效："${s}"`);
@@ -174,14 +171,20 @@ function parseNum(s: string): number {
     if (isSuffix) return u; // B/S/I/L 后缀：值本身
     return u >= 0x80000000 ? u - 0x100000000 : u; // 无后缀 INT：parseUnsignedInt 位模式
   }
+  // 十进制各数字运行（整数/小数/指数部分）均为 decimalNumeral run →
+  // 首/尾下划线同样被 NumberRunParseRule 拒绝（0.5_ / 0._5 / 1.0e_5 拒）
   const m = s.match(
-    /^([+-]?(?:(?:\d+(?:_\d+)*\d*|\d)\.?\d*(?:[eE][+-]?\d+)?|\.\d+))[fFdDIlBsS]?$/,
+    /^([+-]?(?:(?:\d+(?:_\d+)*|\d)(?:\.(?:\d+(?:_\d+)*|\d))?(?:[eE][+-]?\d+)?|\.\d+))[fFdDIlBsS]?$/,
   );
   if (!m) throw new NbtParseError(`数值无效："${s}"`);
-  // 下划线 = 数字分隔符（两版数字运行谓词 tableswitch 均含 95 '_'，
-  // cleanAndAppend 剥离后取值）；仅支持整数部分（小数部分下划线 = 文档化近似，
-  // type{NBT} 无此用法）。Number() 前剥离
+  // 下划线 = 数字分隔符（cleanAndAppend 剥离后取值）；Number() 前剥离
   const v = Number(m[1].replace(/_/g, ''));
   if (!isFinite(v)) throw new NbtParseError(`数值无效："${s}"`);
+  // 前导零拒绝（integer_literal 的 decimal 分支：0 cut fail(ERROR_LEADING_ZERO_NOT_ALLOWED)
+  // ——仅**整数 literal**（无 `.` 无 e/E，含带 B/S/I/L 后缀）有该 fail；
+  // float_literal 无此分支 → 0123 拒、0123.4 放行、0 放行）
+  if (!/\./.test(m[1]) && !/[eE]/.test(m[1]) && /^[+-]?0\d/.test(m[1])) {
+    throw new NbtParseError(`数值无效："${s}"`);
+  }
   return v;
 }

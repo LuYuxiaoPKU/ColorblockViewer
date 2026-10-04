@@ -397,6 +397,21 @@ describe('原版 /particle（MC 26.2）', () => {
     expect(V('particle shriek{delay:1_000}').nbt).toBe('delay:1_000');
     // 连续下划线 / 纯下划线 → 数值无效（parseInt 位宽拒绝同语义）
     expect(() => V('particle dust{color:0x__,scale:1f}')).toThrow(/NBT 解析失败/);
+    // 运行首/尾下划线拒绝（NumberRunParseRule 字节码，CFR 2026-10-04 确认；
+    // 连续下划线允许）：
+    expect(() => V('particle dust{color:0x_FF,scale:1f}')).toThrow(/数值无效/);
+    expect(() => V('particle dust{color:0xFF_,scale:1f}')).toThrow(/数值无效/);
+    expect(V('particle shriek{delay:1_0_0}').nbt).toBe('delay:1_0_0');
+    expect(() => V('particle shriek{delay:1_000_}')).toThrow(/数值无效/);
+    // 十进制纯整数前导零拒绝（integer_literal: 0 cut fail(ERROR_LEADING_ZERO_NOT_ALLOWED)；
+    // float 路径无此检查 → 0123 拒、0123.4 放行、0 放行）：
+    expect(() => V('particle dust{color:0123,scale:1f}')).toThrow(/数值无效/);
+    expect(() => V('particle dust{color:0x112233,scale:01.5f}')).not.toThrow();
+    expect(() => V('particle dust{color:0x112233,scale:0.123f}')).not.toThrow();
+    expect(V('particle dust{color:0,scale:1f}').nbt).toBe('color:0,scale:1f');
+    // 小数部分同为 decimalNumeral 运行 → 首/尾下划线同样拒：
+    expect(() => V('particle dust{scale:0.5_,scale:1f}')).toThrow(/数值无效/);
+    expect(() => V('particle dust{scale:0._5f}')).toThrow(/数值无效/);
   });
 
   it('geyser 系 NBT（仅 26.2）：water_blocks 必填 POSITIVE_INT（≥1）', () => {
