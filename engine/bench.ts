@@ -24,8 +24,8 @@
 //  实测（2026-09-29）：bench 中位数 17.77 → 14.07 ms/tick（约 1.26×，低于预案
 //  预期 3–5×——瓶颈在 Math 内建与 25 字段 struct 访问，而非节点级调用开销）；
 //  中位数 <16ms 通过。CI runner（GitHub Actions ubuntu-latest / Node 22）
-//  同口径实测 47.56ms/tick（≈3.4× 本地 Node 24）——报告型输出 ❌ 属预期、
-//  不 gate CI（2026-09-10 拍板），非回归信号。
+//  同口径实测 27.37ms/tick（2026-10-04，ee3db19；初测 47.56ms，约 1.74× 本地
+//  Node 24）——报告型输出 ❌ 属预期、不 gate CI（2026-09-10 拍板），非回归信号。
 //
 // 用法：npm run test 走 tests/engine/bench.test.ts（vitest 宿主，console 可捕获）。
 
