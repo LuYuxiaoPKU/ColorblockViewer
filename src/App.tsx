@@ -13,7 +13,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { SimEngine } from './sim/engine';
 import type { SnapshotSource } from './render/sync';
-import { useAppState, setHud, pushToast, getState, clearToasts, setPlaying, applyInputText } from './store/appState';
+import { useAppState, setHud, pushToast, getState, clearToasts, setPlaying, applyInputText, setSim } from './store/appState';
 import { CommandPane } from './ui/CommandPane';
 import { Viewport } from './ui/Viewport';
 
@@ -92,7 +92,21 @@ export default function App() {
           );
     void load.then((make) => {
       if (disposed || !containerRef.current) return;
-      vp = make();
+      try {
+        vp = make();
+      } catch (err) {
+        // 完整模式 WebGL 上下文创建失败（无 GPU/被禁用）：three 的 WebGLRenderer
+        // 构造直接抛异常（非 getContext null —— 该路径 r185 不可达）。不兜底则
+        // 未处理 rejection + 视口永不建立 + 进度条永卡「加载渲染核心」（引擎照
+        // 常跑但画面空白、无提示）。降级快速模式：引擎 1:1 照常（Canvas 2D 圆点），
+        // 只丢贴图外观。
+        if (mode === 'full') {
+          console.error('WebGL 初始化失败，降级快速模式：', err); // 吞异常前留痕（浏览器控制台可见，同 points.ts 图集失败）
+          pushToast('WebGL 不可用（无 GPU 或被浏览器禁用）：已降级为快速模式（Canvas 2D）');
+          setSim({ renderMode: 'fast' }); // 触发上方 effect 重跑 → 建快速模式视口
+        }
+        return;
+      }
       viewportRef.current = vp;
       // 点云缓冲容量 = 挂载时 maxParticles（运行期调大上限不扩容缓冲）→ 截断提示
       setRenderCapacity(engineRef.current!.config.maxParticles);
@@ -131,6 +145,11 @@ export default function App() {
       disposed = true;
       window.clearTimeout(fadeTimer);
       window.removeEventListener('resize', onResize);
+      // 断链：迟到的 compileAsync .then 若在 dispose 后执行，onProgress('ready')
+      // 会污染**新**挂载的 readyRef/进度条（旧闭包回调指向 App 的共享状态）——
+      // 完整模式编译在途时切快速模式、StrictMode 双挂载都会触发。置 null 后
+      // 旧视口的一切迟到上报被 ?. 丢弃。
+      if (vp) vp.onProgress = null;
       vp?.dispose();
       viewportRef.current = null;
       readyRef.current = false;

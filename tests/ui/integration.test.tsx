@@ -26,8 +26,13 @@ vi.mock('../../src/render/sync', () => {
     SimViewport: class {
       static gridCalls = gridCalls;
       static progressState = progressState;
+      /** 测试钩子：置 true 时构造抛异常（模拟 WebGL 上下文创建失败） */
+      static throwOnConstruct = false;
       onProgress: ((stage: string, frac: number, label?: string) => void) | null = null;
       constructor() {
+        if ((this.constructor as unknown as { throwOnConstruct: boolean }).throwOnConstruct) {
+          throw new Error('THREE.WebGLRenderer: Error creating WebGL context.');
+        }
         progressState.last = this;
       }
       update(): number {
@@ -66,6 +71,7 @@ afterEach(() => {
     root.unmount();
   });
   container.remove();
+  (SimViewport as unknown as { throwOnConstruct: boolean }).throwOnConstruct = false;
 });
 
 beforeEach(async () => {
@@ -495,5 +501,35 @@ describe('首帧预热进度（App ↔ 视口 onProgress 通道）', () => {
     });
     // render2d 的 onProgress 是空操作字段：App 安装后无任何上报
     expect(container.querySelector('.vp-progress')).toBeNull();
+  });
+
+  it('卸载完整视口时 onProgress 置 null（dispose 后迟到 ready 不再污染新挂载）', async () => {
+    // 回归：完整模式编译在途时切快速模式（或 StrictMode 双挂载）→ 旧视口
+    // compileAsync 的 .then 在 dispose 后仍可执行，若 onProgress 未断开则
+    // onProgress('ready') 污染新挂载的 readyRef/进度条。App cleanup 须置 null。
+    const SV = SimViewport as unknown as {
+      progressState: { last: { onProgress: unknown } | null };
+    };
+    expect(typeof SV.progressState.last!.onProgress).toBe('function'); // 挂载后已安装
+    act(() => setSim({ renderMode: 'fast' })); // 卸载完整视口 → cleanup
+    await act(async () => { await Promise.resolve(); });
+    expect(SV.progressState.last!.onProgress).toBeNull(); // 已断链
+  });
+
+  it('完整模式 WebGL 构造抛错 → 降级快速模式（toast + 无进度条，不永卡「加载渲染核心」）', async () => {
+    // 回归：three r185 的 WebGLRenderer 无 WebGL2 时构造直接抛异常（非 getContext
+    // null）。App 须在 make() 外包 try/catch，降级快速模式——否则未处理 rejection
+    // + 视口永不建立 + 进度条永卡「加载渲染核心」（引擎照常跑但画面空白无提示）。
+    const SV = SimViewport as unknown as { throwOnConstruct: boolean };
+    // 先切快速模式卸载现有完整视口，再切回完整模式触发重建（构造抛错）
+    act(() => setSim({ renderMode: 'fast' }));
+    await act(async () => { await Promise.resolve(); });
+    SV.throwOnConstruct = true;
+    act(() => setSim({ renderMode: 'full' }));
+    // effect → import sync → make 抛错 → catch → setSim(fast)；多拍让 microtask 链跑完
+    for (let i = 0; i < 6; i++) await act(async () => { await Promise.resolve(); });
+    expect(getState().sim.renderMode).toBe('fast'); // 已自动降级
+    expect(getState().toasts.at(-1)).toContain('降级');
+    expect(container.querySelector('.vp-progress')).toBeNull(); // 无永卡进度条
   });
 });

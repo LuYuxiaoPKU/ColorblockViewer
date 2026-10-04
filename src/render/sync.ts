@@ -136,7 +136,9 @@ export class SimViewport {
       void this.scene.renderer
         .compileAsync(this.scene.scene, this.scene.camera)
         .then(() => {
-          if (this.readyReported) return;
+          // 视口已 dispose（stop 置 running=false）→ 迟到回调丢弃，不再上报
+          // 'ready'（App 侧 cleanup 也会断 onProgress，双保险）
+          if (!this.running || this.readyReported) return;
           this.readyReported = true;
           this.onProgress?.('ready', 1);
         });

@@ -105,4 +105,26 @@ describe('SimViewport.start WebGL 门控', () => {
     expect(events).toEqual(['ready']);
     vp.stop();
   });
+
+  it('dispose 后 compileAsync 才完成 → 迟到的 ready 不上报（竞态断链）', async () => {
+    // 回归：完整模式编译在途时卸载视口（模式切换/StrictMode 双挂载）→ .then
+    // 在 stop 后执行，若仍上报 'ready' 会污染新挂载的门控（App cleanup 断
+    // onProgress 是另一道保险，此处验视口自身门控）。
+    rendererMock.getContext.mockReturnValue({});
+    let resolveCompile: () => void = () => {};
+    rendererMock.compileAsync.mockReturnValue(new Promise((r) => { resolveCompile = r; }));
+    vi.stubGlobal('requestAnimationFrame', () => 0);
+    vi.stubGlobal('cancelAnimationFrame', () => {});
+    const vp = mkViewport();
+    let ready = 0;
+    vp.onProgress = (stage) => {
+      if (stage === 'ready') ready++;
+    };
+    vp.start();
+    expect(rendererMock.compileAsync).toHaveBeenCalledTimes(1);
+    vp.stop(); // 编译在途即卸载
+    resolveCompile(); // 此刻编译才完成
+    await new Promise((r) => setTimeout(r, 0));
+    expect(ready).toBe(0);
+  });
 });
