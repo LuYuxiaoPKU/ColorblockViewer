@@ -150,9 +150,14 @@ function parseVal(s: string): NbtVal {
  *  十六进制：0xFF / 0xFF0000 / 0xFFI（无后缀 = INT 无符号取值，B/S/I/L 后缀
  *  按各自位宽语义——见函数内注释；两版字节码同构，见 particleOptions.ts 头注）
  *  十进制：123 / -42 / 1.0 / 1.0f / 1.0d / 1I / 1L（后缀剥除后取数值）
- *  近似边界（文档化）：十进制带 B/S/L 后缀不做 Java 的位宽越界拒绝（如 128B 游戏内
- *  NumberFormatException，此处放行）——type{NBT} schema 无 byte/short 字段，
- *  该写法无实际消费场景。 */
+ *  近似边界（文档化）：① 十进制带 B/S/L 后缀不做 Java 的位宽越界拒绝（如 128B
+ *  游戏内 NumberFormatException，此处放行）——type{NBT} schema 无 byte/short
+ *  字段，该写法无实际消费场景；② 十进制带 L 后缀且值 >2^32-1（如 9007199254740993L）
+ *  游戏内解析放行但 schema 无 long 字段必拒，预览直接拒（命令结果一致）；
+ *  ③ 十进制带 B/S/L 后缀且 >intMax（如 3000000000B）游戏内解析放行但 schema
+ *  无 unsigned int 字段必拒，预览直接拒（命令结果一致）；
+ *  ④ `+` 号字面量（canStartNumber 含 '+'，+5 / +1.0f 游戏内解析放行，
+ *  预览拒）——NBT 值域正数均可无符号写法，加号无实际消费场景。 */
 function parseNum(s: string): number {
   if (/^0[xX][0-9a-fA-F]+(?:_[0-9a-fA-F]+)*[bBsSiIlLfFdD]?$/.test(s)) {
     // 类型后缀仅 b/s/i/l（B/S/I/L）可跟在十六进制后：F/f/D/d 本身是十六进制数字
