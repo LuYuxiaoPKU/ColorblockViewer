@@ -88,7 +88,62 @@ describe('encodeShare/decodeShare round-trip', () => {
     const bad = encodeShare({ commands: CMDS, sim: SIM }).slice(0, 10) + '###';
     expect(decodeShare(bad, SIM)).toBeNull();
   });
+
+  it('commands 元素级校验：畸形命令（手改/伪造 ?s=）→ null，不直通 serializeAll 白屏', () => {
+    // 回归：曾只查 Array.isArray(commands)——{commands:[{}]} 直通 loadShared →
+    // serializeAll 读 c.pos.rel 抛 TypeError → createRoot 前崩 → 整站白屏
+    const tok = (o: unknown) => b64(o);
+    expect(decodeShare(tok({ commands: [{}] }), SIM)).toBeNull();
+    expect(decodeShare(tok({ commands: [null, CMDS[0]] }), SIM)).toBeNull();
+    expect(decodeShare(tok({ commands: [{ kind: 'normal', name: 'flame' }] }), SIM)).toBeNull(); // 缺 pos
+    expect(decodeShare(tok({ commands: [{ ...CMDS[0], pos: { x: { v: 1 } } }] }), SIM)).toBeNull(); // pos 缺 rel
+    expect(decodeShare(tok({ commands: [{ ...CMDS[0], name: 5 }] }), SIM)).toBeNull(); // name 非 string
+    expect(decodeShare(tok({ commands: [{ kind: 'bogus' }] }), SIM)).toBeNull(); // 未知 kind
+    expect(decodeShare(tok({ commands: [{ kind: 'group', pos: vec3(), name: 'g', sub: 'explode', group: 'g1' }] }), SIM)).toBeNull(); // sub 非法
+    expect(decodeShare(tok({ commands: [{ ...CMDS[0], pos: { x: 1, y: 2, z: 3 } }] }), SIM)).toBeNull(); // vanilla pos 须 Vec3|null
+  });
+
+  it('vanilla pos:null 合法（原版 /particle 允许省略 pos）→ 校验通过', () => {
+    const tok = b64({ commands: [CMDS[0]], sim: SIM });
+    const back = decodeShare(tok, SIM);
+    expect(back).not.toBeNull();
+    expect(back!.commands).toEqual(CMDS);
+  });
+
+  it('vanilla delta/speed/count/normal/nbt 全 null（命令树最小载荷）→ 合法', () => {
+    const c = { kind: 'vanilla', name: 'flame', pos: null, delta: null, speed: null, count: null, normal: false, nbt: null };
+    const back = decodeShare(b64({ commands: [c], sim: SIM }), SIM);
+    expect(back).not.toBeNull();
+    expect(back!.commands).toEqual([c]);
+  });
+
+  it('vanilla 结构畸形（非对象元素 / 未知 kind）→ null', () => {
+    expect(decodeShare(b64({ commands: ['flame'] }), SIM)).toBeNull();
+    expect(decodeShare(b64({ commands: [3] }), SIM)).toBeNull();
+  });
+
+  it('sim 类型校验：垃圾值降级默认（playerPos:5 不得直通引擎 → ~ 坐标 NaN 空白）', () => {
+    const tok = b64({ commands: CMDS, sim: { playerPos: 5, maxParticles: 'many', seed: NaN, renderMode: 'ultra', gridSize: 5 } });
+    const back = decodeShare(tok, SIM);
+    expect(back).not.toBeNull();
+    expect(back!.sim.playerPos).toEqual(SIM.playerPos);
+    expect(back!.sim.maxParticles).toBe(SIM.maxParticles);
+    expect(Number.isFinite(back!.sim.seed)).toBe(true);
+    expect(back!.sim.renderMode).toBe(SIM.renderMode);
+    expect(back!.sim.gridSize).toBe(5); // 合法字段保留
+  });
 });
+
+function vec3() {
+  return { x: { v: 1, rel: false }, y: { v: 2, rel: false }, z: { v: 3, rel: false } };
+}
+
+/** 测试辅助：对象 → base64url token（与 encodeShare 同编码，绕过其类型约束注入畸形载荷） */
+function b64(o: unknown): string {
+  const b64u = btoa(unescape(encodeURIComponent(JSON.stringify(o))))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return b64u;
+}
 
 describe('shareUrl', () => {
   it('拼 origin + pathname + ?s=token', () => {

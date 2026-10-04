@@ -97,11 +97,26 @@ const cmpILit = (op: string, l: string, r: string): string => {
   return '(' + l + sym[op] + r + '?1:0)';
 };
 
-// int 四则内联（与 matrix.iadd/isub/imul/intDiv/intMod 同语义；/0 抛同一异常类）
-const intDivLit = (l: string, r: string): string =>
-  'M.errDiv0(' + r + '===0)?(Math.trunc(' + l + '/' + r + ')|0)';
-const intModLit = (l: string, r: string): string =>
-  'M.errDiv0(' + r + '===0)?((' + l + '-Math.trunc(' + l + '/' + r + ')*' + r + ')|0)';
+// int 四则内联（与 matrix.intDiv/intMod 同语义；/0 抛同一异常类）。
+// errDiv0 = 「真 throw、假 return 0」哨兵 → 必须用**逗号表达式**先求它（真则
+// throw、假的 0 被丢弃）再算商——**绝不能**用三元 `errDiv0(z)?div:0`：假分支
+// 返回的 0 会被当条件恒走 else 返回 0（int 除法恒 0），且缺 else 本身是 JS
+// 语法错误。此函数曾两连错（2026-10-05）：
+// ① 初版 `errDiv0(z)?(trunc|0)` 缺 else → JS 语法错误 → new Function 抛 →
+//    整条表达式静默回退闭包后端（int 除/模 codegen 从未生效）；
+// ② 误改成三元补 :0 → int 除法恒返回 0（golden case 305 MIN_VALUE/-1 撞上）。
+// 正确形式 = 逗号表达式。另：l/r 可能含副作用（嵌套赋值/字段写），判零与求商
+// 都会引用 → 必须各固化一次。两形态：
+//  - solid（静态 int 域路径，无 guard，body 是唯一求值点）：自固化 lExpr/rExpr
+//  - ref（运行期不可知路径，guard 的 isMat(l)/isMat(r) 已固化 lVar/rVar）：只引用
+const intDivSolid = (lv: string, le: string, rv: string, re: string): string =>
+  '((((' + lv + '=' + le + '),' + rv + '=' + re + '),M.errDiv0(' + rv + '===0)),(Math.trunc(' + lv + '/' + rv + '))|0)';
+const intModSolid = (lv: string, le: string, rv: string, re: string): string =>
+  '((((' + lv + '=' + le + '),' + rv + '=' + re + '),M.errDiv0(' + rv + '===0)),(' + lv + '-Math.trunc(' + lv + '/' + rv + ')*' + rv + ')|0)';
+const intDivRef = (lv: string, rv: string): string =>
+  '(M.errDiv0(' + rv + '===0),(Math.trunc(' + lv + '/' + rv + '))|0)';
+const intModRef = (lv: string, rv: string): string =>
+  '(M.errDiv0(' + rv + '===0),(' + lv + '-Math.trunc(' + lv + '/' + rv + ')*' + rv + ')|0)';
 
 const cStr = (ctx: GCtx, v: string): string => {
   ctx.c.push(v);
@@ -302,8 +317,8 @@ function emitBin(ctx: GCtx, n: Extract<Node, { k: 'bin' }>, target: number): str
         case '+': body = '(' + l + '+' + r + ')|0'; break;
         case '-': body = '(' + l + '-' + r + ')|0'; break;
         case '*': body = 'Math.imul(' + l + ',' + r + ')'; break;
-        case '/': body = intDivLit(l, r); break;
-        case '%': body = intModLit(l, r); break;
+        case '/': body = intDivSolid(tl, lc, tr, rc); break;
+        case '%': body = intModSolid(tl, lc, tr, rc); break;
         case '^': body = 'Math.pow(' + l + ',' + r + ')'; break; // (II)D
         default: throw new ExprError('bad operator: ' + op);
       }
@@ -339,8 +354,8 @@ function emitBin(ctx: GCtx, n: Extract<Node, { k: 'bin' }>, target: number): str
       case '+': body = '(' + tl + '+' + tr + ')|0'; break;
       case '-': body = '(' + tl + '-' + tr + ')|0'; break;
       case '*': body = 'Math.imul(' + tl + ',' + tr + ')'; break;
-      case '/': body = intDivLit(tl, tr); break;
-      case '%': body = intModLit(tl, tr); break;
+      case '/': body = intDivRef(tl, tr); break; // l/r 已由 guard 的 isMat 赋值，只引用临时变量
+      case '%': body = intModRef(tl, tr); break;
       case '^': body = 'Math.pow(' + tl + ',' + tr + ')'; break;
       default: throw new ExprError('bad operator: ' + op);
     }
