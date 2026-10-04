@@ -172,7 +172,7 @@ export function parseColorField(val: NbtVal, kind: 'rgb' | 'argb'): number[] | n
   }
   if (typeof val === 'number' && Number.isInteger(val)) {
     // 整数字面量（十进制或 0x…）。hex 无后缀 ≥2^31 经 parseUnsignedInt 取 int 位模式
-    // （如 0x80FF0000 → -8388608）→ 渲染色按无符号 32 位位模式取字节（>>> 0），
+    // （如 0x80FF0000 → -2130771968）→ 渲染色按无符号 32 位位模式取字节（>>> 0），
     // 与 Java 的 (color >>> shift) & 0xFF 一致。rgb 限 24 位（0..0xFFFFFF，非负）；
     // argb 限完整 int32/uint32 位模式（-0x80000000..0xFFFFFFFF）。
     const lo = n === 3 ? 0 : -0x80000000;
