@@ -328,6 +328,31 @@ describe('loadAtlasTexture 并行加载与进度（fake DOM）', () => {
     _resetAtlasCache();
   });
 
+  it('layer dispose 后缓存失效：full→fast→full 切回不复用已释放纹理', async () => {
+    // 回归：模块级图集缓存只按 key 失效、不感知纹理生命周期——layer.dispose
+    // 释放 uAtlas 后切回 full 会命中缓存拿到已 dispose 的纹理（uHasAtlas=1
+    // 但 GL 纹理已销毁 → 贴图类型渲染黑/未定义）。
+    const env = fakeImageEnv();
+    const layer = createPointsLayer(2, '26.2');
+    await loadAtlasTexture('26.2'); // 走缓存 Promise，纹理进 layer.uAtlas
+    expect(layer.uniforms.uAtlas.value).not.toBeNull();
+    const base = env.srcs.length; // 每张图 set src 一次 → srcs 长度 = 已创建图数
+    layer.dispose(); // 释放 uAtlas（= 缓存纹理）→ 缓存应失效
+    await loadAtlasTexture('26.2');
+    expect(env.srcs.length).toBeGreaterThan(base); // 重新加载（缓存已失效，非命中旧纹理）
+  });
+
+  it('在途图集加载 + 立即 dispose → 不赋纹理（无泄漏）', async () => {
+    // 回归：dispose 后在途 .then 会给已销毁的 layer 赋新纹理（无人释放 = 泄漏）
+    fakeImageEnv([], 30);
+    const layer = createPointsLayer(2, '26.2');
+    layer.dispose(); // 加载仍在途（30ms 延迟）
+    await new Promise<void>((r) => setTimeout(r, 50));
+    expect(layer.uniforms.uAtlas.value).toBeNull();
+    expect(layer.atlasLoaded).toBe(false);
+    expect(layer.uniforms.uHasAtlas.value).toBe(0);
+  });
+
   it('全帧成功：进度 (0,N) 起、末次 (N,N)，drew 单调不减', async () => {
     fakeImageEnv();
     const prog: [number, number][] = [];

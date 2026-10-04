@@ -100,6 +100,11 @@ function evalBoth(src: string): { parseErr?: string; a: R; b: R } {
 function expectParity(src: string): void {
   const { parseErr, a, b } = evalBoth(src);
   if (parseErr !== undefined) return; // parse 层错误与后端无关
+  // codegen 必须非 null：null = 静默回退闭包 → 对拍退化成「闭包 vs 自身」
+  // （假对拍，曾掩盖 intDivLit/intModLit 缺 :0 的 JS 语法错误）
+  if (a.msg === '__CODEGEN_NULL__') {
+    throw new Error(`codegen 回退闭包后端（src=${src}）——对拍无效`);
+  }
   if (a.ok !== b.ok) {
     throw new Error(`后端不一致（src=${src}）：codegen=${JSON.stringify(a)} closure=${JSON.stringify(b)}`);
   }
@@ -245,5 +250,23 @@ describe('codegen 双后端对拍', () => {
     const block = new Parser(new Lexer('a=1;a*2')).parseBlock();
     const run = codegenBlock(block);
     expect(run).not.toBeNull();
+  });
+
+  it('int 除/模静态路径 codegen 非 null 且数值正确（溢出哨兵三连回归）', () => {
+    // 2026-10-05 三连：① 初版三元缺 else = JS 语法错误 → null 回退；
+    // ② 误改三元补 :0 → int 除法恒 0；③ 哨兵必须用逗号表达式。
+    // expectParity 只能抓「两端不一致」，codegen 静默回退时闭包 vs 自身抓不住
+    // —— 这里直接锁 codegen 非 null + 溢出边界值。
+    for (const [src, want] of [
+      ['a=-2147483647;a=a-1;a/-1', -2147483648], // MIN_VALUE / -1 = 溢出回 MIN_VALUE
+      ['a=-2147483647;a=a-1;a%-1', 0], // MIN_VALUE % -1 = 0
+      ['7/2', 3],
+      ['-7%3', -1],
+    ] as [string, number][]) {
+      const block = new Parser(new Lexer(src)).parseBlock();
+      const run = codegenBlock(block);
+      expect(run, `codegen 回退闭包（src=${src}）`).not.toBeNull();
+      expect((run as (s: ParticleStruct) => number)(new ParticleStruct()), `src=${src}`).toBe(want);
+    }
   });
 });

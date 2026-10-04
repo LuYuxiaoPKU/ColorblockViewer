@@ -49,7 +49,8 @@ export function createScene(container: HTMLElement): SceneBundle {
 
   let grid = new THREE.GridHelper(10, 10, GRID_SIZE_COLOR, GRID_LINE_COLOR);
   scene.add(grid);
-  scene.add(new THREE.AxesHelper(2));
+  const axes = new THREE.AxesHelper(2);
+  scene.add(axes);
 
   const resize = () => {
     const w = Math.max(container.clientWidth, 1);
@@ -84,6 +85,12 @@ export function createScene(container: HTMLElement): SceneBundle {
     setGrid,
     dispose: () => {
       controls.dispose();
+      scene.remove(grid);
+      grid.geometry.dispose();
+      (grid.material as THREE.Material).dispose();
+      scene.remove(axes);
+      axes.geometry.dispose();
+      (axes.material as THREE.Material).dispose();
       renderer.dispose();
       if (renderer.domElement.parentElement === container) {
         container.removeChild(renderer.domElement);

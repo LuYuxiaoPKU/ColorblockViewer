@@ -235,8 +235,9 @@ export default function App() {
   // 否则 run 的是旧 commands、新粘贴的命令不生效），再逐条 runCommand
   // （命令级错误 toast，后续行继续）
   const run = () => {
-    const applyErr = applyInputText();
-    if (applyErr) pushToast(applyErr);
+    // applyInputText 失败时自己已推 toast（store 层统一入口）——这里不再重推
+    // （曾双推：同一条错误占 toast 配额 2 条）
+    applyInputText();
     const e = engineRef.current!;
     for (const cmd of getState().commands) {
       try {

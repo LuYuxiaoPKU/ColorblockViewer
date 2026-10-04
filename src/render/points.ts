@@ -245,6 +245,10 @@ export interface PointsLayer {
   atlasLoaded: boolean;
   /** 图集 epoch：setPointsLayerAtlasKey 自增 → 在途旧 key 加载的迟到结果判废 */
   _atlasEpoch: number;
+  /** 当前图集 key（游戏版本）：dispose 时用于失效同 key 的模块级缓存 */
+  _atlasKey: string;
+  /** 已 dispose：在途图集 .then 判废（避免给已销毁的 layer 赋未释放纹理） */
+  _disposed: boolean;
   /** 图集加载进度上报（drew, total）；SimViewport 注入（按 _atlasEpoch 判废）。
    *  测试可直接注入断言序列。 */
   _onProgress: ((drew: number, total: number) => void) | null;
@@ -307,6 +311,8 @@ export function createPointsLayer(max: number, atlasKey = '26.2'): PointsLayer {
     uniforms,
     atlasLoaded: false,
     _atlasEpoch: 0,
+    _atlasKey: atlasKey,
+    _disposed: false,
     _onProgress: null,
     applyAtlas(tex: THREE.Texture | null) {
       if (layer.atlasLoaded) return; // 同 key 只应用一次；切 key 走 SimViewport.setAtlasKey
@@ -321,6 +327,13 @@ export function createPointsLayer(max: number, atlasKey = '26.2'): PointsLayer {
       mat.dispose();
       const t = uniforms.uAtlas.value;
       if (t) t.dispose();
+      // 模块级图集缓存与纹理同生命周期：该 layer 持有 uAtlas（= 缓存的纹理）
+      // 且与缓存同 key 时失效缓存——否则 full→fast→full 切回会命中缓存返回
+      // 已 dispose 的纹理（uHasAtlas=1 但 GL 纹理已销毁 → 贴图类型渲染黑/未定义）。
+      // 缓存纹理与 layer 纹理是同一对象（applyAtlas 直接引用），layer 释放即
+      // 缓存失效；key 不同（缓存属另一 layer/版本）不动。
+      if (t && texPromise && texPromise.key === layer._atlasKey) texPromise = null;
+      layer._disposed = true;
     },
   };
   // 异步加载图集（headless/加载失败 → null，保持圆点）。
@@ -332,10 +345,12 @@ export function createPointsLayer(max: number, atlasKey = '26.2'): PointsLayer {
   // 迟到结果与迟到进度都丢弃（进度回调按启动时 epoch 门控，与 .then 同口径）。
   void loadAtlasTexture(atlasKey, (drew, total) => {
     queueMicrotask(() => {
+      if (layer._disposed) return;
       if (layer._atlasEpoch !== 0) return;
       layer._onProgress?.(drew, total);
     });
   }).then((tex) => {
+    if (layer._disposed) return; // 已销毁 → 不赋纹理（无人释放它 = 泄漏）
     if (layer._atlasEpoch !== 0) return;
     layer.applyAtlas(tex);
   });
@@ -352,12 +367,15 @@ export function setPointsLayerAtlasKey(layer: PointsLayer, atlasKey: string): vo
   layer.uniforms.uAtlas.value = null;
   layer.uniforms.uHasAtlas.value = 0;
   layer.atlasLoaded = false;
+  layer._atlasKey = atlasKey;
   const { rows } = atlasMeta(atlasKey);
   layer.uniforms.uCell.value = new THREE.Vector2(1 / ATLAS_COLS, 1 / rows);
   void loadAtlasTexture(atlasKey, (drew, total) => {
+    if (layer._disposed) return;
     if (layer._atlasEpoch !== e) return; // 又被切走 → 迟到进度判废
     layer._onProgress?.(drew, total);
   }).then((tex) => {
+    if (layer._disposed) return; // 已销毁 → 不赋纹理
     if (layer._atlasEpoch !== e) return; // 又被切走 → 判废
     if (layer.atlasLoaded) return; // 已被更新一轮覆盖
     layer.applyAtlas(tex);

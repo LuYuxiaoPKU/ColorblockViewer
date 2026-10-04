@@ -179,6 +179,9 @@ describe('粘贴 → 执行', () => {
     expect(getState().commands).toEqual([]);
     expect(ta().value).toBe('particleex normal broken\n'); // 文本保留，用户可继续修改
     expect(getState().toasts.at(-1)).toMatch(/用法/);
+    // 回归：曾双推（store 的 applyInputText 自推一条 + App.run 又推一条）
+    // → 同一条错误占 toast 配额（slice(-5)）2 条
+    expect(getState().toasts.filter((t) => /用法/.test(t))).toHaveLength(1);
   });
 
   it('用户真实指令（/ 前缀 + 单引号表达式）粘贴→执行 → 结构正确 + 回显保留斜杠', () => {
