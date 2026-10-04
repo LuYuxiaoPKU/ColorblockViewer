@@ -697,6 +697,57 @@ describe('原版运动学（end_rod：摩擦 f2d(0.91f)/tick + 重力 −0.04d×
   });
 });
 
+describe('updateConfig 与 PRNG 序列（1:1 回归，2026-10-04 审查发现）', () => {
+  // App 每次 sim 变更都传完整 sim 对象给 updateConfig：若按「字段在场」
+  // （patch.seed !== undefined）判重建，则任意设置变更（切渲染模式/网格/
+  // 版本）都会把双 PRNG 从种子重启，随机序列与单一路径连续运行不一致。
+  // 回归锁定：仅 seed 值变化才重建。
+  // 用例用 flame + range 1 1 1：生成期位置 = 高斯偏移（非零），直接由 PRNG
+  // 序列决定——end_rod + range 0 是确定性位置，测不出漂移（假通过）。
+
+  const E = () => new SimEngine(cfg({}));
+  const CMD = (n: number) =>
+    `particleex normal flame 0 0 0 1 1 1 1 0 0 0 1 1 1 ${n} 0`;
+
+  it('seed 值不变（其他设置变更）→ 后续生成的随机序列不漂移', () => {
+    const ref = E();
+    ref.runCommand(C(CMD(2)));
+    ref.runCommand(C(CMD(2)));
+
+    const e = E();
+    e.runCommand(C(CMD(2)));
+    e.updateConfig({
+      seed: 1, renderMode: 'fast', gridSize: 50, gridVisible: false,
+      mcVersion: '1.21.11', defaultLifetime: 30, maxParticles: 1000,
+      playerPos: { x: 0, y: 5, z: 0 },
+    });
+    e.runCommand(C(CMD(2)));
+
+    // 两引擎的第二批（4 个）粒子：ref 连续消费 seed 1 序列，e 若被误重置
+    // 则高斯偏移与 ref 不同
+    const a = ref.snapshot().map((p) => [p.x, p.y, p.z]);
+    const b = e.snapshot().map((p) => [p.x, p.y, p.z]);
+    expect(b).toEqual(a);
+  });
+
+  it('seed 值变化 → 重建 PRNG，后续生成序列漂移', () => {
+    const ref = E();
+    ref.runCommand(C(CMD(2)));
+    ref.runCommand(C(CMD(2)));
+
+    const e = E();
+    e.runCommand(C(CMD(2)));
+    e.updateConfig({ seed: 2 });
+    e.runCommand(C(CMD(2)));
+
+    const a = ref.snapshot().map((p) => [p.x, p.y, p.z]);
+    const b = e.snapshot().map((p) => [p.x, p.y, p.z]);
+    // 第一批（同 seed 1 生成）应一致；第二批 e 从 seed 2 重启 → 不同
+    expect(b.slice(0, 2)).toEqual(a.slice(0, 2));
+    expect(b.slice(2)).not.toEqual(a.slice(2));
+  });
+});
+
 describe('原版 /particle 的 end_rod：随机寿命（vanilla=true 路径）', () => {
   it('age=0 + nativeKinematics → lifetime = 60+nextInt(12)（同种子可复现）', () => {
     const e1 = eng({ seed: 1, nativeKinematics: true });
