@@ -219,9 +219,10 @@ function parseNum(s: string): number {
     return u >= 0x80000000 ? u - 0x100000000 : u; // 无后缀 INT：parseUnsignedInt 位模式
   }
   // 十进制各数字运行（整数/小数/指数部分）均为 decimalNumeral run →
-  // 首/尾下划线同样被 NumberRunParseRule 拒绝（0.5_ / 0._5 / 1.0e_5 拒）
+  // NumberRunParseRule：run 的**首/尾字符为下划线**拒、连续下划线允许
+  // （1__0 游戏放行——与 hex/binary 分支同形态）
   const m = s.match(
-    /^([+-]?(?:(?:\d+(?:_\d+)*|\d)(?:\.(?:\d+(?:_\d+)*|\d))?(?:[eE][+-]?\d+)?|\.\d+))([fFdDIlBsSL])?$/,
+    /^([+-]?(?:(?:\d(?:[0-9_]*\d)?|\d)(?:\.(?:\d(?:[0-9_]*\d)?|\d))?(?:[eE][+-]?\d(?:[0-9_]*\d)?)?|\.\d+(?:[0-9_]*\d)?))([fFdDIlBsSL])?$/,
   );
   if (!m) throw new NbtParseError(`数值无效："${s}"`);
   // 下划线 = 数字分隔符（cleanAndAppend 剥离后取值）；Number() 前剥离
@@ -229,8 +230,11 @@ function parseNum(s: string): number {
   if (!isFinite(v)) throw new NbtParseError(`数值无效："${s}"`);
   // 前导零拒绝（integer_literal 的 decimal 分支：0 cut fail(ERROR_LEADING_ZERO_NOT_ALLOWED)
   // ——仅**整数 literal**（无 `.` 无 e/E，含带 B/S/I/L 后缀）有该 fail；
-  // float_literal 无此分支 → 0123 拒、0123.4 放行、0 放行）
-  if (!/\./.test(m[1]) && !/[eE]/.test(m[1]) && /^[+-]?0\d/.test(m[1])) {
+  // float_literal 无此分支 → 0123 拒、0123.4 放行、0 放行）。
+  // 0 后跟数字**或下划线**同样拒（游戏：0 消费后 decimalNumeral run 首字符
+  // 为数字→前导零 fail / 为下划线→underscoreNotAllowed；回退 marker 只吃掉
+  // 裸 0，0123/0_5 的尾部皆成 trailing data → 整体拒）
+  if (!/\./.test(m[1]) && !/[eE]/.test(m[1]) && /^[+-]?0[\d_]/.test(m[1])) {
     throw new NbtParseError(`数值无效："${s}"`);
   }
   // 十进制整数后缀（signedOrDefault：decimal base → SIGNED；integer 后缀须纯整数

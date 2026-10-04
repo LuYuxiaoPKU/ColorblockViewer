@@ -105,10 +105,11 @@ describe('parseNum：十进制（SIGNED base；前导零仅纯整数拒）', () 
     expectNum('5I', 5);
     expectReject('3000000000I'); // 十进制 I 后缀 > intMax 拒绝（文档化近似③）
   });
-  it('前导零：纯整数（含带 B/S/I/L 后缀）拒；浮点路径无此检查（0123.4 放行）', () => {
+  it('前导零：纯整数（含带 B/S/I/L 后缀）拒；0 后跟数字/下划线同拒（trailing data）；浮点路径无此检查（0123.4 放行）', () => {
     expectReject('0123');
     expectReject('+05');
     expectReject('0123B');
+    expectReject('0_5');
     expectNum('0', 0);
     expectNum('0123.4', 123.4);
     expectNum('0.123', 0.123);
@@ -117,11 +118,16 @@ describe('parseNum：十进制（SIGNED base；前导零仅纯整数拒）', () 
   it('下划线：首/尾拒、连续允（整数/小数/指数部分统一）', () => {
     expectNum('1_000', 1000);
     expectNum('1_0_0', 100);
+    expectNum('1__0', 10); // 连续下划线游戏放行（NumberRunParseRule 只查首/尾）
     expectNum('0.1_5', 0.15);
+    expectNum('0.0__5', 0.05);
+    expectNum('1.5__5', 1.55);
+    expectNum('1e1__5', 1e15); // 指数体同为数字运行：1e15
     expectReject('1_000_');
     expectReject('0.5_');
     expectReject('0._5f');
     expectReject('1.0e_5');
+    expectReject('1_e0');
   });
   it('加号与游戏一致：+5 / +1.0f 放行、+05 按前导零拒', () => {
     expectNum('+5', 5);
