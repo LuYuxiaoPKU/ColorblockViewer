@@ -607,12 +607,17 @@ export class SimEngine {
   }
 
   /** 运行期更新设置（M5 SettingsDrawer）：playerPos/默认寿命/粒子上限即时生效；
-   *  seed 变化 → 重建 PRNG（等价于从同种子重新开始消费） */
+   *  seed **值**变化 → 重建 PRNG（等价于从同种子重新开始消费）。
+   *  注意判据是 `patch.seed !== this.config.seed`（值变了）而非
+   *  `patch.seed !== undefined`（字段在场）——App 每次 sim 变更都传**完整**
+   *  sim 对象，若按"字段在场"判则任意设置变更（切渲染模式/网格/版本等）
+   *  都会重置双 PRNG，随机序列从种子重启，与单一路径连续运行不一致
+   *  （1:1 语义违规：模式切换不得改变引擎行为，2026-10-04 审查发现）。 */
   updateConfig(patch: Partial<SimConfig>): void {
     if (patch.playerPos) this.config.playerPos = { ...patch.playerPos };
     if (patch.defaultLifetime !== undefined) this.config.defaultLifetime = patch.defaultLifetime;
     if (patch.maxParticles !== undefined) this.config.maxParticles = patch.maxParticles;
-    if (patch.seed !== undefined) {
+    if (patch.seed !== undefined && patch.seed !== this.config.seed) {
       this.config.seed = patch.seed;
       this.rand = new SimRandom(patch.seed);
       this.vanillaRand = new SimRandom(patch.seed + 1);
