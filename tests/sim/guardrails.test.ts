@@ -40,12 +40,16 @@ describe('深嵌套括号防护', () => {
     }
   });
 
-  it('13 外包层 → ParseDepthError（中文提示：Java 会卡死）', () => {
+  it('13 外包层 → ParseDepthError（中文提示：Java 会卡死）', async () => {
+    // 13 层解析走 snapshot/recovery 指数级回溯（Java 原版对同输入同样卡死，
+    // 防护路径的设计内行为）：单次数百 ms 量级，低配机全量跑时 CPU 争抢可超
+    // 5s 默认超时（2026-10-04 全量偶发 8085ms → 超时失败）→ 放宽到 20s。
+    await new Promise((r) => setTimeout(r, 0));
     expect(() => parse(depthStr(13))).toThrow(ParseDepthError);
     expect(() => parse(depthStr(13))).toThrow(/括号嵌套过深/);
     expect(() => parse(depthStr(13))).toThrow(/Java 原版/);
     expect(() => parse(depthStr(13))).toThrow(/浅层/);
-  });
+  }, 20000);
 
   it('20 外包层（Java 挂死量级）同样快速中止', () => {
     const t0 = Date.now();
