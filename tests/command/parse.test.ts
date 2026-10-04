@@ -374,10 +374,12 @@ describe('原版 /particle（MC 26.2）', () => {
     // 无后缀 ≥ 2^31 → parseUnsignedInt 取 int 位模式（0x80000000 → -2147483648）
     expect(V('particle shriek{delay:0x80000000}').nbt).toBe('delay:0x80000000');
     expect(V('particle entity_effect{color:0xFFFFFFFF}').nbt).toBe('color:0xFFFFFFFF');
-    // 显式 I 后缀 = 唯一有符号路径：> 0x7FFFFFFF 拒绝（parseInt NumberFormatException）
-    expect(() => V('particle shriek{delay:0x80000000I}')).toThrow(/数值无效/);
-    expect(() => V('particle entity_effect{color:0xFFFFFFFFI}')).toThrow(/数值无效/);
-    // ARGB 高位模式（0x80FF0000 → -8388608）：渲染色按 0x80FF0000 位模式取 RGB（回归：
+    // I 后缀 = 有符号 parseInt：Java parseInt 接受完整 int 位模式——0x80000000I
+    // = -2147483648 游戏内合法 INT（delay 的 INT codec 接受）；>0xFFFFFFFF 才拒
+    expect(V('particle shriek{delay:0x80000000I}').nbt).toBe('delay:0x80000000I');
+    expect(() => V('particle shriek{delay:0x100000000I}')).toThrow(/数值无效/);
+    expect(() => V('particle entity_effect{color:0x100000000I}')).toThrow(/数值无效/);
+    // ARGB 高位模式（0x80FF0000 → -2130771968）：渲染色按 0x80FF0000 位模式取 RGB（回归：
     // 旧解析出 2155872256 → parseColorField 上界拒绝 → 渲染色回退白）
     expect(V('particle entity_effect{color:0x80FF0000}').nbt).toBe('color:0x80FF0000');
     expect(V('particle shriek{delay:0x7FFFFFFF}').nbt).toBe('delay:0x7FFFFFFF');
