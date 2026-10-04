@@ -28,7 +28,8 @@ export function Viewport({
   progress = null,
 }: PlaybackHandlers & {
   containerRef: React.RefObject<HTMLDivElement | null>;
-  /** 点云缓冲容量（挂载时按当时 maxParticles 固定）；活粒子数超过它 → 显示「渲染截断」 */
+  /** 点云缓冲容量（视口挂载时按当时 maxParticles 固定，运行期改上限不重建缓冲）；
+   *  调大上限后活粒子数可超过它 → 渲染截断、此提示如实点亮（文档化近似） */
   renderCapacity: number;
   progress?: VpProgressView | null;
 }) {

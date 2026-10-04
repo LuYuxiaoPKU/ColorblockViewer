@@ -41,6 +41,7 @@ describe('copyText', () => {
     copyText('/particleex clearparticle', TPL_OK);
     await new Promise((r) => setTimeout(r, 0));
     const t = getState().toasts.at(-1) ?? '';
+    expect(t).toMatch(/^模板「圆周环」命令/); // okMsg 前缀保留（「已复制…」尾部被剥掉）
     expect(t).toContain('请手动复制');
     expect(t).toContain('/particleex clearparticle');
     expect(t).not.toContain('denied'); // 不泄露内部错误细节
