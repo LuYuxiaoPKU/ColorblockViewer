@@ -18,7 +18,7 @@ import {
 import { parseCommands } from '../../src/command/parser';
 import { serialize } from '../../src/command/serialize';
 
-const SIM_BASE = { playerPos: { x: 0, y: 0, z: 0 }, defaultLifetime: 20, maxParticles: 20000, seed: 1, mcVersion: '26.2', gridSize: 10, gridVisible: true, nativeKinematics: false };
+const SIM_BASE = { playerPos: { x: 0, y: 0, z: 0 }, defaultLifetime: 20, maxParticles: 20000, seed: 1, mcVersion: '26.2', gridSize: 10, gridVisible: true, nativeKinematics: false, renderMode: 'full' as const };
 
 // store 是模块级单例 → 每个用例前重置为可重现状态
 function resetStore(): void {

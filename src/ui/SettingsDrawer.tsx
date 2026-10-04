@@ -64,6 +64,19 @@ export function SettingsDrawer() {
           </div>
           <div className="field-row">
             <span className="field-row-label">
+              渲染模式 <em className="muted">（完整 = WebGL + 真实粒子贴图/帧动画；快速 = Canvas 2D 圆点，不加载 three、无 WebGL，仿真照常运行）</em>
+            </span>
+            <select
+              value={sim.renderMode}
+              onChange={(e) => setSim({ renderMode: e.target.value as 'full' | 'fast' })}
+              aria-label="渲染模式"
+            >
+              <option value="full">完整（WebGL）</option>
+              <option value="fast">快速（Canvas 2D）</option>
+            </select>
+          </div>
+          <div className="field-row">
+            <span className="field-row-label">
               3D 网格 <em className="muted">（边长以 block 计，1 block/格）</em>
             </span>
             <NumField label="大小" value={sim.gridSize} min={2} max={100} integer onChange={(v) => setSim({ gridSize: v })} />

@@ -21,133 +21,41 @@
 
 import * as THREE from 'three';
 import { PARTICLE_DATA } from './particleData';
+import {
+  BASE_SIZE,
+  ageFade,
+  ageFrame,
+  frameSpecFor,
+  particleVisual,
+  shiftHue,
+  textureFor,
+  tweakFor,
+  type FrameSpec,
+  type RenderParticle,
+  type TypeTweak,
+} from './color';
 
-/** 基础点尺寸（**世界块单位**）：默认粒子 ≈ 0.1 block（MC 小粒子的典型观感）。
- *  像素换算在顶点着色器里做透视除法，换算常数 uScale = 视口物理高度·0.5 /
- *  tan(fov/2)，由 SimViewport 在 resize 时维护 —— 视距 10 格时 0.1 block ≈ 9px
- *  （900px 高视口 / fov 50°），缩放相机不改变粒子实际大小。
- *  类型表在此基础上乘倍数。 */
-export const BASE_SIZE = 0.1;
-
-/** 类型微调（展示性近似，非模组语义）：size 倍数 / alpha 倍数 / 色相偏移（度）。
- *  未知类型 → 默认（1, 1, 0）。命令里的粒子名（flame/heart/…）原样匹配，
- *  大小写不敏感、可选 `minecraft:` 前缀。 */
-export interface TypeTweak {
-  size: number;
-  alpha: number;
-  hue: number;
-}
-
-const TWEAKS: Record<string, TypeTweak> = {
-  flame: { size: 1.0, alpha: 0.9, hue: 0 },
-  smoke: { size: 1.3, alpha: 0.55, hue: 0 },
-  crimson_spore: { size: 0.9, alpha: 0.8, hue: 0 },
-  dandelion: { size: 0.7, alpha: 0.9, hue: 0 },
-  sparkle: { size: 0.6, alpha: 1.0, hue: 0 },
-  heart: { size: 1.4, alpha: 1.0, hue: 30 },
-  end_rod: { size: 2.2, alpha: 1.0, hue: 0 }, // 原版 glitter 帧 8×8 仅 4–14 个可见像素
-  // （首帧全透明），0.05 block 默认尺寸下屏上 ~4px 几乎不可见 → 放大展示
-  snowflake: { size: 0.8, alpha: 0.9, hue: 0 },
-  portal: { size: 0.9, alpha: 0.7, hue: 0 },
-  crit: { size: 0.5, alpha: 1.0, hue: 0 },
+// 再导出以兼容既有调用点（测试与 sync.ts 从 points 引入）：颜色/尺寸/帧动画
+// 公共计算已移入 color.ts（2D 快速模式共用，不依赖 three）。
+export {
+  BASE_SIZE,
+  ageFade,
+  ageFrame,
+  frameSpecFor,
+  shiftHue,
+  textureFor,
+  tweakFor,
+  type FrameSpec,
+  type RenderParticle,
+  type TypeTweak,
 };
-
-const DEFAULT_TWEAK: TypeTweak = { size: 1, alpha: 1, hue: 0 };
-
-/** 粒子名归一化：小写 + 去 `minecraft:` 命名空间前缀。 */
-function normName(name: string): string {
-  let key = name.toLowerCase();
-  const i = key.indexOf(':');
-  if (i >= 0) key = key.slice(i + 1);
-  return key;
-}
-
-export function tweakFor(name: string): TypeTweak {
-  return TWEAKS[normName(name)] ?? DEFAULT_TWEAK;
-}
-
-/** 粒子类型 → 帧贴图文件列表（MC 客户端 data-driven 表；未收录 → null 走圆点）。
- *  version = 游戏版本（atlasKey）；缺省 '26.2'。 */
-export function textureFor(name: string, version = '26.2'): string[] | null {
-  return PARTICLE_DATA[version]?.frames[normName(name)] ?? null;
-}
 
 /** 游戏版本 → 粒子数据（类型全集/帧表）；未知版本 → undefined（上层用默认 '26.2'）。
  *  实现在 particleData.ts（纯数据模块）；此处保留同名再导出以兼容既有调用点 ——
  *  UI 侧请直接从 '../render/particleData' 引入，避免把 three 拉进首屏静态图。 */
 export { particleVersionData } from './particleData';
 
-/** 色相旋转（度）。s=0 的灰白色系不受影响。 */
-export function shiftHue(r: number, g: number, b: number, deg: number): [number, number, number] {
-  if (deg === 0) return [r, g, b];
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const l = (max + min) / 2;
-  const d = max - min;
-  if (d === 0) return [r, g, b]; // 灰白
-  const s = d / (1 - Math.abs(2 * l - 1));
-  let h6 = 0; // 0..6（红=0，顺时针 60°/单位）
-  if (max === r) {
-    h6 = ((g - b) / d) % 6;
-    if (h6 < 0) h6 += 6;
-  } else if (max === g) h6 = (b - r) / d + 2;
-  else h6 = (r - g) / d + 4;
-  let h = (h6 / 6 + deg / 360) % 1; // 归一化色相 0..1
-  if (h < 0) h += 1;
-  const c = (1 - Math.abs(2 * l - 1)) * s;
-  const x = c * (1 - Math.abs((h * 6) % 2 - 1));
-  const m = l - c / 2;
-  let out: [number, number, number];
-  if (h < 1 / 6) out = [c, x, 0];
-  else if (h < 2 / 6) out = [x, c, 0];
-  else if (h < 3 / 6) out = [0, c, x];
-  else if (h < 4 / 6) out = [0, x, c];
-  else if (h < 5 / 6) out = [x, 0, c];
-  else out = [c, 0, x];
-  return [out[0] + m, out[1] + m, out[2] + m];
-}
-
 // ---------- 贴图图集 ----------
-
-// ---------- 原版帧动画行为（age-progress，见文件头） ----------
-
-/** 类型 → 帧动画附加行为（按版本分区）。帧列表由 PARTICLE_DATA 帧表提供
- *  （textureFor）；**寿命进度选帧 + 后 50% 线性淡出对所有多帧类型（N>1）通用**
- *  （1.21.1 反编译 AnimatedParticle.tick 逐字核对，非 end_rod 专属），无需在此
- *  逐类型声明。这里只记录 end_rod 专属的颜色插值目标。证据边界：当前仅 end_rod
- *  有 1.21.1 反编译的完整行为参数，其他多帧类型走通用选帧+淡出、不做颜色插值。 */
-export interface FrameSpec {
-  /** 颜色向 targetColor 每 tick 靠拢 20%：end_rod → 0xF2DEC9（rgb 242,222,201，
-   *  0–255 整数值；使用时除以 255 归一到 0..1 与渲染色同尺度）。
-   *  未列出类型不插值。 */
-  colorShift?: [number, number, number];
-}
-
-export const FRAME_SPECS: Record<string, Record<string, FrameSpec>> = {
-  '1.21.11': { end_rod: { colorShift: [242, 222, 201] } },
-  '26.2': { end_rod: { colorShift: [242, 222, 201] } },
-};
-
-export function frameSpecFor(name: string, version = '26.2'): FrameSpec | null {
-  return FRAME_SPECS[version]?.[normName(name)] ?? null;
-}
-
-/** 寿命进度选帧（AnimatedParticle.setSpriteForAge 逐字）：
- *  frame = floor(age*(N-1)/lifetime)，全寿命只播一遍不循环。
- *  活粒子 age ≤ lifetime-1 → 最大索引 = floor((lifetime-1)(N-1)/lifetime) ≤ N-2，
- *  故末帧（index N-1，end_rod 的 glitter_0）实际不可见 —— 与原版一致。 */
-function ageFrame(age: number, lifetime: number, n: number): number {
-  if (n <= 1 || lifetime <= 0) return 0;
-  const idx = Math.floor((age * (n - 1)) / lifetime);
-  return idx < n ? idx : n - 1;
-}
-
-/** 后 50% 寿命线性淡出（AnimatedParticle.tick 逐字）：前 50% = 1，
- *  之后 1 - (age-lifetime/2)/lifetime，死亡瞬间 = 0.5（非 0）。 */
-function ageFade(age: number, lifetime: number): number {
-  if (lifetime <= 0 || age <= lifetime / 2) return 1;
-  return 1 - (age - lifetime / 2) / lifetime;
-}
 /** 图集格尺寸（px）。粒子贴图多为 8/16px，个别 32px 的按原尺寸居中贴入（>TILE 的裁切）。 */
 const TILE = 32;
 const ATLAS_COLS = 12;
@@ -407,37 +315,10 @@ export function setPointsLayerAtlasKey(layer: PointsLayer, atlasKey: string): vo
 
 // ---------- 快照 → 缓冲 ----------
 
-/** 渲染层读的最小粒子视图（SimParticle 结构子集，解耦 render ↔ sim）。 */
-export interface RenderParticle {
-  x: number;
-  y: number;
-  z: number;
-  r: number;
-  g: number;
-  b: number;
-  a: number;
-  name: string;
-  /** 已存活 tick（age-progress 选帧/淡出用；原版按年龄推进而非全局相位） */
-  age: number;
-  /** 寿命（tick；age=-1 → intMax，淡出/选帧按它算） */
-  lifetime: number;
-  /** 是否由原版 /particle 命令生成（原版粒子出生色恒为白） */
-  vanilla: boolean;
-  /** type{NBT} 已解析出渲染色（dust 的 color）：true 时不强制出生色为白 */
-  nbtTint?: boolean;
-  /** dust_color_transition 的 from_color（= 出生色；渐变插值起点） */
-  colorFrom?: { r: number; g: number; b: number };
-  /** dust_color_transition 的 to_color（渐变终点；按 frac = age/(lifetime+1) 插值，
-   *  DustColorTransitionParticle.lerpColors 字节码） */
-  colorTo?: { r: number; g: number; b: number };
-  /** 点大小倍数（dust 的 scale，默认 1） */
-  sizeMul?: number;
-}
-
 /** 把快照前缀全量写入缓冲。返回写入数（= setDrawRange 的 count）。
- *  颜色经类型色相微调、alpha 乘类型系数后写入；size = BASE_SIZE * 类型倍数。
+ *  颜色/尺寸口径由 color.ts particleVisual 提供（与 2D 快速模式共用）；
  *  有帧表（多帧）的类型走原版 age-progress 动画：帧号按寿命进度、后半程线性
- *  淡出（见 ageFrame/ageFade 注释）；end_rod 附加颜色向 #F2DEC9 插值。
+ *  淡出（见 color.ts 注释）；end_rod 附加颜色向 #F2DEC9 插值。
  *  uv 始终写入（图集加载前也正确就位，加载完成首帧即有贴图）。 */
 export function syncToPoints(
   layer: Pick<PointsLayer, 'pos' | 'color' | 'size' | 'uv'>,
@@ -455,60 +336,18 @@ export function syncToPoints(
     pos[i3] = p.x;
     pos[i3 + 1] = p.y;
     pos[i3 + 2] = p.z;
-    const tw = tweakFor(p.name);
-    const frames = textureFor(p.name, atlasKey);
-    const multi = frames !== null && frames.length > 1;
-    let r = p.r;
-    let g = p.g;
-    let b = p.b;
-    let alpha = p.a;
-    if (multi) {
-      // 原版 SimpleAnimatedParticle：初始色 = 出生渲染色（原版粒子恒白；
-      // 模组粒子出生时已把命令色写进 renderColor → 起点即命令色）
-      // 例外：dust 的 NBT color 直接写入 rCol/gCol/bCol（DustParticle 构造器）
-      // → nbtTint 时不强制白（取证：26.2 字节码）
-      if (p.vanilla && !p.nbtTint) {
-        r = 1;
-        g = 1;
-        b = 1;
-      }
-      // dust_color_transition：渲染色随寿命进度 from→to 线性插值（DustColorTransitionParticle
-      // .lerpColors 字节码：frac = ((float)age + delta)/(lifetime+1)，JOML lerp =
-      // from + (to-from)·frac；颜色在渲染期计算（extract 每帧调用）非 tick 期。
-      // delta = 渲染帧内插值（0..1），tick 制预览取 0）
-      if (p.colorFrom && p.colorTo) {
-        const frac = p.age / (p.lifetime + 1);
-        r = p.colorFrom.r + (p.colorTo.r - p.colorFrom.r) * frac;
-        g = p.colorFrom.g + (p.colorTo.g - p.colorFrom.g) * frac;
-        b = p.colorFrom.b + (p.colorTo.b - p.colorFrom.b) * frac;
-      }
-      // end_rod：每 tick 向 targetColor 靠拢 20%（= (0.8)^age 剩余量，逐 tick
-      // 递推的闭式解；1.21.1 反编译 EndRodParticle.setTargetColor(15916745)）
-      const spec = frameSpecFor(p.name, atlasKey);
-      if (spec?.colorShift) {
-        // colorShift 以 0–255 整数存储（对照 16 进制色值直观）→ 归一到 0..1
-        const tr = spec.colorShift[0] / 255;
-        const tg = spec.colorShift[1] / 255;
-        const tb = spec.colorShift[2] / 255;
-        const f = Math.pow(0.8, p.age);
-        r = tr + (r - tr) * f;
-        g = tg + (g - tg) * f;
-        b = tb + (b - tb) * f;
-      }
-      // 后半程线性淡出（死亡瞬间 alpha=0.5）
-      alpha *= ageFade(p.age, p.lifetime);
-    }
-    const [hr, hg, hb] = shiftHue(r, g, b, tw.hue);
+    const vis = particleVisual(p, 1, atlasKey, sizeMul, alphaMul);
     const i4 = i * 4;
-    color[i4] = hr;
-    color[i4 + 1] = hg;
-    color[i4 + 2] = hb;
-    color[i4 + 3] = alpha * tw.alpha * alphaMul;
-    size[i] = BASE_SIZE * tw.size * sizeMul * (p.sizeMul ?? 1);
+    color[i4] = vis.r;
+    color[i4 + 1] = vis.g;
+    color[i4 + 2] = vis.b;
+    color[i4 + 3] = vis.a;
+    size[i] = vis.radius;
     // 帧 UV：有帧表的类型取帧格左上角（多帧按寿命进度 ageFrame；单帧恒第 0 帧）；
     // 无帧表 → (0,0)（着色器走圆点分支时忽略；图集未加载时 uHasAtlas=0 同样忽略）
+    const frames = textureFor(p.name, atlasKey);
     if (frames && frames.length > 0) {
-      const idx = multi ? ageFrame(p.age, p.lifetime, frames.length) : 0;
+      const idx = frames.length > 1 ? ageFrame(p.age, p.lifetime, frames.length) : 0;
       const [u, v] = frameUV(frames[idx], atlasKey);
       uv[i * 2] = u;
       uv[i * 2 + 1] = v;

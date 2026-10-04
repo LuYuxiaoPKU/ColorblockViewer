@@ -46,7 +46,7 @@ vi.mock('../../src/render/sync', () => {
   };
 });
 
-const SIM_BASE = { playerPos: { x: 0, y: 0, z: 0 }, defaultLifetime: 20, maxParticles: 20000, seed: 1, mcVersion: '26.2', gridSize: 10, gridVisible: true, nativeKinematics: true };
+const SIM_BASE = { playerPos: { x: 0, y: 0, z: 0 }, defaultLifetime: 20, maxParticles: 20000, seed: 1, mcVersion: '26.2', gridSize: 10, gridVisible: true, nativeKinematics: true, renderMode: 'full' as const };
 
 let container: HTMLDivElement;
 let root: Root;
