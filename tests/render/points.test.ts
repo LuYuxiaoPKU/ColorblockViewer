@@ -2,18 +2,21 @@
 // age-progress 帧 UV / 原版淡出 / end_rod 颜色插值。
 // BufferGeometry 不依赖 WebGL 上下文，可直接构造。
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import * as THREE from 'three';
 import {
   BASE_SIZE,
   createPointsLayer,
+  loadAtlasTexture,
   setPointsLayerAtlasKey,
   shiftHue,
   syncToPoints,
   textureFor,
   tweakFor,
+  _resetAtlasCache,
   type RenderParticle,
 } from '../../src/render/points';
+import { PARTICLE_DATA } from '../../src/render/particleData';
 
 function mkPart(over: Partial<RenderParticle> = {}): RenderParticle {
   return { x: 1, y: 2, z: 3, r: 1, g: 0.5, b: 0.25, a: 0.8, name: 'flame', age: 0, lifetime: 60, vanilla: false, ...over };
@@ -263,6 +266,145 @@ describe('atlasKey 版本分区', () => {
         resolve();
       }, 20);
     });
+  });
+});
+
+// ---------- 并行图集加载（fake DOM + fake Image） ----------
+
+function fakeImageEnv(failAt: number[] = [], delayMs = 0) {
+  const drawCalls: number[] = [];
+  const srcs: string[] = [];
+  let created = 0;
+  class FakeImage {
+    private _src = '';
+    complete = true;
+    naturalWidth = 8;
+    naturalHeight = 8;
+    onload: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    get src() {
+      return this._src;
+    }
+    set src(v: string) {
+      this._src = v;
+      srcs.push(v); // 记录贴图 URL（验证按版本分目录）
+    }
+    constructor() {
+      created++;
+      const mine = created; // 构造时快照（延迟解析时 created 已是终值）
+      const shouldFail = failAt.includes(mine);
+      const done = () => {
+        if (shouldFail) {
+          this.complete = false;
+          this.onerror?.();
+        } else {
+          this.onload?.();
+        }
+      };
+      if (delayMs > 0) setTimeout(done, delayMs);
+      else queueMicrotask(done);
+    }
+  }
+  const fakeCtx = {
+    imageSmoothingEnabled: true,
+    drawImage: () => {
+      drawCalls.push(drawCalls.length);
+    },
+  };
+  vi.stubGlobal('Image', FakeImage);
+  vi.stubGlobal('document', {
+    createElement: (tag: string) =>
+      tag === 'canvas' ? { width: 0, height: 0, getContext: () => fakeCtx } : {},
+  });
+  return { drawCalls, srcs };
+}
+
+const FRAME_COUNT_262 = new Set(Object.values(PARTICLE_DATA['26.2'].frames).flat()).size;
+const FRAME_COUNT_12111 = new Set(Object.values(PARTICLE_DATA['1.21.11'].frames).flat()).size;
+
+describe('loadAtlasTexture 并行加载与进度（fake DOM）', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    _resetAtlasCache();
+  });
+
+  it('全帧成功：进度 (0,N) 起、末次 (N,N)，drew 单调不减', async () => {
+    fakeImageEnv();
+    const prog: [number, number][] = [];
+    const tex = (await loadAtlasTexture('26.2', (d, t) => prog.push([d, t]))) as THREE.Texture;
+    expect(prog[0]).toEqual([0, FRAME_COUNT_262]);
+    expect(prog[prog.length - 1]).toEqual([FRAME_COUNT_262, FRAME_COUNT_262]);
+    for (let i = 1; i < prog.length; i++) {
+      expect(prog[i][0]).toBeGreaterThanOrEqual(prog[i - 1][0]);
+      expect(prog[i][1]).toBe(FRAME_COUNT_262);
+    }
+    expect(prog).toHaveLength(FRAME_COUNT_262 + 1);
+    expect(tex).not.toBeNull();
+  });
+
+  it('贴图 URL 按版本分目录（particles/<key>/<file>.png）', async () => {
+    const env = fakeImageEnv();
+    const tex = await loadAtlasTexture('1.21.11');
+    expect(tex).not.toBeNull();
+    expect(env.srcs).toHaveLength(FRAME_COUNT_12111);
+    // base 前缀随构建配置（dev 测试环境 BASE_URL 可能为 '/'），只锁版本子目录 + 文件名
+    for (const s of env.srcs) {
+      expect(s).toMatch(/\/particles\/1\.21\.11\/[a-z0-9_]+\.png$/);
+    }
+  });
+
+  it('无进度回调（createPointsLayer 内部调用形态）→ 全帧成功，resolve 纹理', async () => {
+    // 回归：onProgress?.(++drew) 在回调缺省时短路不执行 ++drew → drew 恒 0
+    // → 误判全缺帧 → resolve null（曾致 headless 下首版图集全静默丢失）
+    fakeImageEnv();
+    const tex = await loadAtlasTexture('26.2'); // 无 onProgress
+    expect(tex).not.toBeNull();
+  });
+
+  it('缺帧 onerror → 跳过不画（drew < total），其余帧正常', async () => {
+    fakeImageEnv([2]); // 第 2 张创建序的图 onerror
+    const prog: [number, number][] = [];
+    const tex = await loadAtlasTexture('26.2', (d, t) => prog.push([d, t]));
+    expect(tex).not.toBeNull();
+    const last = prog[prog.length - 1];
+    expect(last[0]).toBe(FRAME_COUNT_262 - 1);
+    expect(last[1]).toBe(FRAME_COUNT_262);
+  });
+
+  it('同 key 复用 Promise：第二次调用不再触发进度回调', async () => {
+    fakeImageEnv();
+    let first = 0;
+    let second = 0;
+    const p1 = loadAtlasTexture('26.2', () => {
+      first++;
+    });
+    const p2 = loadAtlasTexture('26.2', () => {
+      second++;
+    });
+    await p1;
+    expect(p2).toBe(p1);
+    expect(first).toBeGreaterThan(0);
+    expect(second).toBe(0);
+  });
+
+  it('全帧缺帧 → resolve null（着色器走圆点分支）', async () => {
+    fakeImageEnv(Array.from({ length: FRAME_COUNT_262 }, (_, i) => i + 1));
+    const tex = await loadAtlasTexture('26.2');
+    expect(tex).toBeNull();
+  });
+
+  it('epoch 判废：切版本后旧 key 的迟到进度不转发（只收到新 key 的进度）', async () => {
+    fakeImageEnv([], 30); // 延迟 30ms 解析 → 切 key 时 26.2 加载仍在途
+    const layer = createPointsLayer(2, '26.2');
+    const calls: [number, number][] = [];
+    layer._onProgress = (d, t) => calls.push([d, t]);
+    setPointsLayerAtlasKey(layer, '1.21.11'); // epoch 0→1：26.2 在途进度全部判废
+    await new Promise<void>((r) => setTimeout(r, 50));
+    // 旧 key（26.2，N=285）的进度一个都不该到；新 key（1.21.11）正常到达
+    const N = FRAME_COUNT_12111;
+    expect(calls.some(([, t]) => t !== N)).toBe(false);
+    expect(calls[calls.length - 1]).toEqual([N, N]);
+    layer.dispose();
   });
 });
 
