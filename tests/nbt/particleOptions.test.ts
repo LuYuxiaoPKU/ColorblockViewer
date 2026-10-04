@@ -55,6 +55,11 @@ describe('checkField：标量 codec 种类', () => {
     expect(checkField('int', 0)).toBeNull();
     expect(checkField('int', -20)).toBeNull();
     expect(checkField('int', 20.5)).not.toBeNull();
+    expect(checkField('int', -0x80000000)).toBeNull(); // -2^31 边界合法
+    expect(checkField('int', 0x7fffffff)).toBeNull(); // 2^31-1 边界合法
+    // INT codec 越界拒：2147483648L = 合法 long 但 INT 解码失败（shriek{delay:2147483648L}）
+    expect(checkField('int', 2147483648)).not.toBeNull();
+    expect(checkField('int', -2147483649)).not.toBeNull();
     expect(checkPosInt(1)).toBeNull();
     expect(checkPosInt(0)).not.toBeNull(); // < 1
     expect(checkPosInt(-1)).not.toBeNull();

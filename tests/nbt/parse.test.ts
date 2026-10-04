@@ -25,6 +25,10 @@ describe('parseNum：十六进制（parseUnsignedInt 位模式）', () => {
     expectNum('0x80000000', -2147483648);
     expectNum('0xFFFFFFFF', -1);
     expectNum('0x80FF0000', -2130771968);
+    // 无后缀 = parseUnsignedInt：>0xFFFFFFFF 游戏抛 NumberFormatException → 拒
+    // （JS 不拒会静默回绕 0x100000000 → 0）
+    expectReject('0x100000000');
+    expectReject('0xFFFFFFFFF');
   });
   it('B 后缀 = UnsignedBytes.parseUnsignedByte（>0xFF 拒）', () => {
     expectNum('0xFFB', 255);
@@ -69,6 +73,10 @@ describe('parseNum：二进制（BINARY base → UNSIGNED INT 位模式）', () 
     expectNum('0b11111111', 255);
     expectNum('0b10000000000000000000000000000000', -2147483648);
     expectNum('0b11111111111111111111111111111111', -1);
+    // 无后缀 = parseUnsignedInt：>0xFFFFFFFF（33 位）游戏抛 → 拒
+    // （JS 不拒会静默回绕 2^32 → 0）
+    expectReject('0b100000000000000000000000000000000');
+    expectReject('0b111111111111111111111111111111111');
   });
   it('B/S/I/L 后缀位宽同 hex 分支', () => {
     expectNum('0b11111111B', 255);

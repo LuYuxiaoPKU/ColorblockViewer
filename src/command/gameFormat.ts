@@ -157,15 +157,22 @@ export function checkCommandFormat(line: string): FormatIssue[] {
         });
       }
       if (t.quoted) {
-        // 括号配平只对**引号字面量**做（见函数头注释；裸 token 拆散后单看必然假警报）
-        const imbalance = bracketImbalance(t.value);
-        if (imbalance) {
-          issues.push({
-            index: k,
-            token: t.value,
-            fatal: true,
-            message: `第 ${k - i + 1} 个参数是${KIND_HINT.text}，${imbalance}——游戏内表达式解析会失败（预览分词宽松，可能不报错或延迟到运行期）`,
-          });
+        // 括号配平只对**表达式**引号字面量做（见函数头注释；裸 token 拆散后单看
+        // 必然假警报）。组名位是不透明字符串（游戏 group 参数 = StringArgumentType，
+        // 不参与表达式解析）→ 跳过，`group remove 'a(b'` 游戏合法。
+        const argIndex = k - i;
+        const isGroupSlot = (sub === 'group remove' && argIndex === 0)
+          || (sub === 'group change' && argIndex === 1);
+        if (!isGroupSlot) {
+          const imbalance = bracketImbalance(t.value);
+          if (imbalance) {
+            issues.push({
+              index: k,
+              token: t.value,
+              fatal: true,
+              message: `第 ${k - i + 1} 个参数是${KIND_HINT.text}，${imbalance}——游戏内表达式解析会失败（预览分词宽松，可能不报错或延迟到运行期）`,
+            });
+          }
         }
       }
     } else if (t.quoted) {
