@@ -122,6 +122,82 @@ describe('encodeShare/decodeShare round-trip', () => {
     expect(decodeShare(b64({ commands: [3] }), SIM)).toBeNull();
   });
 
+  // 回归（第四波审查）：isCommand 曾漏校验 color/range/expression 等 serializeAll
+  // 必读字段——伪造 ?s= 缺 color 仍直通 serializeAll 读 c.color.r 抛 TypeError
+  // createRoot 前白屏；同时曾误要求 conditional 的 count（parser 产物无此字段）
+  // → 合法 conditional 命令无法分享。
+  const normalCmd = {
+    kind: 'normal', name: 'flame', pos: vec3(),
+    color: { r: 1, g: 0.5, b: 0.2, a: 1 }, speed: { x: 0, y: 0.1, z: 0 }, range: { x: 0.2, y: 0, z: 0 },
+    count: 10, age: 40, speedExpression: null, speedStep: 1, group: null,
+  };
+  const condCmd = {
+    kind: 'conditional', name: 'flame', pos: vec3(),
+    color: { r: 1, g: 0.5, b: 0.2, a: 1 }, speed: { x: 0, y: 0.1, z: 0 }, range: { x: 0.2, y: 0, z: 0 },
+    expression: "x>0", step: 0.5, age: 40, speedExpression: null, speedStep: 1, group: null,
+  };
+  const paramCmd = {
+    kind: 'parameter', polar: false, tick: false, rgba: false, name: 'flame', pos: vec3(),
+    color: { r: 1, g: 0.5, b: 0.2, a: 1 }, speed: { x: 0, y: 0.1, z: 0 },
+    begin: 0, end: 6.28, expression: "x,y,z=cos(t),0,sin(t);cr=1", step: 0.25, cpt: 10,
+    age: 40, speedExpression: null, speedStep: 1, group: null,
+  };
+  const rgbaParamCmd = { ...paramCmd, rgba: true, color: null };
+  const groupRemove = { kind: 'group', sub: 'remove', group: 'g1', expression: null, pos: null };
+  const groupChange = {
+    kind: 'group', sub: 'change', type: 'parameter', group: 'g1',
+    expression: "x=1", conditionalExpression: null, pos: null,
+  };
+
+  it('合法 normal/conditional/parameter(含 rgba 变体)/group remove/change → 校验通过', () => {
+    const back = decodeShare(b64({ commands: [normalCmd, condCmd, paramCmd, rgbaParamCmd, groupRemove, groupChange], sim: SIM }), SIM);
+    expect(back).not.toBeNull();
+    expect(back!.commands).toEqual([normalCmd, condCmd, paramCmd, rgbaParamCmd, groupRemove, groupChange]);
+  });
+
+  it('normal/conditional/parameter 缺 serializeAll 必读字段 → null（伪造 ?s= 白屏回归）', () => {
+    expect(decodeShare(b64({ commands: [{ ...normalCmd, color: undefined }] }), SIM)).toBeNull(); // 缺 color
+    expect(decodeShare(b64({ commands: [{ ...normalCmd, range: undefined }] }), SIM)).toBeNull(); // 缺 range
+    expect(decodeShare(b64({ commands: [{ ...normalCmd, count: undefined }] }), SIM)).toBeNull(); // 缺 count
+    expect(decodeShare(b64({ commands: [{ ...condCmd, color: undefined }] }), SIM)).toBeNull(); // 缺 color
+    expect(decodeShare(b64({ commands: [{ ...condCmd, expression: undefined }] }), SIM)).toBeNull(); // 缺 expression
+    expect(decodeShare(b64({ commands: [{ ...paramCmd, begin: undefined }] }), SIM)).toBeNull(); // 缺 begin
+    expect(decodeShare(b64({ commands: [{ ...paramCmd, expression: undefined }] }), SIM)).toBeNull(); // 缺 expression
+    expect(decodeShare(b64({ commands: [{ ...paramCmd, cpt: undefined }] }), SIM)).toBeNull(); // 缺 cpt
+    expect(decodeShare(b64({ commands: [{ ...rgbaParamCmd, color: { r: 1, g: 1, b: 1, a: 1 } }] }), SIM)).toBeNull(); // rgba 变体 color 须 null（parser 互锁）
+    expect(decodeShare(b64({ commands: [{ ...paramCmd, color: null }] }), SIM)).toBeNull(); // 非 rgba 变体 color 不可 null
+    expect(decodeShare(b64({ commands: [{ ...paramCmd, polar: 'no' }] }), SIM)).toBeNull(); // polar 须 boolean
+    expect(decodeShare(b64({ commands: [{ ...normalCmd, age: '40' }] }), SIM)).toBeNull(); // 尾部 age 须 number
+  });
+
+  it('conditional 无 count 字段（parser 产物 schema）→ 校验通过，不得误拒', async () => {
+    // P1 回归：旧 isCommand 要求 num(o.count)——合法 conditional 分享往返即被拒
+    const back = decodeShare(b64({ commands: [condCmd], sim: SIM }), SIM);
+    expect(back).not.toBeNull();
+    // serialize 可安全消费（崩溃面验证）
+    const { serialize } = await import('../../src/command/serialize');
+    expect(serialize(back!.commands[0])).toContain('particleex conditional');
+  });
+
+  it('group 校验：change 缺 type / remove 缺 expression 槽 → null；带 pos 的 change 合法', () => {
+    expect(decodeShare(b64({ commands: [{ ...groupChange, type: undefined }] }), SIM)).toBeNull();
+    expect(decodeShare(b64({ commands: [{ kind: 'group', sub: 'remove', group: 'g1' }] }), SIM)).toBeNull(); // 缺 expression 槽
+    expect(decodeShare(b64({ commands: [{ ...groupChange, conditionalExpression: 'x>0', pos: vec3() }] }), SIM)).not.toBeNull();
+  });
+
+  it('vanilla 可选字段错型 → null（delta 非 plain3 / speed 非 number / normal 非 boolean）', () => {
+    expect(decodeShare(b64({ commands: [{ ...CMDS[0], delta: { x: '0', y: 0, z: 0 } }] }), SIM)).toBeNull();
+    expect(decodeShare(b64({ commands: [{ ...CMDS[0], speed: 'fast' }] }), SIM)).toBeNull();
+    expect(decodeShare(b64({ commands: [{ ...CMDS[0], normal: 'yes' }] }), SIM)).toBeNull();
+  });
+
+  it('sim mcVersion 仅接受 1.21.11 / 26.2，其余降级默认（防未知版本进渲染层取空类型表）', () => {
+    const back = decodeShare(b64({ commands: CMDS, sim: { mcVersion: '1.20' } }), SIM);
+    expect(back!.sim.mcVersion).toBe(SIM.mcVersion);
+    const ok = decodeShare(b64({ commands: CMDS, sim: { mcVersion: '1.21.11' } }), SIM);
+    expect(ok!.sim.mcVersion).toBe('1.21.11');
+  });
+
   it('sim 类型校验：垃圾值降级默认（playerPos:5 不得直通引擎 → ~ 坐标 NaN 空白）', () => {
     const tok = b64({ commands: CMDS, sim: { playerPos: 5, maxParticles: 'many', seed: NaN, renderMode: 'ultra', gridSize: 5 } });
     const back = decodeShare(tok, SIM);

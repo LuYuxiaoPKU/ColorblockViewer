@@ -47,26 +47,74 @@ function isVec3(p: unknown): p is { x: { v: number; rel: boolean }; y: { v: numb
   return coord(v.x) && coord(v.y) && coord(v.z);
 }
 
+// 校验口径 = parser 产物 schema（command/types.ts）逐字段：serializeAll 对任一
+// 缺失/错型字段都会读 undefined 属性抛 TypeError（createRoot 前白屏）。
+// 不查 parser 产物中不存在的字段（如 conditional 无 count——查了合法命令反被拒）。
+function isPlain3(v: unknown): boolean {
+  return !!v && typeof v === 'object'
+    && typeof (v as { x?: unknown }).x === 'number'
+    && typeof (v as { y?: unknown }).y === 'number'
+    && typeof (v as { z?: unknown }).z === 'number';
+}
+
+function isRGBA(v: unknown): boolean {
+  return !!v && typeof v === 'object'
+    && typeof (v as { r?: unknown }).r === 'number'
+    && typeof (v as { g?: unknown }).g === 'number'
+    && typeof (v as { b?: unknown }).b === 'number'
+    && typeof (v as { a?: unknown }).a === 'number';
+}
+
+function isStrOrNull(v: unknown): boolean {
+  return v === null || typeof v === 'string';
+}
+
+function isTail(t: unknown): boolean {
+  return !!t && typeof t === 'object'
+    && typeof (t as { age?: unknown }).age === 'number'
+    && isStrOrNull((t as { speedExpression?: unknown }).speedExpression)
+    && typeof (t as { speedStep?: unknown }).speedStep === 'number'
+    && isStrOrNull((t as { group?: unknown }).group);
+}
+
 function isCommand(c: unknown): c is ParticleCommand {
   if (!c || typeof c !== 'object') return false;
   const o = c as Record<string, unknown>;
   if (typeof o.kind !== 'string' || !(CMD_KINDS as readonly string[]).includes(o.kind)) return false;
   if (o.kind === 'clearparticle') return true;
+  // group 无 name/pos 顶层字段（pos 挂在各变体上，可 null），单独分流
+  if (o.kind === 'group') {
+    if (o.sub === 'remove') return typeof o.group === 'string' && isStrOrNull(o.expression) && (o.pos === null || isVec3(o.pos));
+    if (o.sub === 'change') {
+      if (o.type !== 'parameter' && o.type !== 'speedexpression') return false;
+      return typeof o.group === 'string' && typeof o.expression === 'string' && isStrOrNull(o.conditionalExpression) && (o.pos === null || isVec3(o.pos));
+    }
+    return false;
+  }
+  if (typeof o.name !== 'string') return false;
   // vanilla 的 pos 是 Vec3 | null（原版 /particle 允许省略 pos）；其余 kind 必须完整 Vec3
   if (o.kind !== 'vanilla' ? !isVec3(o.pos) : o.pos !== null && !isVec3(o.pos)) return false;
-  if (typeof o.name !== 'string') return false;
-  if (o.kind === 'group') {
-    if (o.sub !== 'remove' && o.sub !== 'change') return false;
-    return typeof o.group === 'string';
+  if (o.kind === 'vanilla') {
+    return (o.delta === null || isPlain3(o.delta))
+      && (o.speed === null || typeof o.speed === 'number')
+      && (o.count === null || typeof o.count === 'number')
+      && typeof o.normal === 'boolean'
+      && isStrOrNull(o.nbt);
   }
-  const num = (v: unknown): v is number => typeof v === 'number';
-  const vec3Plain = (v: unknown): boolean =>
-    !!v && typeof v === 'object' && num((v as { x?: unknown }).x) && num((v as { y?: unknown }).y) && num((v as { z?: unknown }).z);
-  if (o.kind === 'vanilla') return true; // 其余字段全可选（delta/speed/count/normal/nbt 可 null）
-  if (!vec3Plain(o.speed)) return false;
-  if (o.kind === 'normal' || o.kind === 'conditional') return num(o.count);
-  // parameter：begin/end/step/age 数值（color/speedExpression/speedStep 有缺省，不强制）
-  return num(o.begin) && num(o.end) && num(o.step) && num(o.age);
+  if (!isPlain3(o.speed) || !isTail(o)) return false;
+  // range/color 仅 normal 与 conditional 有（parameter 无 range、color 与 rgba 互锁）
+  if (o.kind === 'normal' || o.kind === 'conditional') {
+    if (!isPlain3(o.range) || !isRGBA(o.color)) return false;
+  }
+  if (o.kind === 'normal') return typeof o.count === 'number';
+  if (o.kind === 'conditional') return typeof o.expression === 'string' && typeof o.step === 'number';
+  // parameter：polar/tick/rgba 决定变体；color 与 rgba 互锁（parser：
+  // rgba 变体无 color 槽 → 恒 null；非 rgba 变体恒 RGBA）
+  return typeof o.polar === 'boolean' && typeof o.tick === 'boolean' && typeof o.rgba === 'boolean'
+    && (o.rgba === true ? o.color === null : isRGBA(o.color))
+    && typeof o.begin === 'number' && typeof o.end === 'number'
+    && typeof o.expression === 'string' && typeof o.step === 'number'
+    && typeof o.cpt === 'number';
 }
 
 function isPos(p: unknown): p is { x: number; y: number; z: number } {
@@ -85,7 +133,7 @@ function sanitizeSim(raw: unknown, def: SimConfig): SimConfig {
     defaultLifetime: num(o.defaultLifetime, def.defaultLifetime),
     maxParticles: num(o.maxParticles, def.maxParticles),
     seed: num(o.seed, def.seed),
-    mcVersion: typeof o.mcVersion === 'string' ? o.mcVersion : def.mcVersion,
+    mcVersion: o.mcVersion === '26.2' || o.mcVersion === '1.21.11' ? o.mcVersion : def.mcVersion,
     gridSize: num(o.gridSize, def.gridSize),
     gridVisible: typeof o.gridVisible === 'boolean' ? o.gridVisible : def.gridVisible,
     nativeKinematics: typeof o.nativeKinematics === 'boolean' ? o.nativeKinematics : def.nativeKinematics,
