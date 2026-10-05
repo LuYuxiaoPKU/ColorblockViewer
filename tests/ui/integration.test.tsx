@@ -1,4 +1,4 @@
-// 集成验证（极简版）：粘贴 → 执行 → 播放条（播放/单步/重置/倍速）→ 模板库全流程。
+// 集成验证（极简版）：粘贴 → 执行 → 播放条（播放/上一帧/下一帧/进度条/重置/倍速）→ 模板库全流程。
 // happy-dom 渲染真实 <App/>；SimViewport（WebGL）mock 掉——Three 路径由
 // tests/render/points.test.ts 单元覆盖，这里聚焦 UI↔store↔引擎 联动。
 // @vitest-environment happy-dom
@@ -125,6 +125,13 @@ function button(text: string): HTMLButtonElement {
   return btn as HTMLButtonElement;
 }
 
+/** aria-label 按钮（◀/▶/↺ 等无文字按钮） */
+function byAria(label: string): HTMLButtonElement {
+  const btn = container.querySelector('button[aria-label="' + label + '"]');
+  if (!btn) throw new Error('button not found by aria-label: ' + label);
+  return btn as HTMLButtonElement;
+}
+
 /** 某个容器内的按钮（模板卡片等局部查找） */
 function buttonIn(scope: Element, text: string): HTMLButtonElement {
   const btn = [...scope.querySelectorAll('button')].find((b) => b.textContent?.trim().includes(text));
@@ -237,24 +244,56 @@ describe('粘贴 → 执行', () => {
   });
 });
 
-describe('播放条（播放 / 单步 / 重置 / 倍速）', () => {
-  it('单步 → tick 推进', () => {
-    setValue(ta(), 'particle flame 0 2 0 0.5 0.5 0.5 0.3 100\n');
-    click(button('加入播放器'));
-    const tickBefore = Number((container.querySelector('.hud')?.textContent?.match(/tick (\d+)/) ?? [])[1]);
-    click(button('单步'));
-    const tickAfter = Number((container.querySelector('.hud')?.textContent?.match(/tick (\d+)/) ?? [])[1]);
-    expect(tickAfter).toBe(tickBefore + 1);
+describe('播放条（播放 / 上一帧 / 下一帧 / 进度条 / 重置 / 倍速）', () => {
+  it('未播放：◀/▶ 与进度条禁用（无历史可回看）', () => {
+    expect(byAria('上一帧').disabled).toBe(true);
+    expect(byAria('下一帧').disabled).toBe(true);
+    expect(container.querySelector('.tl-bar')?.className).toContain('disabled');
+  });
+
+  it('播放记录时间线；暂停后 ◀▶ 逐帧导航（fake timers 驱动 rAF）', () => {
+    vi.useFakeTimers();
+    try {
+      setValue(ta(), 'particle flame 0 2 0 0.5 0.5 0.5 0.3 100\n');
+      click(button('▶ 播放'));
+      act(() => {
+        vi.advanceTimersByTime(300); // 数个 tick（faked rAF 每 16ms 一帧）
+      });
+      const p = getState().playback;
+      expect(p.frames).toBeGreaterThanOrEqual(3);
+      expect(p.tick).toBe(p.endTick); // 播放中播放头恒在末帧
+      expect(byAria('下一帧').disabled).toBe(true); // 末帧上 ▶ 不可用
+      act(() => {
+        setPlaying(false);
+      });
+      const t0 = p.tick;
+      // ◀ 回看（帧 tick 严格递增、每 tick 一帧 → 逐帧 -1）
+      click(byAria('上一帧'));
+      expect(getState().playback.tick).toBe(t0 - 1);
+      click(byAria('上一帧'));
+      expect(getState().playback.tick).toBe(t0 - 2);
+      // ▶ 前进（沿引擎已推进的帧）
+      click(byAria('下一帧'));
+      expect(getState().playback.tick).toBe(t0 - 1);
+      click(byAria('下一帧'));
+      expect(getState().playback.tick).toBe(t0);
+      // HUD 与场景同步到帧状态（flame 100 个、寿命 20 tick 内全活）
+      expect(container.querySelector('.hud')!.textContent).toContain(`tick ${t0}`);
+      expect(container.querySelector('.hud')!.textContent).toContain('粒子 100');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('重置 → 粒子清零、tick 归零', () => {
     setValue(ta(), 'particle flame 0 2 0 0.5 0.5 0.5 0.3 100\n');
     click(button('加入播放器'));
     expect(container.querySelector('.hud')?.textContent).toContain('粒子 100');
-    click(button('重置'));
+    click(byAria('重置'));
     const hud = container.querySelector('.hud')!;
     expect(hud.textContent).toContain('tick 0');
     expect(hud.textContent).toContain('粒子 0');
+    expect(getState().playback.frames).toBe(0); // 重置后时间线清空
   });
 
   it('播放开关镜像 store.playing（画布播放条按钮高亮切换）', () => {
@@ -304,7 +343,7 @@ describe('播放条（播放 / 单步 / 重置 / 倍速）', () => {
     act(() => {
       setSim({ maxParticles: 21000 });
     });
-    click(button('重置'));
+    click(byAria('重置'));
     setValue(ta(), 'particle flame 0 2 0 0.5 0.5 0.5 0.3 20001\n');
     click(button('加入播放器'));
     const hud = container.querySelector('.hud')!.textContent;
@@ -312,10 +351,10 @@ describe('播放条（播放 / 单步 / 重置 / 倍速）', () => {
     expect(hud).toContain('渲染截断');
   });
 
-  it('播放中寿命耗尽 → 自动暂停 + toast「已自动停止」（fake timers 驱动 rAF）', () => {
+  it('播放中寿命耗尽 → 自动停止并停在最后一帧（无 toast；fake timers 驱动 rAF）', () => {
     vi.useFakeTimers();
     try {
-      // smoke 零 delta 零速度 + 默认寿命 20 tick → 推进 1.5s（30 tick）后全部消亡 → 自动停止分支
+      // smoke 零 delta 零速度 + 默认寿命 20 tick → 推进 1.5s（30 tick）后全部消亡 → 末帧
       setValue(ta(), 'particle smoke 0 2 0 0 0 0 0 10\n');
       click(button('▶ 播放'));
       expect(getState().playing).toBe(true);
@@ -323,8 +362,13 @@ describe('播放条（播放 / 单步 / 重置 / 倍速）', () => {
         vi.advanceTimersByTime(1500);
       });
       expect(getState().playing).toBe(false);
-      expect(getState().toasts.at(-1)).toContain('已自动停止');
+      // 停在最后一帧：HUD 末帧状态 + 时间线保留（可回看）
       expect(container.querySelector('.hud')!.textContent).toContain('粒子 0');
+      const pb = getState().playback;
+      expect(pb.frames).toBeGreaterThan(0);
+      expect(pb.tick).toBe(pb.endTick);
+      // 回归：自动停止不再推「已自动停止」toast
+      expect(getState().toasts.filter((t) => t.includes('已自动停止'))).toHaveLength(0);
     } finally {
       vi.useRealTimers();
     }

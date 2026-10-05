@@ -1,10 +1,14 @@
 // 应用入口（M5）：左侧 CommandPane（粘贴框/表单双向同步/设置/toast），
 // 右侧 Viewport（完整模式 = WebGL 点云画布 / 快速模式 = Canvas 2D 圆点；
-// 播放条/HUD）。
+// 播放条/HUD/时间线进度条）。
 //
 // 热路径（计划 §九）：引擎与渲染视口在 ref；播放状态以 store 为 UI 镜像，
 // rAF 循环读 ref（playing/speed 变化时重启 effect）。React state 只承担
 // 低频显示（HUD 10Hz 轮询）。
+//
+// 时间线（sim/timeline.ts）：播放中每 tick 记录一帧快照（活粒子 + 计数），
+// 进度条可拖拽回放、◀▶ 逐帧导航；播放到末帧（寿命全部结束）自动停止并
+// 停在最后一帧（画面保留）。
 //
 // 渲染模式（sim.renderMode）：'full' 动态加载 three（≈700KB 独立 chunk），
 // 'fast' 走 Canvas 2D（不加载 three、无 WebGL）。两模式共用 color.ts 色值口径
@@ -12,8 +16,20 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { SimEngine } from './sim/engine';
+import { Timeline } from './sim/timeline';
+import type { SimParticle } from './sim/types';
 import type { SnapshotSource } from './render/sync';
-import { useAppState, setHud, pushToast, getState, clearToasts, setPlaying, applyInputText, setSim } from './store/appState';
+import {
+  useAppState,
+  setHud,
+  setPlayback,
+  pushToast,
+  getState,
+  clearToasts,
+  setPlaying,
+  applyInputText,
+  setSim,
+} from './store/appState';
 import { CommandPane } from './ui/CommandPane';
 import { Viewport } from './ui/Viewport';
 
@@ -57,9 +73,16 @@ export default function App() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const playRef = useRef({ acc: 0, last: 0 });
   const lastErrLen = useRef(0);
+  // 时间线（ref 热路径；store 的 playback 只是 UI 镜像）：
+  //   tl = 帧缓冲；playheadTick = 当前显示帧的 tick（seek 游标）。
+  const timelineRef = useRef<Timeline | null>(null);
+  const playheadTick = useRef(0);
 
   if (engineRef.current === null) {
     engineRef.current = new SimEngine({ ...getState().sim });
+  }
+  if (timelineRef.current === null) {
+    timelineRef.current = new Timeline(engineRef.current.config.maxParticles);
   }
 
   // 挂载（或渲染模式切换）：**按需加载**对应渲染层——
@@ -159,6 +182,7 @@ export default function App() {
   // 设置变更 → 应用到引擎（playerPos/寿命/上限即时；seed → 重建 PRNG）
   useEffect(() => {
     engineRef.current!.updateConfig(sim);
+    timelineRef.current!.setMaxParticles(sim.maxParticles); // 帧内截断按当前上限
   }, [sim]);
 
   // 游戏版本变更 → 换粒子图集（贴图/帧表按版本分区；加载完成前圆点回退）
@@ -171,7 +195,16 @@ export default function App() {
     viewportRef.current?.setGrid(sim.gridSize, sim.gridVisible);
   }, [sim.gridSize, sim.gridVisible]);
 
-  // 播放循环（墙钟累加器；逻辑 20Hz 与渲染 60Hz 解耦）
+  // 时间线镜像 → store（播放头/末帧/最旧帧/帧数；UI 进度条与 ◀▶ 按钮读它）
+  const syncPlayback = () => {
+    const e = engineRef.current!;
+    const tl = timelineRef.current!;
+    setPlayback({ tick: playheadTick.current, endTick: tl.endTick, oldestTick: tl.oldestTick, frames: tl.length });
+    setHud({ tick: e.tick, count: e.aliveCount, dropped: e.dropped });
+  };
+
+  // 播放循环（墙钟累加器；逻辑 20Hz 与渲染 60Hz 解耦）。每 tick：
+  // 引擎 tickOnce → 视口刷新 → 时间线记录一帧（含末帧标记）→ 镜像 store。
   useEffect(() => {
     if (!playing) return;
     const st = playRef.current;
@@ -183,20 +216,33 @@ export default function App() {
         st.acc = Math.min(st.acc + (now - st.last) * speed, TICK_MS * 4); // cap 防死亡螺旋
         let didTick = false;
         while (st.acc >= TICK_MS) {
-          engineRef.current!.tickOnce();
-          st.acc -= TICK_MS;
-          viewportRef.current?.update(engineRef.current!);
-          didTick = true;
-        }
-        // 自动停止：tick 后无活工作（活粒子清零且无排队 tick 生成器）→ 暂停。
-        // age=-1 粒子 lifetime=INT_MAX，实际永不到期；生成器未跑完时不触发。
-        if (didTick) {
           const e = engineRef.current!;
-          if (!e.hasLiveWork()) {
-            setHud({ tick: e.tick, count: e.aliveCount, dropped: e.dropped });
-            pushToast('已自动停止：粒子寿命全部结束');
+          e.tickOnce();
+          st.acc -= TICK_MS;
+          viewportRef.current?.update(e);
+          // 时间线记录（每 tick 至多一帧；帧满丢最旧）。end = tick 后无活工作
+          // （寿命全部结束且生成器跑完）→ 末帧标记。
+          const end = !e.hasLiveWork();
+          timelineRef.current!.push(e.snapshot(), e.tick, e.dropped, end);
+          playheadTick.current = e.tick;
+          syncPlayback();
+          didTick = true;
+          if (end) {
+            // 自动停止：停在最后一帧（画面保留末帧快照；时间线不清空，
+            // 可拖条回看/◀▶ 导航；再按播放从头重跑 = playFresh 语义不变）。
+            st.last = now;
             setPlaying(false);
             return; // 不再调度下一帧；playing 变化触发 effect cleanup
+          }
+        }
+        if (didTick) {
+          // tick 期错误 toast（10Hz 轮询兜底之外的即时路径）
+          const e = engineRef.current!;
+          if (e.tickErrors.length > lastErrLen.current) {
+            for (let i = lastErrLen.current; i < e.tickErrors.length; i++) {
+              pushToast('tick ' + e.tick + ': ' + e.tickErrors[i]);
+            }
+            lastErrLen.current = e.tickErrors.length;
           }
         }
       }
@@ -215,6 +261,7 @@ export default function App() {
     const id = window.setInterval(() => {
       const e = engineRef.current!;
       setHud({ tick: e.tick, count: e.aliveCount, dropped: e.dropped });
+      syncPlayback(); // 播放头/帧数兜底（播放循环已写，值未变不触发重渲染）
       if (e.tickErrors.length > lastErrLen.current) {
         for (let i = lastErrLen.current; i < e.tickErrors.length; i++) {
           pushToast('tick ' + e.tick + ': ' + e.tickErrors[i]);
@@ -229,6 +276,7 @@ export default function App() {
     const e = engineRef.current!;
     viewportRef.current?.update(e);
     setHud({ tick: e.tick, count: e.aliveCount, dropped: e.dropped });
+    syncPlayback();
   };
 
   // 「执行」：先把文本框内容应用进真源（粘贴未应用的新行也能直接跑，
@@ -248,19 +296,47 @@ export default function App() {
         pushToast((err as Error).message);
       }
     }
+    // 执行改变了场景 → 时间线起点失效（旧帧对应旧命令的状态）：清空、
+    // 播放头归零。下一 tick 起重新记录。
+    timelineRef.current!.clear();
+    playheadTick.current = 0;
     refresh();
   };
 
-  // 「单步」：手动 tickOnce（暂停时可用）
-  const step = () => {
-    if (playing) return;
-    engineRef.current!.tickOnce();
-    refresh();
+  // 「上一帧 / 下一帧」：seek 时间线 ±1 tick（◀▶ 按钮）
+  const stepTo = (delta: number) => {
+    seek(Math.max(0, playheadTick.current + delta));
   };
 
-  // 「回放重置」：引擎全重置（粒子/组/生成器/tick/PRNG）+ 清 toast
+  // 「seek」（进度条拖拽/点击、◀▶）：跳回时间线里 tick 最近（≤t）的一帧。
+  // 回放实现（前端无 1:1 约束，文档化近似）：按帧的粒子列表从**当前活池**
+  // 取回真粒子对象（渲染读 13 个字段都在真对象上，帧拷贝仅兜底已死粒子）。
+  // seek 后场景停在历史状态；再播放 = 从该状态继续演进（不重放命令）。
+  const seek = (t: number) => {
+    const tl = timelineRef.current!;
+    const frame = tl.findFrame(t);
+    if (!frame) return;
+    const e = engineRef.current!;
+    const alive: SimParticle[] = e.snapshot();
+    const byId = new Map<number, SimParticle>();
+    for (const p of alive) byId.set(p.id, p);
+    // 每帧粒子：id 命中当前活池 → 真粒子对象（渲染读 13 字段都在上面）；
+    // 否则用帧内浅拷贝（已死粒子 / 拷贝缺运动学字段 —— 见 engine.setPool 注释）
+    const resolved: SimParticle[] = frame.particles.map((c) => byId.get((c as unknown as SimParticle).id) ?? (c as unknown as SimParticle));
+    e.setPool(resolved);
+    e.setTick(frame.tick); // HUD tick 与场景状态对齐（续播从该 tick 演进）
+    playheadTick.current = frame.tick;
+    playRef.current.acc = 0; // 防止 seek 期间累计的墙钟在续播时补跑历史 tick
+    viewportRef.current?.update(e);
+    setHud({ tick: frame.tick, count: frame.count, dropped: frame.dropped });
+    setPlayback({ tick: frame.tick, endTick: tl.endTick, oldestTick: tl.oldestTick, frames: tl.length });
+  };
+
+  // 「回放重置」：引擎全重置（粒子/组/生成器/tick/PRNG）+ 时间线清空 + 清 toast
   const reset = () => {
     engineRef.current!.reset();
+    timelineRef.current!.clear();
+    playheadTick.current = 0;
     lastErrLen.current = 0;
     clearToasts();
     refresh();
@@ -294,8 +370,10 @@ export default function App() {
       <Viewport
         containerRef={containerRef}
         renderCapacity={renderCapacity}
-        onStep={step}
+        onPrev={() => stepTo(-1)}
+        onNext={() => stepTo(1)}
         onReset={reset}
+        onSeek={(t) => seek(t)}
         progress={vpProgress}
       />
     </div>

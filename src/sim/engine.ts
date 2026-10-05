@@ -106,6 +106,19 @@ export class SimEngine {
     return out;
   }
 
+  /** 时间线回放（预览专用，非引擎 1:1 功能）：活粒子池整体替换为一组
+   *  粒子（App 的 seek：按历史帧的粒子列表，优先取当前活池里的真粒子
+   *  对象、已死粒子用帧内浅拷贝）。只动池前缀与 count；pending/组索引/
+   *  PRNG 不动（pending = 尚未入池的新命令粒子，下一 tick 照常入池）。
+   *  渲染层只读 13 个字段（见 render/points.ts SnapshotSource），帧拷贝
+   *  缺运动学字段（gf/ff 等）不影响显示；继续播放时拷贝粒子按缺省
+   *  （无衰减/无自定义曲线）演进 —— 文档化近似。 */
+  setPool(particles: SimParticle[]): void {
+    this.pool.length = particles.length;
+    for (let i = 0; i < particles.length; i++) this.pool[i] = particles[i];
+    this.count = this.pool.length;
+  }
+
   // ---------- 命令入口 ----------
 
   /** 执行一条命令（M2 解析产物）。
@@ -314,7 +327,7 @@ export class SimEngine {
 
   // ---------- 每 tick ----------
 
-  /** 手动单步（headless 测试 / UI 单步）。 */
+  /** 手动单步（headless 测试 / UI 时间线 seek 后的续播）。 */
   tickOnce(): void {
     // ① tick 初：排队生成器各跑一批（TickEndTask 语义）
     if (this.generators.length > 0) {
@@ -349,16 +362,17 @@ export class SimEngine {
     this.tick++;
   }
 
-  /** 立即执行生成器一批（命令执行期用）：未完成 → 排队下一 tick 初 */
+  /** 立即执行生成器一批（命令执行期用）：未完成 → 排队下一 tick 初。
+   *  运行期错误：记录 + 该生成器死亡、不 re-queue —— 与 tickOnce 的捕获行为
+   *  一致（Java 原文错误传播出 execute 队列；预览不崩溃，只保证后续不再生成）。 */
   private runGeneratorNow(g: TickGenerator, result: SimResult): void {
     const sink = this.makeSink(result);
     let needMore: boolean;
     try {
       needMore = runGeneratorStep(g, sink);
     } catch (e) {
-      // 命令执行期：错误传播给调用方（runCommand 不捕获生成器 run —— Java 里
-      // 立即 run 在 context.client().execute 的 lambda 内，异常同样传播出 execute 队列）
-      throw e;
+      this.tickErrors.push((e as Error).message);
+      return;
     }
     if (needMore) this.generators.push(g);
   }
@@ -645,6 +659,12 @@ export class SimEngine {
     this.rand = new SimRandom(this.config.seed);
     this.vanillaRand = new SimRandom(this.config.seed + 1);
     this.tickErrors.length = 0;
+  }
+
+  /** 时间线回放（预览专用，非引擎 1:1 功能）：seek 后引擎 tick 跟随播放头
+   *  （HUD 与「续播从该帧演进」语义一致；下一 tickOnce 自然 ++）。 */
+  setTick(t: number): void {
+    this.tick = t;
   }
 }
 
