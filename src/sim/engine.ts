@@ -284,7 +284,10 @@ export class SimEngine {
       // （命令速度被丢弃）；曲线参数由构造器里的一次私有 nextFloat 决定
       // （F·60.0f 定 flow 方向、1000.0f+F·3000.0f 定 swirl 周期）→ 运动曲线必需，
       // 预览无条件从共享 vanillaRand 消费一次（Java 侧构造器无条件执行、与 age 无关；
-      // 分布一致、同种子可复现）。Math.toRadians = deg/180×π（JDK 实现顺序）。
+      // 分布一致、同种子可复现）。26.2 命名版字节码实锤：deg 走 f2d 加宽后调
+      // Math.toRadians(double)（非 JDK float 版 ×0.017453292f）；JDK21 探针实测与
+      // (deg/180)·π 逐位一致（golden 精确断言通过；仅 ~1e-14 rad 尾部差异，位置
+      // 影响 <1e-17，不可观察）。
       if (spec?.leaves) {
         const rndF = this.vanillaRand.nextFloat();
         const rad = (Math.fround(rndF * 60) / 180) * Math.PI;
@@ -367,7 +370,7 @@ export class SimEngine {
   /** §3.4：customTick（pre 记录 → 原生 tick → stop 回滚 → customMove）。
    *  原生 tick 内：age++/死亡判定 → 原版运动学（若开启且类型有表：
    *  base 管道 = 重力先于位移、摩擦后于位移、可选逐轴附加阻尼；
-   *  portal = 绝对位置式（cubic easing，xStart = 命令位置）；
+   *  portal = 绝对位置式（e = 1+t−2t² 二次曲线，xStart = 命令位置）；
    *  reverse_portal = 增量式 x += v·t —— 见 sim/kinematics.ts 证据清单；
    *  trail = 绝对坐标 lerp（tick 本体，不调 super），置于 !p.stop 门内：
    *  模组 stop 回滚在 tick() 之后，stop=true 时 lerp 位移被撤销（
