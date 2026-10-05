@@ -32,6 +32,7 @@ import {
 } from './store/appState';
 import { CommandPane } from './ui/CommandPane';
 import { Viewport } from './ui/Viewport';
+import { estimateDuration } from './command/parser';
 
 const TICK_MS = 50; // 20 TPS
 
@@ -77,6 +78,10 @@ export default function App() {
   //   tl = 帧缓冲；playheadTick = 当前显示帧的 tick（seek 游标）。
   const timelineRef = useRef<Timeline | null>(null);
   const playheadTick = useRef(0);
+  // 预估总终点 tick（进度条右端基准）：命令执行时 = 执行点 tick + Σ各命令
+  // 预估时长（最大寿命 + 生成器生成期，parser.estimateDuration）；多命令叠加
+  // 取最大（旧批粒子的存活期已被各自执行点覆盖）。重置归零。
+  const estEndTick = useRef(0);
 
   if (engineRef.current === null) {
     engineRef.current = new SimEngine({ ...getState().sim });
@@ -199,8 +204,23 @@ export default function App() {
   const syncPlayback = () => {
     const e = engineRef.current!;
     const tl = timelineRef.current!;
-    setPlayback({ tick: playheadTick.current, endTick: tl.endTick, oldestTick: tl.oldestTick, frames: tl.length, totalCopies: tl.totalCopies });
+    setPlayback({ tick: playheadTick.current, endTick: tl.endTick, oldestTick: tl.oldestTick, frames: tl.length, totalCopies: tl.totalCopies, maxTick: calcMaxTick() });
     setHud({ tick: e.tick, count: e.aliveCount, dropped: e.dropped });
+  };
+
+  // 条右端（预估总时长，tick）= 命令预估终点（estEndTick）+ 生成器剩余生成期
+  // （t 被 runGeneratorStep 原地推进，取最后注册生成器的 t→end 剩余 ÷ 每 tick
+  // cpt 个）；无生成器 = 命令预估。未执行过命令（无帧）= 0。
+  const calcMaxTick = (): number => {
+    const e = engineRef.current!;
+    const tl = timelineRef.current!;
+    if (tl.length === 0) return 0;
+    let rem = 0;
+    const g = e.lastGenerators[e.lastGenerators.length - 1];
+    if (g && g.step > 0 && g.t <= g.end) {
+      rem = Math.floor((g.end - g.t) / g.step) / g.cpt;
+    }
+    return Math.max(tl.endTick, estEndTick.current + rem);
   };
 
   // 播放循环（墙钟累加器；逻辑 20Hz 与渲染 60Hz 解耦）。每 tick：
@@ -287,7 +307,10 @@ export default function App() {
     // （曾双推：同一条错误占 toast 配额 2 条）
     applyInputText();
     const e = engineRef.current!;
-    for (const cmd of getState().commands) {
+    const cmds = getState().commands;
+    const t0 = e.tick;
+    let maxDur = 0;
+    for (const cmd of cmds) {
       try {
         const r = e.runCommand(cmd);
         for (const err of r.errors) pushToast(err);
@@ -295,11 +318,18 @@ export default function App() {
       } catch (err) {
         pushToast((err as Error).message);
       }
+      maxDur = Math.max(maxDur, estimateDuration(cmd, e.config.defaultLifetime));
     }
+    // 预估总终点 = 执行点 + 本批最大预估时长（多命令叠加取最大：旧批粒子的
+    // 存活期已被它们各自执行点 + 时长覆盖，不被新命令压缩）
+    estEndTick.current = Math.max(estEndTick.current, t0 + maxDur);
     // 执行改变了场景 → 时间线起点失效（旧帧对应旧命令的状态）：清空、
-    // 播放头归零。下一 tick 起重新记录。
-    timelineRef.current!.clear();
-    playheadTick.current = 0;
+    // 播放头归零。记录初始帧（tick = 执行点，未演进）——命令执行后、播放前
+    // 进度条即可拖动/逐帧（回到初始状态），而非必须等播放开始。
+    const tl = timelineRef.current!;
+    tl.clear();
+    playheadTick.current = t0;
+    tl.push(e.snapshot(), t0, e.dropped, !e.hasLiveWork());
     refresh();
   };
 
@@ -335,7 +365,7 @@ export default function App() {
     playRef.current.acc = 0; // 防止 seek 期间累计的墙钟在续播时补跑历史 tick
     viewportRef.current?.update(e);
     setHud({ tick: frame.tick, count: frame.count, dropped: frame.dropped });
-    setPlayback({ tick: frame.tick, endTick: tl.endTick, oldestTick: tl.oldestTick, frames: tl.length, totalCopies: tl.totalCopies });
+    setPlayback({ tick: frame.tick, endTick: tl.endTick, oldestTick: tl.oldestTick, frames: tl.length, totalCopies: tl.totalCopies, maxTick: calcMaxTick() });
   };
 
   // 「回放重置」：引擎全重置（粒子/组/生成器/tick/PRNG）+ 时间线清空 + 清 toast
@@ -343,6 +373,7 @@ export default function App() {
     engineRef.current!.reset();
     timelineRef.current!.clear();
     playheadTick.current = 0;
+    estEndTick.current = 0;
     lastErrLen.current = 0;
     clearToasts();
     refresh();
@@ -380,6 +411,7 @@ export default function App() {
         onNext={() => stepTo(1)}
         onReset={reset}
         onSeek={(t) => seek(t)}
+        maxTick={getState().playback.maxTick}
         progress={vpProgress}
       />
     </div>

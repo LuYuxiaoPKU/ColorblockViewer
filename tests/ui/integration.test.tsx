@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import App from '../../src/App';
-import { getState, replaceCommands, setInputText, setSim, setPlaying, setSpeed, clearToasts } from '../../src/store/appState';
+import { getState, replaceCommands, setInputText, setSim, setPlaying, setSpeed, setPlayback, clearToasts } from '../../src/store/appState';
 import { serialize, serializeAll } from '../../src/command/serialize';
 import { parseCommands } from '../../src/command/parser';
 import { templateById, templateText } from '../../src/templates/library';
@@ -91,6 +91,7 @@ beforeEach(async () => {
   setSim(SIM_BASE);
   setPlaying(false);
   setSpeed(1);
+  setPlayback({ tick: 0, endTick: -1, oldestTick: 0, frames: 0, totalCopies: 0, maxTick: 0 });
   clearToasts();
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -245,10 +246,25 @@ describe('粘贴 → 执行', () => {
 });
 
 describe('播放条（播放 / 上一帧 / 下一帧 / 进度条 / 重置 / 倍速）', () => {
-  it('未播放：◀/▶ 与进度条禁用（无历史可回看）', () => {
+  it('未执行过命令：◀/▶ 与进度条禁用（无历史可回看）', () => {
     expect(byAria('上一帧').disabled).toBe(true);
     expect(byAria('下一帧').disabled).toBe(true);
     expect(container.querySelector('.tl-bar')?.className).toContain('disabled');
+  });
+
+  it('执行后（未播放）：进度条可用，右端 = 预估总时长（不再百万 tick 空白）', () => {
+    // polarparameter 非 tick（100 个 t 值一 tick 同步生成）+ end_rod 显式 age 20
+    // → 预估总时长 = 寿命 20 tick；旧口径「末帧 + 剩余拷贝预算」≈ 百万 tick
+    setValue(ta(), "particleex polarparameter minecraft:end_rod ~ ~2 ~ 1 0.95 0.89 1 0 0 0 0 6.2832 'dis=0.05;s1=t;s2=0' 0.0628 20 '(vx,vy,vz)=(0.25*exp(0-(t+0.5)/8)*cos(s1),0,0.25*exp(0-(t+0.5)/8)*sin(s1))' 1 null\n");
+    click(button('加入播放器'));
+    const p = getState().playback;
+    expect(p.frames).toBe(1); // 执行即记录初始帧（未播放）
+    expect(p.tick).toBe(0);
+    expect(p.maxTick).toBe(20); // 右端 = 预估总时长（旧口径 ≈ 百万）
+    expect(container.querySelector('.tl-bar')?.className).not.toContain('disabled');
+    // 仅一帧：◀▶ 皆无处可去（播放后帧数增长，▶ 才可用——既有「逐帧导航」用例覆盖）
+    expect(byAria('上一帧').disabled).toBe(true);
+    expect(byAria('下一帧').disabled).toBe(true);
   });
 
   it('播放记录时间线；暂停后 ◀▶ 逐帧导航（fake timers 驱动 rAF）', () => {

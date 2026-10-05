@@ -16,6 +16,7 @@ import { parseVec3, parsePlain3, parseRGBA, isNum } from './coords';
 import { USAGE, USAGE_VANILLA } from './schema';
 import { parseCompound, NbtParseError, type NbtField } from '../nbt/parse';
 import { OPTION_FIELDS, NESTED_OPTION_FIELDS, checkField, checkNestedField, fieldKindCn, NESTED_KIND_CN } from '../nbt/particleOptions';
+import { nativeLifetimeFor, type NativeLifetimeFormula } from '../sim/kinematics';
 import type {
   ParticleCommand,
   NormalCmd,
@@ -27,6 +28,39 @@ import type {
 } from './types';
 
 const INT_MAX = 2147483647;
+
+/** 粒子最大寿命（tick，UI 预估播放总时长用）：age>0 = age；age=-1 = INT_MAX
+ *  （永活）；age=0 = 该类型的**已知最大**寿命——原版运动学表按分布公式取
+ *  上界（F→1⁻ / 下一随机数上界），未建模类型回退默认寿命（UI 估算非引擎
+ *  字段，不进 1:1 口径）。 */
+export function estimateMaxAge(name: string, age: number, defaultLifetime: number): number {
+  if (age > 0) return age;
+  if (age === -1) return INT_MAX;
+  const f = nativeLifetimeFor(name, '26.2') ?? nativeLifetimeFor(name, '1.21.11');
+  if (f) {
+    const m = f(
+      { nextFloat: () => 1, nextDouble: () => 1, nextInt: (n: number) => n - 1, nextGaussian: () => 0 } as unknown as Parameters<NativeLifetimeFormula>[0],
+      { scale: 1 },
+    );
+    if (Number.isFinite(m) && m > 0) return m;
+  }
+  return defaultLifetime;
+}
+
+/** 命令的播放时长预估（tick，UI 进度条右端用；非引擎字段）：
+ *  生成器（tick 变体）生成期 + 首批粒子最大寿命；非 tick 命令 = 仅寿命
+ *  （conditional 生成期不定；group/clear 无粒子贡献）。 */
+export function estimateDuration(cmd: ParticleCommand, defaultLifetime: number): number {
+  if (cmd.kind === 'parameter') {
+    if (!cmd.tick) return estimateMaxAge(cmd.name, cmd.age, defaultLifetime);
+    const total = cmd.begin <= cmd.end ? Math.floor((cmd.end - cmd.begin) / cmd.step) + 1 : 0;
+    return Math.ceil(total / cmd.cpt) + estimateMaxAge(cmd.name, cmd.age, defaultLifetime);
+  }
+  if (cmd.kind === 'normal') return estimateMaxAge(cmd.name, cmd.age, defaultLifetime);
+  if (cmd.kind === 'vanilla') return estimateMaxAge(cmd.name, 0, defaultLifetime); // 原版 /particle 无 age 槽：寿命 = 类型公式/默认
+  return 0;
+}
+
 const DBL_MAX = Number.MAX_VALUE;
 
 /** type{NBT}：提取 NBT 载荷并按该类型的 ParticleOptions CODEC 校验字段。

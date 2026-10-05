@@ -70,7 +70,7 @@ dust_color_transition 的颜色渐变等均按客户端语义消费）。粒子�
   拖拽回看播放历史；粒子寿命全部结束自动停止并停在最后一帧（时间线保留）
 - **1:1 语义复刻**：表达式引擎（Int32 除法/取模/常量折叠/矩阵/函数重载）与
   粒子生命周期按模组源码逐字核对，双后端对拍 + golden 测试锁行为
-  （1157 个测试）
+  （1176 个测试）
 - **设置**：玩家位置（`~` 基准）、默认寿命、粒子上限（默认 1000000）、随机
   种子、游戏版本
   （1.21.11 / 26.2）、渲染模式（完整 WebGL 贴图 / 快速 Canvas 2D 圆点）、
@@ -140,7 +140,7 @@ Minecraft 粒子效果的可调试性长期是个空白点：原版 `/particle` 
 ```bash
 npm install
 npm run dev        # 开发服务器
-npm test           # Vitest（1157 tests）
+npm test           # Vitest（1176 tests）
 npm run build      # tsc --noEmit + vite build
 npm run preview    # 本地预览构建产物
 npm run assets "26.2"   # 重新提取指定 MC 版本的粒子贴图（需本地 MC 或官方镜像；

@@ -34,10 +34,10 @@ export const TEMPLATES: Template[] = [
   {
     id: 'ring',
     name: '圆周环（polarparameter 环形速度）',
-    desc: '极坐标参数命令摆出一个圆环，速度表达式给切向速度 → 粒子绕圈流动。',
+    desc: '极坐标参数命令摆出一个圆环，切向速度表达式随 t 指数衰减 → 粒子绕圈流动渐趋静止。',
     tags: ['polarparameter', '表达式', 'end_rod'],
     cmds: [
-      "/particleex polarparameter minecraft:end_rod ~ ~2 ~ 1 0.95 0.89 1 0 0 0 -10 10 'dis=1;s1=2*t;s2=0' 0.1 20 'i=0.1;(vx,vy,vz)=((i)*cos(s1),0,(i)*sin(s1))' 1 null",
+      "/particleex polarparameter minecraft:end_rod ~ ~2 ~ 1 0.95 0.89 1 0 0 0 0 6.2832 'dis=0.05;s1=t;s2=0' 0.0628 20 '(vx,vy,vz)=(0.25*exp(0-(t+0.5)/8)*cos(s1),0,0.25*exp(0-(t+0.5)/8)*sin(s1))' 1 null",
     ],
   },
   {
