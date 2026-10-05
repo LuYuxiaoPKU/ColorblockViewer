@@ -4,7 +4,7 @@
 // 累计，与粒子上限解耦）。
 
 import { describe, expect, it } from 'vitest';
-import { Timeline, TOTAL_COPY_BUDGET } from '../../src/sim/timeline';
+import { Timeline, TOTAL_COPY_BUDGET, rewindLiveParticles } from '../../src/sim/timeline';
 import type { SimParticle } from '../../src/sim/types';
 
 /** 最小假粒子（copyParticle 只读固定字段） */
@@ -109,5 +109,69 @@ describe('Timeline', () => {
     expect(tl.oldestTick).toBe(0);
     expect(tl.totalCopies).toBe(0);
     expect(tl.findFrame(1)).toBeNull();
+  });
+
+  it('trail target 入帧拷贝（ttX/ttY/ttZ；vibration 同 vtX/vtY/vtZ）', () => {
+    const tl = new Timeline(1000);
+    const trailP = {
+      ...fp(1),
+      trailTarget: { x: 5, y: 6, z: 7 },
+    } as unknown as SimParticle;
+    const vibP = {
+      ...fp(2),
+      vibrationTarget: { x: 1, y: 2, z: 3 },
+    } as unknown as SimParticle;
+    tl.push([trailP, vibP], 1, 0, false);
+    const [a, b] = tl.at(0)!.particles;
+    expect(a).toMatchObject({ ttX: 5, ttY: 6, ttZ: 7 });
+    expect(b).toMatchObject({ vtX: 1, vtY: 2, vtZ: 3 });
+  });
+
+  it('rewindLiveParticles：活池 trail/vibration 真粒子按目标帧 age 回退（闭式解）', () => {
+    // 模拟 seek：引擎已演进到 age=10（x 已越过目标帧），seek 到 tick 4 的帧。
+    // 活池真粒子应回落到 tick 4 的历史位置；帧拷贝的 x 本就是历史值，不动。
+    const L = 20;
+    const x0 = 0, tx = 10;
+    const step = (x: number, a: number) => x + (tx - x) * (1 / (L - a));
+    let x10 = x0;
+    for (let i = 1; i <= 10; i++) x10 = step(x10, i);
+    let x4 = x0;
+    for (let i = 1; i <= 4; i++) x4 = step(x4, i);
+
+    const real: Record<string, unknown> = {
+      ...fp(1), age: 10, lifetime: L, x: x10, y: 0, z: 0,
+      cx: x0, cy: 0, cz: 0,
+      trailTarget: { x: tx, y: 0, z: 0 },
+    };
+    // 帧拷贝：tick 4 的历史值
+    const copy = {
+      ...fp(1), id: 1, age: 4, lifetime: L, x: x4, y: 0, z: 0,
+      cx: x0, cy: 0, cz: 0, ttX: tx, ttY: 0, ttZ: 0,
+    } as Record<string, number | string>;
+    rewindLiveParticles([copy], new Map([[1, real as unknown as SimParticle]]));
+    // 活池真粒子回退到 tick 4 位置（闭式解与逐步 lerp 差异 ~1e-15）
+    expect((real.x as number)).toBeCloseTo(x4, 10);
+    // 帧拷贝不动（历史值即目标）
+    expect(copy.x).toBe(x4);
+
+    // vibration 同路径（vt* 兜底字段）
+    const vib: Record<string, unknown> = {
+      ...fp(2), age: 10, lifetime: L, x: x10, y: 0, z: 0,
+      cx: x0, cy: 0, cz: 0,
+      vibrationTarget: { x: tx, y: 0, z: 0 },
+    };
+    const vibCopy = {
+      ...copy, id: 2, age: 4,
+    } as Record<string, number | string>;
+    rewindLiveParticles([vibCopy], new Map([[2, vib as unknown as SimParticle]]));
+    expect((vib.x as number)).toBeCloseTo(x4, 10);
+
+    // 无 target 的粒子 / 不在活池的粒子不受影响
+    const plain: Record<string, unknown> = { ...fp(3), x: 42, cx: 1, cy: 1, cz: 1 };
+    const plainCopy = { ...fp(3), id: 3, age: 2 } as Record<string, number | string>;
+    rewindLiveParticles([plainCopy], new Map([[3, plain as unknown as SimParticle]]));
+    expect(plain.x).toBe(42);
+    // 帧里有的 id 不在活池（已死）→ 跳过不报错
+    rewindLiveParticles([{ id: 99, age: 2 }], new Map());
   });
 });

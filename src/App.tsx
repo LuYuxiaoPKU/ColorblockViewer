@@ -16,7 +16,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { SimEngine } from './sim/engine';
-import { Timeline } from './sim/timeline';
+import { Timeline, rewindLiveParticles } from './sim/timeline';
 import type { SimParticle } from './sim/types';
 import type { SnapshotSource } from './render/sync';
 import {
@@ -325,6 +325,10 @@ export default function App() {
     // 每帧粒子：id 命中当前活池 → 真粒子对象（渲染读 13 字段都在上面）；
     // 否则用帧内浅拷贝（已死粒子 / 拷贝缺运动学字段 —— 见 engine.setPool 注释）
     const resolved: SimParticle[] = frame.particles.map((c) => byId.get((c as unknown as SimParticle).id) ?? (c as unknown as SimParticle));
+    // trail/vibration 是增量式 lerp：活池里的真粒子 x 已演进到当前（比目标帧
+    // 晚），须按目标帧 age 回退（闭式解，见 timeline.rewindLiveParticles）；
+    // 帧拷贝的 x 本就是目标帧的历史值，不动。
+    rewindLiveParticles(frame.particles, byId);
     e.setPool(resolved);
     e.setTick(frame.tick); // HUD tick 与场景状态对齐（续播从该 tick 演进）
     playheadTick.current = frame.tick;

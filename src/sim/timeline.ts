@@ -39,7 +39,9 @@ const FIELDS = [
  *  渲染层只读 13 个字段（x/y/z/r/g/b/a/name/age/lifetime/vanilla/nbtTint/
  *  colorFrom/colorTo/sizeMul），回放时按 id 从**当前活池**取回真粒子对象；
  *  已死粒子（回放时刻不存在）用本拷贝补 —— 拷贝缺运动学字段（gf/ff 等）
- *  无影响：渲染不读它们。 */
+ *  无影响：渲染不读它们。另存 trail/vibration 的 target（绝对坐标，不可
+ *  从活池恢复：命令执行后真粒子对象上还在，但帧拷贝粒子没有）——seek 时
+ *  增量 lerp 型粒子须回出生点重放（见 App.seek）。 */
 function copyParticle(p: SimParticle): Record<string, number | string> {
   const o: Record<string, number | string> = {};
   for (const f of FIELDS) o[f] = p[f];
@@ -52,6 +54,12 @@ function copyParticle(p: SimParticle): Record<string, number | string> {
     o['ctR'] = p.colorTo.r; o['ctG'] = p.colorTo.g; o['ctB'] = p.colorTo.b;
   }
   if (p.sizeMul !== undefined) o['sizeMul'] = p.sizeMul;
+  if (p.trailTarget) {
+    o['ttX'] = p.trailTarget.x; o['ttY'] = p.trailTarget.y; o['ttZ'] = p.trailTarget.z;
+  }
+  if (p.vibrationTarget) {
+    o['vtX'] = p.vibrationTarget.x; o['vtY'] = p.vibrationTarget.y; o['vtZ'] = p.vibrationTarget.z;
+  }
   return o;
 }
 
@@ -130,5 +138,44 @@ export class Timeline {
   clear(): void {
     this.frames.length = 0;
     this.copies = 0;
+  }
+}
+
+/** seek 回退（前端近似，非 1:1）：trail/vibration 是**增量式** lerp（每
+ *  tick 基于本 tick 起点推进 x += (target−x)·1/(lifetime−age)），直接 seek
+ *  后从当前 x 再 lerp 会越过历史位置（画面「未能回退」）。该递推有闭式解
+ *  x(a) = x₀ + (target−x₀)·a/(lifetime−1)（x₀ = 出生点 = 命令位置 c*；
+ *  vanilla 生成 x 初值 = cx；末 tick a=lifetime−1 恰好落 target，与引擎
+ *  逐 tick double lerp 数值一致至 ~1e-15）。只重写**活池真粒子**（当前 x
+ *  是最新值）；帧拷贝不动（其 x 本就是目标帧的历史值）。target 只在真
+ *  粒子对象上（帧拷贝由 copyParticle 存的 ttX/ttY/ttZ / vtX/vtY/vtZ 兜
+ *  底——活池里的真粒子必然有 target，此兜底对当前调用形态不生效，仅为
+ *  防御）。 */
+export function rewindLiveParticles(
+  copies: Record<string, number | string>[],
+  live: Map<number, SimParticle>,
+): void {
+  type V3 = { x: number; y: number; z: number };
+  const fromCopy = (c: Record<string, number | string>, keys: [string, string, string]): V3 | undefined => {
+    const [kx, ky, kz] = keys;
+    const x = c[kx], y = c[ky], z = c[kz];
+    return x !== undefined && y !== undefined && z !== undefined
+      ? { x: x as number, y: y as number, z: z as number }
+      : undefined;
+  };
+  for (const c of copies) {
+    const p = live.get(c.id as number);
+    if (!p || p.lifetime <= 1) continue; // 帧拷贝不动；lifetime=1 的粒子无位移
+    const a = c.age as number; // 目标帧的 age（真粒子可能已演进到更晚）
+    // 按真粒子**实际**字段选 kind（trail 优先），帧拷贝字段只作兜底
+    let target: V3 | undefined;
+    if (p.trailTarget) target = p.trailTarget;
+    else if (p.vibrationTarget) target = p.vibrationTarget;
+    else target = fromCopy(c, ['ttX', 'ttY', 'ttZ']) ?? fromCopy(c, ['vtX', 'vtY', 'vtZ']);
+    if (!target) continue;
+    const k = a / (p.lifetime - 1);
+    p.x = p.cx + (target.x - p.cx) * k;
+    p.y = p.cy + (target.y - p.cy) * k;
+    p.z = p.cz + (target.z - p.cz) * k;
   }
 }
