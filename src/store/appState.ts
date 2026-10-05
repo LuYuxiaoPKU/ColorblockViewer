@@ -29,10 +29,11 @@ export interface AppState {
   playing: boolean;
   speed: number;
   /** 时间线播放头（App 热路径写、10Hz HUD 轮询兜底；UI 播放条进度/上下帧用）：
-   *  tick = 当前显示帧的 tick；endTick = 时间线末帧 tick（滑条右端）；
-   *  oldestTick = 时间线最旧帧 tick（◀ 可用判据，帧预算丢最旧后 >0）；
-   *  frames = 时间线帧数（0 = 还没播放过，进度条禁用） */
-  playback: { tick: number; endTick: number; oldestTick: number; frames: number };
+   *  tick = 当前显示帧的 tick；endTick = 时间线末帧 tick；
+   *  oldestTick = 时间线最旧帧 tick（◀ 可用判据，丢最旧后 >0）；
+   *  frames = 时间线帧数（0 = 还没播放过，进度条禁用）；
+   *  totalCopies = 缓冲内粒子拷贝总份数（条右端估算用，见 Viewport） */
+  playback: { tick: number; endTick: number; oldestTick: number; frames: number; totalCopies: number };
   /** HUD：tick 数 / 活粒子数 / 累计丢弃（10Hz 轮询刷新） */
   hud: { tick: number; count: number; dropped: number };
   /** toast（引擎错误 / 解析失败），组件侧自动消失 */
@@ -46,7 +47,7 @@ function defaultState(): AppState {
     sim: { playerPos: { x: 0, y: 0, z: 0 }, defaultLifetime: 20, maxParticles: 1000000, seed: 1, mcVersion: '26.2', gridSize: 10, gridVisible: true, nativeKinematics: true, renderMode: 'full' },
     playing: false,
     speed: 1,
-    playback: { tick: 0, endTick: -1, oldestTick: 0, frames: 0 },
+    playback: { tick: 0, endTick: -1, oldestTick: 0, frames: 0, totalCopies: 0 },
     hud: { tick: 0, count: 0, dropped: 0 },
     toasts: [],
   };
@@ -132,7 +133,7 @@ export function setHud(hud: AppState['hud']): void {
 /** 时间线播放头（App 热路径写；值未变不触发重渲染）。 */
 export function setPlayback(playback: AppState['playback']): void {
   const p = state.playback;
-  if (p.tick === playback.tick && p.endTick === playback.endTick && p.frames === playback.frames && p.oldestTick === playback.oldestTick) return;
+  if (p.tick === playback.tick && p.endTick === playback.endTick && p.frames === playback.frames && p.oldestTick === playback.oldestTick && p.totalCopies === playback.totalCopies) return;
   set({ playback });
 }
 

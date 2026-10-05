@@ -262,6 +262,9 @@ describe('播放条（播放 / 上一帧 / 下一帧 / 进度条 / 重置 / 倍�
       const p = getState().playback;
       expect(p.frames).toBeGreaterThanOrEqual(3);
       expect(p.tick).toBe(p.endTick); // 播放中播放头恒在末帧
+      // 条右端 = 末帧 tick + 剩余预算可录帧数：播放中滑块不贴最右（总时长大致稳定）
+      expect(p.totalCopies).toBeGreaterThan(0);
+      expect(p.endTick + Math.floor(p.totalCopies / p.frames)).toBeGreaterThan(p.tick);
       expect(byAria('下一帧').disabled).toBe(true); // 末帧上 ▶ 不可用
       act(() => {
         setPlaying(false);

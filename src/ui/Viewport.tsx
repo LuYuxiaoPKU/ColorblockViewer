@@ -10,6 +10,7 @@
 
 import { useRef } from 'react';
 import { useAppState, setPlaying, setSpeed } from '../store/appState';
+import { TOTAL_COPY_BUDGET } from '../sim/timeline';
 
 const SPEEDS = [0.125, 0.25, 0.5, 1, 2, 4, 8];
 
@@ -52,15 +53,21 @@ export function Viewport({
   const frames = playback.frames;
   const endTick = playback.endTick;
   const disabled = frames <= 0; // 还没播放过 → 无历史可回看
-  const frac = disabled ? 0 : Math.min(1, Math.max(0, playback.tick / Math.max(1, endTick)));
+  // 条右端 = 末帧 tick + 剩余预算可录帧数（按已录帧的**平均**粒子数估算：
+  // TOTAL_COPY_BUDGET / 每帧均粒子 ≈ 还能录多少帧）。总时长大致稳定，
+  // 播放中不再每 tick 追满 100%。超出已记录范围的拖拽在 App.seek 里
+  // clamp 到已记录的最后帧（时间线是「历史」，右端之外尚未发生）。
+  const avg = frames > 0 ? playback.totalCopies / frames : 0;
+  const maxTick = endTick + (avg > 0 ? Math.floor(TOTAL_COPY_BUDGET / avg) : 0);
+  const frac = disabled ? 0 : Math.min(1, Math.max(0, playback.tick / Math.max(1, maxTick)));
 
-  /** 指针 x → tick（0..endTick 整数）；拖拽中每 move 一次、松手一次。 */
+  /** 指针 x → tick（0..maxTick 整数）；拖拽中每 move 一次、松手一次。 */
   const seekFromEvent = (e: { clientX: number }) => {
     const bar = barRef.current;
     if (!bar || disabled) return;
     const r = bar.getBoundingClientRect();
     const f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
-    onSeek(Math.round(f * endTick));
+    onSeek(Math.round(f * maxTick));
   };
 
   return (
@@ -97,8 +104,8 @@ export function Viewport({
           role="slider"
           aria-label="播放进度"
           aria-valuemin={0}
-          aria-valuemax={Math.max(0, endTick)}
-          aria-valuenow={Math.min(playback.tick, Math.max(0, endTick))}
+          aria-valuemax={maxTick}
+          aria-valuenow={Math.min(playback.tick, maxTick)}
           title={disabled ? '播放后出现可回看的时间线' : '拖动回看播放历史'}
           onPointerDown={(e) => {
             if (disabled) return;
