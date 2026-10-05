@@ -10,7 +10,6 @@
 
 import { useRef } from 'react';
 import { useAppState, setPlaying, setSpeed } from '../store/appState';
-import { TOTAL_COPY_BUDGET } from '../sim/timeline';
 
 const SPEEDS = [0.125, 0.25, 0.5, 1, 2, 4, 8];
 
@@ -18,8 +17,11 @@ interface PlaybackHandlers {
   onPrev: () => void;
   onNext: () => void;
   onReset: () => void;
-  /** 进度条拖拽/点击：t = tick（0..endTick 整数） */
+  /** 进度条拖拽/点击：t = tick（0..maxTick 整数） */
   onSeek: (t: number) => void;
+  /** 预估总时长（tick；App 按命令预估 + 生成器剩余计算）：条右端。
+   *  取代旧口径「末帧 + 剩余预算估算」（生成器命令录不满 → 右侧大空白） */
+  maxTick: number;
 }
 
 /** 首帧预热进度（完整模式）：null = 不显示；indeterminate = chunk 加载中
@@ -38,6 +40,7 @@ export function Viewport({
   onNext,
   onReset,
   onSeek,
+  maxTick: propMaxTick,
   progress = null,
 }: PlaybackHandlers & {
   containerRef: React.RefObject<HTMLDivElement | null>;
@@ -52,14 +55,15 @@ export function Viewport({
 
   const frames = playback.frames;
   const endTick = playback.endTick;
-  const disabled = frames <= 0; // 还没播放过 → 无历史可回看
-  // 条右端 = 末帧 tick + 剩余预算可录帧数（按已录帧的**平均**粒子数估算：
-  // TOTAL_COPY_BUDGET / 每帧均粒子 ≈ 还能录多少帧）。总时长大致稳定，
-  // 播放中不再每 tick 追满 100%。超出已记录范围的拖拽在 App.seek 里
-  // clamp 到已记录的最后帧（时间线是「历史」，右端之外尚未发生）。
-  const avg = frames > 0 ? playback.totalCopies / frames : 0;
-  const maxTick = endTick + (avg > 0 ? Math.floor(TOTAL_COPY_BUDGET / avg) : 0);
-  const frac = disabled ? 0 : Math.min(1, Math.max(0, playback.tick / Math.max(1, maxTick)));
+  // 时间线存在（命令执行后的初始帧 / 播放记录）即可回看
+  const disabled = frames <= 0;
+  // 条右端 = App 预估总时长（命令最大寿命 + 生成器生成期；生成中按剩余校正）。
+  // 未执行过命令（maxTick ≤ 0）或播放超出预估（末帧已越过预估：随机寿命取到
+  // 上界附近 / 多命令叠加 / 续播）→ 退化为末帧 tick（右端不再外扩）。
+  // 超出已记录范围的拖拽在 App.seek 里 clamp 到已记录的最后帧（时间线是
+  // 「历史」，右端之外尚未发生）。
+  const maxTick = Math.max(1, propMaxTick > endTick ? Math.round(propMaxTick) : endTick);
+  const frac = disabled ? 0 : Math.min(1, Math.max(0, playback.tick / maxTick));
 
   /** 指针 x → tick（0..maxTick 整数）；拖拽中每 move 一次、松手一次。 */
   const seekFromEvent = (e: { clientX: number }) => {

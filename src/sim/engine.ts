@@ -52,6 +52,9 @@ export class SimEngine {
 
   /** 排队的 tick 生成器（下一 tick 初执行一批） */
   private generators: TickGenerator[] = [];
+  /** 命令执行期注册过的生成器（**引用**——runGeneratorStep 原地推进 g.t，
+   *  App 用最后注册者的 t→end 剩余量 ÷ cpt 预估条右端）。执行/重置时清空。 */
+  lastGenerators: TickGenerator[] = [];
   /** 命令期/生成器期新生成、尚未入池的粒子 */
   private pending: SimParticle[] = [];
 
@@ -160,15 +163,19 @@ export class SimEngine {
   }
 
   private makeSink(result: SimResult, onQueue?: (g: TickGenerator) => void): SpawnSink {
+    const self = this;
     return {
       result,
       playerPos: this.config.playerPos,
       groups: this.groups,
       rand: this.rand,
       spawn: (req) => {
-        this.trySpawnParticle(req, result);
+        self.trySpawnParticle(req, result);
       },
       addGenerator: (g) => {
+        // 记录生成器引用（UI 预估剩余生成期用；g.t 被 runGeneratorStep 原地
+        // 推进，命令对象的 begin/end 不变 —— 见 App.calcMaxTick）
+        self.lastGenerators.push(g);
         if (onQueue) onQueue(g);
       },
     };
@@ -653,6 +660,7 @@ export class SimEngine {
     this.nextId = 1;
     this.pending = [];
     this.generators = [];
+    this.lastGenerators = [];
     this.groups.clear();
     this.tick = 0;
     this.dropped = 0;
