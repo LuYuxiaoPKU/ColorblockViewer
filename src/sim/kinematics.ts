@@ -23,8 +23,10 @@
 //     每 tick F/5000± 漂移（预览不建模，量级 2e-4/tick 可忽略）、
 //     出生初速 yd = cmdVy + 500.0f/F（FLOAT 除法；预览在 spawn 时消费
 //     vanillaRand 一个 nextFloat 近似 —— Java 侧是粒子私有随机，不可复现）。
-//   - portal：位置绝对式 x = xStart + xd·e(t) 等（e = 3t²−2t³ 的浮点计算，
-//     t = age/lifetime，fdiv）；y 另加 (1−t)。xStart = 命令位置。
+//   - portal：位置绝对式 x = xStart + xd·e(t) 等（26.2 字节码：t = i2f(age)/
+//     i2f(lifetime) fdiv；f1 = ((t·t)·2f) + (−t)（float 链）；e = 1 − f1
+//     = 1 + t − 2t²，**非** 3t²−2t³ smoothstep）；y 另加 (1−t)（float 后 f2d）。
+//     xStart = 命令位置。
 //   - reverse_portal：位置增量式 每 tick x += xd·t（t = age/lifetime，fdiv）。
 //   - vibration：VibrationSignalParticle.tick —— 构造器零速 + lifetime =
 //     arrival_in_ticks（NBT 直传）；age++/死亡判定 → target 空 remove →
