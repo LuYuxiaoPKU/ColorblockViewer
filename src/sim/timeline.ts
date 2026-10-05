@@ -1,12 +1,12 @@
 // 播放时间线（帧缓冲）：播放循环每 tick 记录一份场景快照（tick + 活粒子 +
 // 丢弃计数 + 末帧标记），供进度条拖拽回放、上一帧/下一帧导航。
 //
-// 内存策略（前端无 1:1 约束，文档化近似）：双预算定容——
-//   ① 字节预算（约 256MB）：每帧成本 = 32B 头 + 36B/粒子（理论口径）；
-//   ② 总粒子拷贝预算（1M 份）：JS 对象实测 ~400B/份，1M 份 ≈ 400MB——
-//      典型小场景（200 粒子）可回放 ~5000 帧（≈4 分钟），1M 满帧场景只容
-//      2 帧（大场景回放只覆盖最后几帧，拖条前段为空是如实行为，非 bug）。
-// 帧满时**丢最旧帧**（最旧即播放最早经过的状态，价值最低；保留最近回放）。
+// 内存策略（前端无 1:1 约束，文档化近似）：**总粒子拷贝预算**
+// （1M 份，JS 对象实测 ~400B/份 ≈ 400MB）——按每帧**实际**粒子数累计，
+// 累计超预算时从头部丢最旧帧（最旧即最早经过的状态，价值最低）。
+// 小场景（12 粒子）可回放 ~8 万帧（≈70 分钟）；1M 满帧场景只容 1 帧
+// （单帧即 400MB，大场景回放只覆盖最后时刻，拖条前段为空是如实行为）。
+// 按实际粒子数而非粒子上限定容：上限是「可能」，回放预算约束的是「实际」。
 
 import type { SimParticle } from './types';
 
@@ -24,16 +24,11 @@ export interface SceneFrame extends FrameMeta {
   particles: Record<string, number | string>[];
 }
 
-const FRAME_BASE_BYTES = 32;
-const PARTICLE_BYTES = 36;
-const BUDGET_BYTES = 256 * 1024 * 1024;
-/** 全部帧的粒子拷贝总份数上限（JS 对象实测 ~400B/份 → ≈400MB；
- *  小场景回放时长的真正约束） */
-const TOTAL_PARTICLE_BUDGET = 1000000;
+/** 全部帧的粒子拷贝总份数上限（≈400MB 真实内存；回放时长的实际约束）。
+ *  Viewport 用它估算条右端（总时长），须与 push 的丢帧判据同口径。 */
+export const TOTAL_COPY_BUDGET = 1000000;
 /** 单帧粒子上限：1M（引擎活池上限同口径） */
 const MAX_PARTICLES_PER_FRAME = 1000000;
-/** 容量下限（防止预算/成本算出 <2 的退化值） */
-const MIN_CAPACITY = 2;
 
 const FIELDS = [
   'id', 'name', 'x', 'y', 'z', 'vx', 'vy', 'vz',
@@ -62,28 +57,24 @@ function copyParticle(p: SimParticle): Record<string, number | string> {
 
 export class Timeline {
   private frames: SceneFrame[] = [];
-  private cap: number;
+  /** 缓冲内粒子拷贝总份数（丢帧判据，摊销 O(1)） */
+  private copies = 0;
 
-  constructor(private maxParticles: number) {
-    this.cap = this.calcCapacity(maxParticles);
-  }
+  constructor(private maxParticles: number) {}
 
-  /** 上限变更（设置抽屉运行期调整）：重算容量（帧内截断按**当前**上限判；
-   *  上限调小后缓冲里的旧大帧仍按旧截断保留 —— 回放是历史，不重采样）。 */
+  /** 上限变更（设置抽屉运行期调整）：帧内截断按**当前**上限判；
+   *  缓冲里的旧大帧仍按旧截断保留（回放是历史，不重采样）。 */
   setMaxParticles(v: number): void {
     this.maxParticles = v;
-    this.cap = this.calcCapacity(v);
-  }
-
-  private calcCapacity(max: number): number {
-    const perFrame = Math.min(max, MAX_PARTICLES_PER_FRAME);
-    const byBytes = Math.floor(BUDGET_BYTES / (FRAME_BASE_BYTES + perFrame * PARTICLE_BYTES));
-    const byParticles = Math.floor(TOTAL_PARTICLE_BUDGET / perFrame);
-    return Math.max(MIN_CAPACITY, Math.min(byBytes, byParticles));
   }
 
   get length(): number {
     return this.frames.length;
+  }
+
+  /** 缓冲内粒子拷贝总份数（Viewport 估算条右端用） */
+  get totalCopies(): number {
+    return this.copies;
   }
 
   /** 第 i 帧（App 热路径读；越界返回 null） */
@@ -91,7 +82,7 @@ export class Timeline {
     return this.frames[i] ?? null;
   }
 
-  /** 当前末帧的 tick（无帧 = -1；拖动滑条右端用） */
+  /** 当前末帧的 tick（无帧 = -1） */
   get endTick(): number {
     return this.frames.length > 0 ? this.frames[this.frames.length - 1].tick : -1;
   }
@@ -99,10 +90,6 @@ export class Timeline {
   /** 最旧帧的 tick（无帧 = 0；◀ 可用判据：playhead tick > oldestTick） */
   get oldestTick(): number {
     return this.frames.length > 0 ? this.frames[0].tick : 0;
-  }
-
-  get capacity(): number {
-    return this.cap;
   }
 
   /** 找对应 tick 的帧（seek 用）：最后一帧 tick ≤ t（帧 tick 严格递增、
@@ -124,18 +111,24 @@ export class Timeline {
   }
 
   /** 记录一帧：活粒子池 + pending（与 engine.snapshot 同序），粒子按
-   *  min(上限, 单帧上限) 截断（与点云缓冲/2D 视图同口径）。帧满 → 丢最旧。
+   *  min(上限, 单帧上限) 截断（与点云缓冲/2D 视图同口径）。累计拷贝超
+   *  预算 → 丢最旧帧（至少保留 1 帧：极端大帧单帧即超预算，帧不可拆分）。
    *  只由 App 播放循环调用（命令期不记录 —— 时间线是「播放历史」）。 */
   push(snapshot: SimParticle[], tick: number, dropped: number, end: boolean): void {
     const n = Math.min(snapshot.length, this.maxParticles, MAX_PARTICLES_PER_FRAME);
     const particles: Record<string, number | string>[] = new Array(n);
     for (let i = 0; i < n; i++) particles[i] = copyParticle(snapshot[i]);
     this.frames.push({ tick, count: n, dropped, end, particles });
-    if (this.frames.length > this.cap) this.frames.shift();
+    this.copies += n;
+    while (this.copies > TOTAL_COPY_BUDGET && this.frames.length > 1) {
+      const old = this.frames.shift()!;
+      this.copies -= old.count;
+    }
   }
 
   /** 清空（回放重置 / 命令执行时由 App 调用） */
   clear(): void {
     this.frames.length = 0;
+    this.copies = 0;
   }
 }

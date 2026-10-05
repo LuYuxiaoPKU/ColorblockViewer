@@ -199,7 +199,7 @@ export default function App() {
   const syncPlayback = () => {
     const e = engineRef.current!;
     const tl = timelineRef.current!;
-    setPlayback({ tick: playheadTick.current, endTick: tl.endTick, oldestTick: tl.oldestTick, frames: tl.length });
+    setPlayback({ tick: playheadTick.current, endTick: tl.endTick, oldestTick: tl.oldestTick, frames: tl.length, totalCopies: tl.totalCopies });
     setHud({ tick: e.tick, count: e.aliveCount, dropped: e.dropped });
   };
 
@@ -309,6 +309,8 @@ export default function App() {
   };
 
   // 「seek」（进度条拖拽/点击、◀▶）：跳回时间线里 tick 最近（≤t）的一帧。
+  // 条右端（maxTick = endTick + 缓冲剩余容量）超出已记录范围时，findFrame
+  // 自然 clamp 到末帧（右端之外尚未发生，时间线是「历史」）。
   // 回放实现（前端无 1:1 约束，文档化近似）：按帧的粒子列表从**当前活池**
   // 取回真粒子对象（渲染读 13 个字段都在真对象上，帧拷贝仅兜底已死粒子）。
   // seek 后场景停在历史状态；再播放 = 从该状态继续演进（不重放命令）。
@@ -329,7 +331,7 @@ export default function App() {
     playRef.current.acc = 0; // 防止 seek 期间累计的墙钟在续播时补跑历史 tick
     viewportRef.current?.update(e);
     setHud({ tick: frame.tick, count: frame.count, dropped: frame.dropped });
-    setPlayback({ tick: frame.tick, endTick: tl.endTick, oldestTick: tl.oldestTick, frames: tl.length });
+    setPlayback({ tick: frame.tick, endTick: tl.endTick, oldestTick: tl.oldestTick, frames: tl.length, totalCopies: tl.totalCopies });
   };
 
   // 「回放重置」：引擎全重置（粒子/组/生成器/tick/PRNG）+ 时间线清空 + 清 toast
