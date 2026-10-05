@@ -421,9 +421,12 @@ button.small {
   position: absolute;
   left: 10px;
   top: 10px;
+  right: 10px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  column-gap: 6px;
+  row-gap: 7px;
   padding: 6px 8px;
   z-index: 10;
 }
@@ -453,20 +456,21 @@ button.small {
   font-size: 12.5px;
 }
 
-/* 时间线进度条（播放条中部）：可拖拽/点击回看播放历史；
+/* 时间线进度条（播放条第 2 行，独占整行）：可拖拽/点击回看播放历史；
    无帧（还没播放过）→ disabled 灰条 */
 .tl-bar {
   position: relative;
-  flex: 1 1 auto;
-  min-width: 90px;
-  max-width: 320px;
-  height: 6px;
-  margin: 0 4px;
-  border-radius: 3px;
+  flex: 1 1 100%;
+  height: 10px;
+  margin: 0 2px;
+  border-radius: 5px;
   background: rgba(255, 255, 255, 0.08);
-  cursor: pointer;
+  cursor: grab;
   touch-action: none;
   transition: background 120ms ease;
+}
+.tl-bar:active {
+  cursor: grabbing;
 }
 .tl-bar:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -482,11 +486,34 @@ button.small {
 .tl-fill {
   position: absolute;
   left: 0;
-  top: 0;
-  bottom: 0;
-  border-radius: 3px;
+  top: 2px;
+  bottom: 2px;
+  border-radius: 4px;
   background: linear-gradient(90deg, var(--accent-deep), var(--accent));
   pointer-events: none;
+}
+/* 拖动按钮（播放头）：条上可视圆点，跟随播放位置；拖动时放大 */
+.tl-handle {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--accent);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.45);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+.tl-bar:hover .tl-handle {
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.45), 0 0 0 4px var(--accent-glow);
+}
+.tl-bar:active .tl-handle {
+  transform: translate(-50%, -50%) scale(1.25);
+}
+.tl-bar.disabled .tl-handle {
+  display: none;
 }
 
 /* ---------- Toast ---------- */

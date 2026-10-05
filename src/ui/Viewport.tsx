@@ -103,7 +103,7 @@ export function Viewport({
           onPointerDown={(e) => {
             if (disabled) return;
             dragging.current = true;
-            e.currentTarget.setPointerCapture(e.pointerId);
+            try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* 合成/边界事件无活动指针时捕获失败，不阻断 seek */ }
             seekFromEvent(e);
           }}
           onPointerMove={(e) => {
@@ -111,13 +111,14 @@ export function Viewport({
           }}
           onPointerUp={(e) => {
             dragging.current = false;
-            e.currentTarget.releasePointerCapture(e.pointerId);
+            try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* 同上 */ }
           }}
           onPointerCancel={() => {
             dragging.current = false;
           }}
         >
           <div className="tl-fill" style={{ width: `${frac * 100}%` }} />
+          <div className="tl-handle" style={{ left: `${frac * 100}%` }} />
         </div>
         <button className="small" onClick={onReset} aria-label="重置" title="重置：清粒子并重新执行命令">
           ↺
