@@ -119,11 +119,13 @@ describe('replaceCommands（模板「载入并执行」/ 一键清空）', () =>
 describe('loadShared（?s= 分享链接还原）', () => {
   it('命令 + 设置合并进真源（sim 与当前状态合并）', () => {
     const cmds = parseCommands('particleex normal flame 0 0 0 1 0 0 1 0 0 0 0 0 0 9\n');
-    loadShared({ commands: cmds, sim: { ...SIM_BASE, defaultLifetime: 7 } });
+    // maxParticles 显式给默认值 1000000：loadShared 的 sim 是整对象合并
+    // （payload 缺字段会降级到当前值），断言合并确实发生
+    loadShared({ commands: cmds, sim: { ...SIM_BASE, defaultLifetime: 7, maxParticles: 1000000 } });
     expect(getState().commands).toEqual(cmds);
     expect(getState().input).toBe(cmds.map(serialize).join('\n'));
     expect(getState().sim.defaultLifetime).toBe(7);
-    expect(getState().sim.maxParticles).toBe(20000);
+    expect(getState().sim.maxParticles).toBe(1000000);
   });
 });
 

@@ -453,6 +453,42 @@ button.small {
   font-size: 12.5px;
 }
 
+/* 时间线进度条（播放条中部）：可拖拽/点击回看播放历史；
+   无帧（还没播放过）→ disabled 灰条 */
+.tl-bar {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 90px;
+  max-width: 320px;
+  height: 6px;
+  margin: 0 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  touch-action: none;
+  transition: background 120ms ease;
+}
+.tl-bar:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+.tl-bar:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.tl-bar.disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.tl-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent-deep), var(--accent));
+  pointer-events: none;
+}
+
 /* ---------- Toast ---------- */
 
 .toast {

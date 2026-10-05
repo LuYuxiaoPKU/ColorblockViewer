@@ -55,7 +55,7 @@ export function CommandPane({
             <button
               className="primary small"
               onClick={onRun}
-              title="按当前命令生成粒子（不重置；画布左上角可播放/单步）"
+              title="按当前命令生成粒子（不重置；画布左上角可播放/进度条回看/上下帧）"
             >
               加入播放器
             </button>
