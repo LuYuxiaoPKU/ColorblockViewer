@@ -395,6 +395,23 @@ export default function App() {
     setPlaying(true);
   };
 
+  // 「▶ 播放 / ⏸ 暂停」（画布控制条）：播放中 = 暂停；停在末帧（自动停止
+  // 完成、末帧有 end 标记且播放头在末帧）= 从头重跑（tick 归零、粒子重新
+  // 生成）；其余（未执行过命令 / 中途暂停 / 回看中）= 继续播放。
+  const togglePlay = () => {
+    if (playing) {
+      setPlaying(false);
+      return;
+    }
+    const tl = timelineRef.current!;
+    const last = tl.at(tl.length - 1);
+    if (last && last.end && playheadTick.current >= tl.endTick) {
+      playFresh();
+      return;
+    }
+    setPlaying(true);
+  };
+
   return (
     <div className="app-layout">
       <aside className="pane">
@@ -411,6 +428,7 @@ export default function App() {
         onNext={() => stepTo(1)}
         onReset={reset}
         onSeek={(t) => seek(t)}
+        onTogglePlay={togglePlay}
         maxTick={getState().playback.maxTick}
         progress={vpProgress}
       />

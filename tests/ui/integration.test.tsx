@@ -392,6 +392,33 @@ describe('播放条（播放 / 上一帧 / 下一帧 / 进度条 / 重置 / 倍�
       vi.useRealTimers();
     }
   });
+
+  it('停在末帧再点「▶ 播放」= 从头重跑（tick 归零、粒子重新生成）', () => {
+    vi.useFakeTimers();
+    try {
+      setValue(ta(), 'particle smoke 0 2 0 0 0 0 0 10\n');
+      click(button('▶ 播放'));
+      act(() => {
+        vi.advanceTimersByTime(1500); // 播完 → 自动停止、停在末帧
+      });
+      expect(getState().playing).toBe(false);
+      expect(getState().playback.tick).toBe(getState().playback.endTick);
+      // 末帧再点播放（画布控制条按钮）→ playFresh：重置 + 执行 + 从头播放
+      act(() => {
+        click(container.querySelector('.playback-bar button')!);
+      });
+      expect(getState().playing).toBe(true);
+      const hud = container.querySelector('.hud')!;
+      expect(hud.textContent).toContain('tick 0');
+      expect(hud.textContent).toContain('粒子 10');
+      expect(getState().playback.tick).toBe(0);
+      act(() => {
+        setPlaying(false); // 收尾，避免 rAF 影响后续用例
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('设置与视口联动', () => {
