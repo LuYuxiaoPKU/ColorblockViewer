@@ -26,7 +26,7 @@ import {
   ageFade,
   ageFrame,
   frameSpecFor,
-  particleVisual,
+  particleVisualWithSpec,
   shiftHue,
   textureFor,
   tweakFor,
@@ -417,11 +417,13 @@ export function syncToPoints(
   const { pos, color, size, uv } = layer;
   for (let i = 0; i < n; i++) {
     const p = parts[i];
+    // spec 一次取值两处复用（颜色 + 帧 UV），省掉每粒子第二次 WeakMap get
+    const vs = visualSpecFor(p, atlasKey);
     const i3 = i * 3;
     pos[i3] = p.x;
     pos[i3 + 1] = p.y;
     pos[i3 + 2] = p.z;
-    const vis = particleVisual(p, 1, atlasKey, sizeMul, alphaMul);
+    const vis = particleVisualWithSpec(p, 1, sizeMul, alphaMul, vs);
     const i4 = i * 4;
     color[i4] = vis.r;
     color[i4 + 1] = vis.g;
@@ -430,7 +432,7 @@ export function syncToPoints(
     size[i] = vis.radius;
     // 帧 UV：有帧表的类型取帧格左上角（多帧按寿命进度 ageFrame；单帧恒第 0 帧）；
     // 无帧表 → (0,0)（着色器走圆点分支时忽略；图集未加载时 uHasAtlas=0 同样忽略）
-    const frames = visualSpecFor(p, atlasKey).frames;
+    const frames = vs.frames;
     if (frames && frames.length > 0) {
       const idx = frames.length > 1 ? ageFrame(p.age, p.lifetime, frames.length) : 0;
       const [u, v] = frameUV(frames[idx], atlasKey);
