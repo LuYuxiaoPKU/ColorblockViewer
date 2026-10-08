@@ -534,6 +534,69 @@ describe('clearparticle / 上限 / 错误', () => {
   });
 });
 
+// ---------- aliveCount 计数器语义等价（O(1) 计数器，2026-10-09） ----------
+
+describe('aliveCount 计数器与 snapshot().length 恒等', () => {
+  it('kill：活 kill 递减、重复 kill 不双减、不存在 id 无副作用', () => {
+    const e = eng();
+    e.runCommand(C(normal(3, '100')));
+    expect(e.aliveCount).toBe(3);
+    const [a, b] = snap(e);
+    e.kill(a.id);
+    expect(e.aliveCount).toBe(2);
+    e.kill(a.id); // 已压实：get 找不到 → 幂等
+    expect(e.aliveCount).toBe(2);
+    e.kill(999); // 不存在 id
+    expect(e.aliveCount).toBe(2);
+    e.kill(b.id);
+    expect(e.aliveCount).toBe(1);
+    expect(e.aliveCount).toBe(e.snapshot().length);
+  });
+
+  it('自然批量死亡（animate 内 killRef 路径）：逐个递减到 0', () => {
+    const e = eng();
+    e.runCommand(C(normal(4, '3')));
+    e.tickOnce();
+    expect(e.aliveCount).toBe(4);
+    for (let i = 0; i < 2; i++) e.tickOnce(); // age=3 = lifetime → 全死
+    expect(e.aliveCount).toBe(0);
+    expect(e.aliveCount).toBe(e.snapshot().length);
+  });
+
+  it('setPool：按传入数组重算（App.seek 帧拷贝复活/死亡混排）', () => {
+    const e = eng();
+    e.runCommand(C(normal(3, '0 "null"')));
+    e.tickOnce(); // 入池、pending 清空（seek 发生在 tick 之间，pending 为空）
+    expect(e.aliveCount).toBe(3);
+    const ps = snap(e);
+    // seek 路径：setPool 之前手工改 alive（帧拷贝部分复活）
+    ps[0].alive = false;
+    ps[1].alive = false;
+    e.setPool([ps[0], ps[1], ps[2]]);
+    expect(e.aliveCount).toBe(1);
+    expect(e.aliveCount).toBe(e.snapshot().length);
+    e.setPool(ps.map((p) => ({ ...p, alive: true })));
+    expect(e.aliveCount).toBe(3);
+    e.setPool([]);
+    expect(e.aliveCount).toBe(0);
+    expect(e.aliveCount).toBe(e.snapshot().length);
+  });
+
+  it('clearAll / reset：计数器清零（pending 含未入池粒子也清）', () => {
+    const e = eng();
+    e.runCommand(C(normal(2, '100 "null" 1 g1')));
+    e.runCommand(C(normal(2, '100 "null" 1 g1'))); // 第二批仍 pending
+    expect(e.aliveCount).toBe(4);
+    e.runCommand(C('particleex clearparticle'));
+    expect(e.aliveCount).toBe(0);
+    e.runCommand(C(normal(3, '100')));
+    expect(e.aliveCount).toBe(3);
+    e.reset();
+    expect(e.aliveCount).toBe(0);
+    expect(e.aliveCount).toBe(e.snapshot().length);
+  });
+});
+
 // ---------- 原版 /particle（MC 26.2 客户端语义）----------
 
 describe('原版 /particle 生成', () => {
