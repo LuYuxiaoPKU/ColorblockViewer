@@ -187,7 +187,19 @@ export function particleVisual(
   sizeMul = 1,
   alphaMul = 1,
 ): { r: number; g: number; b: number; a: number; radius: number } {
-  const vs = visualSpecFor(p, atlasKey);
+  return particleVisualWithSpec(p, pxPerBlock, sizeMul, alphaMul, visualSpecFor(p, atlasKey));
+}
+
+/** 与 particleVisual 同口径，但渲染 spec 由调用方传入（vs = visualSpecFor(p, key)）。
+ * syncToPoints 热路径循环里 spec 已取一次（frames 选帧也要用），复用可省掉
+ * 每粒子的第二次 WeakMap get（1M 满帧实测 ~25ms+）。 */
+export function particleVisualWithSpec(
+  p: RenderParticle,
+  pxPerBlock: number,
+  sizeMul: number,
+  alphaMul: number,
+  vs: VisualSpec,
+): { r: number; g: number; b: number; a: number; radius: number } {
   const tw = vs.tweak;
   const frames = vs.frames;
   const multi = frames !== null && frames.length > 1;
