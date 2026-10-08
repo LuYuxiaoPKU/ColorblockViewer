@@ -355,6 +355,10 @@ export default function App() {
     // 每帧粒子：id 命中当前活池 → 真粒子对象（渲染读 13 字段都在上面）；
     // 否则用帧内浅拷贝（已死粒子 / 拷贝缺运动学字段 —— 见 engine.setPool 注释）
     const resolved: SimParticle[] = frame.particles.map((c) => byId.get((c as unknown as SimParticle).id) ?? (c as unknown as SimParticle));
+    // 帧拷贝（已死粒子，如末帧起活池已清空）alive 仍为 false，而
+    // engine.snapshot 按 alive 过滤 → seek 回看渲染层拿到空列表（HUD 计数有值、
+    // 画面空，「回拉进度条粒子不复现」）。回看的帧拷贝一律视为活。
+    for (const p of resolved) p.alive = true;
     // trail/vibration 是增量式 lerp：活池里的真粒子 x 已演进到当前（比目标帧
     // 晚），须按目标帧 age 回退（闭式解，见 timeline.rewindLiveParticles）；
     // 帧拷贝的 x 本就是目标帧的历史值，不动。
