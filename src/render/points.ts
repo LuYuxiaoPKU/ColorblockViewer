@@ -30,6 +30,7 @@ import {
   shiftHue,
   textureFor,
   tweakFor,
+  visualSpecFor,
   type FrameSpec,
   type RenderParticle,
   type TypeTweak,
@@ -45,6 +46,7 @@ export {
   shiftHue,
   textureFor,
   tweakFor,
+  visualSpecFor,
   type FrameSpec,
   type RenderParticle,
   type TypeTweak,
@@ -414,7 +416,7 @@ export function syncToPoints(
     size[i] = vis.radius;
     // 帧 UV：有帧表的类型取帧格左上角（多帧按寿命进度 ageFrame；单帧恒第 0 帧）；
     // 无帧表 → (0,0)（着色器走圆点分支时忽略；图集未加载时 uHasAtlas=0 同样忽略）
-    const frames = textureFor(p.name, atlasKey);
+    const frames = visualSpecFor(p, atlasKey).frames;
     if (frames && frames.length > 0) {
       const idx = frames.length > 1 ? ageFrame(p.age, p.lifetime, frames.length) : 0;
       const [u, v] = frameUV(frames[idx], atlasKey);

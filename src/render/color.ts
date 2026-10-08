@@ -148,6 +148,34 @@ export interface RenderParticle {
   sizeMul?: number;
 }
 
+/** 单粒子渲染 spec 缓存（粒子对象维度）：particleVisual 每 tick 每粒子一次，
+ * 而 name（类型）与 atlasKey（版本）在播放期间不变 → 类型微调/帧表/帧动画
+ * 行为的解析结果可复用，省掉每调用的 normName（小写+去命名空间）与 3 次表
+ * 查找（1M 粒子场景下是热路径大头）。WeakMap 随粒子对象生命周期回收
+ * （seek/reset 重建活池 → 旧缓存自动失效）；atlasKey 变化（切版本）时重算。 */
+interface VisualSpec {
+  key: string;
+  tweak: TypeTweak;
+  frames: string[] | null;
+  spec: FrameSpec | null;
+}
+const visualSpecCache = new WeakMap<object, VisualSpec>();
+
+export function visualSpecFor(p: RenderParticle, atlasKey: string): VisualSpec {
+  const o = p as unknown as object;
+  let vs = visualSpecCache.get(o);
+  if (!vs || vs.key !== atlasKey) {
+    vs = {
+      key: atlasKey,
+      tweak: tweakFor(p.name),
+      frames: textureFor(p.name, atlasKey),
+      spec: frameSpecFor(p.name, atlasKey),
+    };
+    visualSpecCache.set(o, vs);
+  }
+  return vs;
+}
+
 /** 单粒子渲染色与像素半径（口径与 points.ts syncToPoints 原实现逐字一致）。
  *  pxPerBlock = 视口像素/世界块换算（3D 着色器按 uScale 做透视除法、3D 侧
  *  恒传 1 使 radius 即世界块单位；2D 用统一缩放常数）；
@@ -159,8 +187,9 @@ export function particleVisual(
   sizeMul = 1,
   alphaMul = 1,
 ): { r: number; g: number; b: number; a: number; radius: number } {
-  const tw = tweakFor(p.name);
-  const frames = textureFor(p.name, atlasKey);
+  const vs = visualSpecFor(p, atlasKey);
+  const tw = vs.tweak;
+  const frames = vs.frames;
   const multi = frames !== null && frames.length > 1;
   let r = p.r;
   let g = p.g;
@@ -186,7 +215,7 @@ export function particleVisual(
     }
     // end_rod：每 tick 向 targetColor 靠拢 20%（= (0.8)^age 剩余量，闭式解；
     // 1.21.1 反编译 EndRodParticle.setTargetColor(15916745)）
-    const spec = frameSpecFor(p.name, atlasKey);
+    const spec = vs.spec;
     if (spec?.colorShift) {
       const tr = spec.colorShift[0] / 255;
       const tg = spec.colorShift[1] / 255;
