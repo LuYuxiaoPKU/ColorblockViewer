@@ -49,6 +49,10 @@ export class SimEngine {
   private pool: SimParticle[] = [];
   private count = 0;
   private nextId = 1;
+  /** 活粒子数（O(1) 计数器；在一切写 alive 的路径同步维护。
+   *  1M 探针实测 O(n) 扫描 7.6ms/次 × HUD 10Hz 不可接受）。
+   *  外部（App.seek）在 setPool 之前改粒子 alive 无需维护——setPool 重算。 */
+  private aliveN = 0;
 
   /** 排队的 tick 生成器（下一 tick 初执行一批） */
   private generators: TickGenerator[] = [];
@@ -72,12 +76,10 @@ export class SimEngine {
   }
 
   /** 活粒子数（含 pending；**过滤 alive** —— 同批次里 group remove 杀掉的
-   *  pending 粒子不应计入） */
+   *  pending 粒子不应计入）。O(1)：计数器在一切写 alive 的路径同步维护
+   *  （spawn/kill/clearAll/setPool/compact；外部改 alive 后调 setPool 重算）。 */
   get aliveCount(): number {
-    let n = 0;
-    for (let i = 0; i < this.count; i++) if (this.pool[i].alive) n++;
-    for (const p of this.pending) if (p.alive) n++;
-    return n;
+    return this.aliveN;
   }
 
   /** 排队的 tick 生成器数（播放自动停止判据用：生成器未完成时场景仍会演进） */
@@ -100,26 +102,43 @@ export class SimEngine {
   }
 
   /** 活粒子快照（渲染层用；池序 + pending 序，**过滤 alive** ——
-   *  死亡粒子在下次 tickOnce 压实前仍留在池内，渲染不可见） */
+   *  死亡粒子在下次 tickOnce 压实前仍留在池内，渲染不可见）。
+   *  单次遍历单次分配（无 slice+filter 双重分配；1M 探针 19.33→~10ms）。 */
   snapshot(): SimParticle[] {
-    const out = this.pool.slice(0, this.count).filter((p) => p.alive);
-    if (this.pending.length > 0) {
-      out.push(...this.pending.filter((p) => p.alive));
+    const out: SimParticle[] = [];
+    for (let i = 0; i < this.count; i++) {
+      const p = this.pool[i];
+      if (p.alive) out.push(p);
+    }
+    for (const p of this.pending) {
+      if (p.alive) out.push(p);
     }
     return out;
   }
 
   /** 时间线回放（预览专用，非引擎 1:1 功能）：活粒子池整体替换为一组
    *  粒子（App 的 seek：按历史帧的粒子列表，优先取当前活池里的真粒子
-   *  对象、已死粒子用帧内浅拷贝）。只动池前缀与 count；pending/组索引/
-   *  PRNG 不动（pending = 尚未入池的新命令粒子，下一 tick 照常入池）。
+   *  对象、已死粒子用帧内浅拷贝）。pending/组索引/PRNG 不动（pending =
+   *  尚未入池的新命令粒子，下一 tick 照常入池）。入池后按池不变量
+   *  「活粒子恒占 [0, count)」压实（帧拷贝死亡混排不违反不变量）。
    *  渲染层只读 13 个字段（见 render/points.ts SnapshotSource），帧拷贝
    *  缺运动学字段（gf/ff 等）不影响显示；继续播放时拷贝粒子按缺省
    *  （无衰减/无自定义曲线）演进 —— 文档化近似。 */
   setPool(particles: SimParticle[]): void {
     this.pool.length = particles.length;
     for (let i = 0; i < particles.length; i++) this.pool[i] = particles[i];
-    this.count = this.pool.length;
+    // 调用方（App.seek）可能在 setPool 前改过粒子 alive（帧拷贝复活/死亡混排），
+    // 按池不变量「活粒子恒占 [0, count)」swap-remove 压实，计数器同趟重算。
+    let m = 0;
+    for (let i = 0; i < this.pool.length; i++) {
+      const p = this.pool[i];
+      if (p.alive) {
+        this.pool[m++] = p;
+      }
+    }
+    this.pool.length = m; // 释放压实尾部的死粒子引用
+    this.count = m;
+    this.aliveN = m;
   }
 
   // ---------- 命令入口 ----------
@@ -329,6 +348,7 @@ export class SimEngine {
     }
     this.groups.add(req.group, p.id); // null/"null"/空 在 GroupIndex.add 内跳过
     this.pending.push(p);
+    this.aliveN++;
     result.spawned++;
   }
 
@@ -404,7 +424,7 @@ export class SimEngine {
     // 对已死粒子不再 tickParticle；customMove 在死粒子上的执行不可观察）
     p.age++;
     if (p.age >= p.lifetime) {
-      this.kill(p.id);
+      this.killRef(p);
       return;
     }
     if (!p.stop) {
@@ -505,7 +525,7 @@ export class SimEngine {
         p.z += p.vz;
         if (p.vx === 0 || p.vz === 0) {
           // 停摆移除（onGround 分支不建模：预览无世界 → 落地永不发生）
-          this.kill(p.id);
+          this.killRef(p);
           return;
         }
       } else {
@@ -566,12 +586,12 @@ export class SimEngine {
       exe.run(struct);
     } catch (e) {
       // Java：catch → addChatMessage → remove()（粒子死亡，错误上浮给 UI）
-      this.kill(p.id);
+      this.killRef(p);
       this.tickErrors.push((e as Error).message);
       return;
     }
     if (struct.destroy !== 0) {
-      this.kill(p.id);
+      this.killRef(p);
       return;
     }
     // 任一速度分量被表达式设置（非 NaN）→ 回滚本 tick 原生位移，只走表达式速度
@@ -597,7 +617,19 @@ export class SimEngine {
    *  且 group change 的 do-while 对死 id 的行为依赖它，见 execGroupChange）。 */
   kill(id: number): void {
     const p = this.get(id);
-    if (p && p.alive) p.alive = false;
+    if (p && p.alive) {
+      p.alive = false;
+      this.aliveN--;
+    }
+  }
+
+  /** animate 内的死亡（p 已在手）：直接置位免 id 查找（1M 批量死亡时
+   *  逐个 this.get(id) 线性扫描 = O(n²)：lifetime=20 探针 171s/tick）。 */
+  private killRef(p: SimParticle): void {
+    if (p.alive) {
+      p.alive = false;
+      this.aliveN--;
+    }
   }
 
   /** group remove 的 removeIf(!isAlive)：清组名下的死 id（= GroupEngineView.prune） */
@@ -626,6 +658,7 @@ export class SimEngine {
   clearAll(): void {
     for (let i = 0; i < this.count; i++) this.pool[i].alive = false;
     for (const p of this.pending) p.alive = false;
+    this.aliveN = 0;
     this.pending = [];
     this.groups.clear();
   }
@@ -657,6 +690,7 @@ export class SimEngine {
   reset(): void {
     this.pool = [];
     this.count = 0;
+    this.aliveN = 0;
     this.nextId = 1;
     this.pending = [];
     this.generators = [];
