@@ -148,32 +148,35 @@ export interface RenderParticle {
   sizeMul?: number;
 }
 
-/** 单粒子渲染 spec 缓存（粒子对象维度）：particleVisual 每 tick 每粒子一次，
- * 而 name（类型）与 atlasKey（版本）在播放期间不变 → 类型微调/帧表/帧动画
- * 行为的解析结果可复用，省掉每调用的 normName（小写+去命名空间）与 3 次表
- * 查找（1M 粒子场景下是热路径大头）。WeakMap 随粒子对象生命周期回收
- * （seek/reset 重建活池 → 旧缓存自动失效）；atlasKey 变化（切版本）时重算。 */
+/** 单粒子渲染 spec 缓存（**粒子对象直挂属性**）：particleVisual 每 tick 每
+ * 粒子一次，而 name（类型）与 atlasKey（版本）在播放期间不变 → 类型微调/
+ * 帧表/帧动画行为的解析结果可复用。1M 不同对象实测直挂属性 11.5ms vs
+ * WeakMap 94ms（~8×：对象属性 = hidden class 槽位直读，无哈希/索引），
+ * 故弃 WeakMap。缓存与粒子对象同生命周期（随池回收）；atlasKey 变化
+ * （切版本）时按 key 判废重算。`__cbVis` 是私有键：copyParticle/timeline/
+ * 分享序列化均为手工逐字段拷贝，不会带上它。 */
 interface VisualSpec {
   key: string;
   tweak: TypeTweak;
   frames: string[] | null;
   spec: FrameSpec | null;
 }
-const visualSpecCache = new WeakMap<object, VisualSpec>();
+interface VisualSpecHost {
+  __cbVis?: VisualSpec;
+}
 
 export function visualSpecFor(p: RenderParticle, atlasKey: string): VisualSpec {
-  const o = p as unknown as object;
-  let vs = visualSpecCache.get(o);
-  if (!vs || vs.key !== atlasKey) {
-    vs = {
-      key: atlasKey,
-      tweak: tweakFor(p.name),
-      frames: textureFor(p.name, atlasKey),
-      spec: frameSpecFor(p.name, atlasKey),
-    };
-    visualSpecCache.set(o, vs);
-  }
-  return vs;
+  const host = p as unknown as VisualSpecHost;
+  const vs = host.__cbVis;
+  if (vs && vs.key === atlasKey) return vs;
+  const fresh: VisualSpec = {
+    key: atlasKey,
+    tweak: tweakFor(p.name),
+    frames: textureFor(p.name, atlasKey),
+    spec: frameSpecFor(p.name, atlasKey),
+  };
+  host.__cbVis = fresh;
+  return fresh;
 }
 
 /** 单粒子渲染色与像素半径（口径与 points.ts syncToPoints 原实现逐字一致）。
