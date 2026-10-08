@@ -243,7 +243,19 @@ export function particleVisualWithSpec(
     // 后半程线性淡出（死亡瞬间 alpha=0.5）
     alpha *= ageFade(p.age, p.lifetime);
   }
-  const [hr, hg, hb] = shiftHue(r, g, b, tw.hue);
+  const hue = tw.hue;
+  let hr: number, hg: number, hb: number;
+  if (hue === 0) {
+    // 多数类型 hue=0：免 shiftHue 调用与 3 元素数组分配（1M 满帧热路径）
+    hr = r;
+    hg = g;
+    hb = b;
+  } else {
+    const s = shiftHue(r, g, b, hue);
+    hr = s[0];
+    hg = s[1];
+    hb = s[2];
+  }
   return {
     r: hr,
     g: hg,
