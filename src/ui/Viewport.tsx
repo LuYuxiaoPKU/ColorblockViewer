@@ -6,10 +6,11 @@
 //  - 播放中每 tick 记录一帧 → 条上显示播放位置（playback.tick / endTick）；
 //  - 拖拽/点击 = 跳回该帧（App 按帧的粒子快照从当前活池取回真粒子对象回放，
 //    已死粒子用帧内拷贝）；
-//  - 播放到末帧（粒子寿命全部结束）自动停止并**停在最后一帧**（画面保留）。
+//  - 播放到末帧（粒子寿命全部结束）自动停止并**停在最后一帧**（画面保留）；
+//    停在末帧时再点「▶ 播放」= 从头重跑（App.togglePlay 判定）。
 
 import { useRef } from 'react';
-import { useAppState, setPlaying, setSpeed } from '../store/appState';
+import { useAppState, setSpeed } from '../store/appState';
 
 const SPEEDS = [0.125, 0.25, 0.5, 1, 2, 4, 8];
 
@@ -19,6 +20,8 @@ interface PlaybackHandlers {
   onReset: () => void;
   /** 进度条拖拽/点击：t = tick（0..maxTick 整数） */
   onSeek: (t: number) => void;
+  /** 播放/暂停按钮：App 判定（停在末帧 → 从头重跑；否则 toggle playing） */
+  onTogglePlay: () => void;
   /** 预估总时长（tick；App 按命令预估 + 生成器剩余计算）：条右端。
    *  取代旧口径「末帧 + 剩余预算估算」（生成器命令录不满 → 右侧大空白） */
   maxTick: number;
@@ -40,6 +43,7 @@ export function Viewport({
   onNext,
   onReset,
   onSeek,
+  onTogglePlay,
   maxTick: propMaxTick,
   progress = null,
 }: PlaybackHandlers & {
@@ -93,7 +97,7 @@ export function Viewport({
         {renderCapacity > 0 && hud.count > renderCapacity ? ' · 渲染截断' : ''}
       </div>
       <div className="playback-bar">
-        <button className={playing ? 'active' : 'primary'} onClick={() => setPlaying(!playing)}>
+        <button className={playing ? 'active' : 'primary'} onClick={onTogglePlay}>
           {playing ? '⏸ 暂停' : '▶ 播放'}
         </button>
         <button className="small" onClick={onPrev} disabled={disabled || playback.tick <= playback.oldestTick} aria-label="上一帧" title="上一帧（回到时间线上一帧）">
