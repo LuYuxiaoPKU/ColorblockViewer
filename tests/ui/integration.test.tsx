@@ -419,6 +419,47 @@ describe('播放条（播放 / 上一帧 / 下一帧 / 进度条 / 重置 / 倍�
       vi.useRealTimers();
     }
   });
+
+  it('播完后回拉进度条 → 已死亡粒子复现（末帧起活池已清空，帧拷贝须复活）', () => {
+    vi.useFakeTimers();
+    try {
+      // 用户命令（polarparameter end_rod 螺旋，age 20）：推进 1.5s（30 tick）
+      // 播完 → 自动停止、活池清空（末帧粒子 0）。回拉进度条中部（≈tick 10）：
+      // 帧拷贝粒子 alive=false，若不复活则渲染层拿到空列表（HUD 计数有值、
+      // 画面空 —— 用户报「回拉进度条粒子不会复现」）。
+      setValue(ta(), "particleex polarparameter minecraft:end_rod ~ ~2 ~ 1 0.95 0.89 1 0 0 0 0 6.2832 'dis=0.05;s1=t;s2=0' 0.0628 20 '(vx,vy,vz)=(0.25*exp(0-(t+0.5)/8)*cos(s1),0,0.25*exp(0-(t+0.5)/8)*sin(s1))' 1 null\n");
+      click(button('▶ 播放'));
+      act(() => {
+        vi.advanceTimersByTime(1500);
+      });
+      expect(getState().playing).toBe(false);
+      expect(getState().playback.tick).toBe(getState().playback.endTick);
+      // 末帧：粒子全部死亡
+      expect(container.querySelector('.hud')!.textContent).toContain('粒子 0');
+      // 回拉进度条中部（pointerdown → seek）→ 帧拷贝复活 → 粒子复现。
+      // happy-dom 的 getBoundingClientRect 全零 → mock 固定矩形（宽 200px）
+      const bar = container.querySelector('.tl-bar')!;
+      const rectMock = vi.spyOn(bar, 'getBoundingClientRect').mockReturnValue({
+        left: 100, top: 0, right: 300, bottom: 10, width: 200, height: 10, x: 100, y: 0, toJSON: () => ({}),
+      } as DOMRect);
+      try {
+        act(() => {
+          bar.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 200 }));
+          bar.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: 200 }));
+        });
+      } finally {
+        rectMock.mockRestore();
+      }
+      const pb = getState().playback;
+      expect(pb.tick).toBeGreaterThan(0);
+      expect(pb.tick).toBeLessThan(pb.endTick);
+      const hud = container.querySelector('.hud')!;
+      expect(hud.textContent).toContain(`tick ${pb.tick}`);
+      expect(hud.textContent).toContain('粒子 10');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('设置与视口联动', () => {
