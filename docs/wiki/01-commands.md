@@ -96,7 +96,8 @@ particleex video <粒子名> <x y z> <路径> [scaling] [xRotate] [yRotate] [zRo
   NBS 生成端曾因填任意角度上线 4 天未生效）
 - `flip` 枚举词：`not` / `horizontally` / `vertical`（数字被拒）
 - `speed` 三槽逐槽可 `null`（全 `null` = 静止）；`dpb` = 每张图片持续 tick
-- 路径含 `/` 等特殊字符时游戏内须单引号包裹（见 02-expressions 引号规则）
+- 路径含 `/` 等特殊字符时游戏内须单引号包裹（brigadier 未加引号字符集
+  不含 `/`，见 06-faq 引号规则）
 
 ## imageMatrix / videoMatrix — 矩阵变换版
 
