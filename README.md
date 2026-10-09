@@ -1,7 +1,7 @@
 # ColorBlockViewer —— 在浏览器里试 Minecraft 粒子效果
 
 > 不用装游戏、不用开服务器，打开网页就能调试粒子命令。效果和游戏内
-> **一模一样**（命令语义按模组 Java 源码 1:1 复刻，1186 个测试锁定），
+> **一模一样**（命令语义按模组 Java 源码 1:1 复刻，1154 个测试锁定），
 > 满意后把命令复制回游戏即可直接使用。
 
 [🎮 在线体验](https://luyuxiaopku.github.io/ColorblockViewer/) ·
@@ -109,14 +109,14 @@ particleex parameter minecraft:flame 0 64 0 1 1 1 1 0 0 0 0 6.2832 'x,y,z=4*cos(
 技术栈：React 19 + Three.js + TypeScript（strict）+ Vite + Vitest，纯前端
 静态站，无后端。GitHub Actions 自动部署到 Pages。
 
-架构、1:1 移植方法论、验证策略（1186 测试）、性能优化与已知简化见
+架构、1:1 移植方法论、验证策略（1154 测试）、性能优化与已知简化见
 [技术路线综述](docs/技术路线.md)；面向新手的详细操作见
 [使用手册](docs/使用手册.md)。
 
 ```bash
 npm install
 npm run dev        # 开发服务器
-npm test           # 全量测试（1186 tests）
+npm test           # 全量测试（1154 tests）
 npm run build      # 构建
 npm run preview    # 本地预览构建产物
 ```
