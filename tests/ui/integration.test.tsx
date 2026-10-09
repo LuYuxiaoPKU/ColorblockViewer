@@ -231,7 +231,7 @@ describe('粘贴 → 执行', () => {
 
     setValue(ta(), head + "'(abs(y-0.5)<0.05)&(sqrt(x^2+z^2)<8)'" + ' 0.1 200 \'vy=0.05\' 1 null');
     expect(container.querySelector('.format-check.bad')).toBeNull();
-    expect(container.querySelector('.format-check.ok')!.textContent).toContain('可直接粘回游戏');
+    expect(container.querySelector('.format-check.ok')!.textContent).toContain('每行都符合游戏内 brigadier 格式');
   });
 
   it('缺引号表达式执行 → 真源保留原表达式 + 回显自动补单引号（引号不再消失）', () => {
