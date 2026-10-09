@@ -34,14 +34,14 @@ NBS2schematic（命令生成器 —— 反向验证我的解析器）
 2. **版本差异显式标注**：网易版专属语法标「网易版专属」，不混入国际版口径
 3. **命令树变更同步**：模组新增子命令 → 立即通知预览会话（近期无计划，若有 image 扩展会同步）
 4. **发现即通报**：image/imageMatrix/video/videoMatrix/clearCache/functionList
-   6 子命令为预览缺口（2026-10-10 确认），待模组会话提供字段序后补解析
+   6 子命令为预览缺口（2026-10-10 确认）→ 模组权威字段序已确认、预览解析已落地（55f610d）
 
 ## 待办（协作产出）
 
-- [ ] 模组会话提供 6 个缺失子命令字段序 → 预览补解析 + Wiki 同步
-- [ ] 视频学习会话回传 image 老版本证据（已收：18 token 语法/flip 取值/particleImages/ 路径）→ 与模组确认新版差异
+- [x] 模组会话提供 6 个缺失子命令字段序 → 预览补解析 + Wiki 同步（2026-10-10 完成：rotate 90 倍数、flip 枚举词、speed 逐槽 null、imageMatrix 用 matrix）
+- [x] 视频学习会话回传 image 老版本证据（已收：18 token 语法/flip 取值/particleImages/ 路径）→ 与模组确认新版差异（结论：新版字段序同老版本，rotate 必须 90 倍数——NBS 上线 4 天未生效即因字段序）
 - [ ] 预览模板库采纳社区高频用法（呼吸缩放 i=0.1*sin(t/5) 等）
-- [ ] NBS 参考笔记 ↔ 预览引擎互检（生成命令可被引擎解析）
+- [x] NBS 参考笔记 ↔ 预览引擎互检（生成命令可被引擎解析：polarparameter/tickpolarparameter/group remove/conditional/image 五类真实命令已进 tests/command/imageCommands.test.ts 回归）
 
 ## 环境口径备忘
 

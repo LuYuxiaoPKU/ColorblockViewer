@@ -337,6 +337,9 @@ export default function App() {
         const r = e.runCommand(cmd);
         for (const err of r.errors) pushToast(err);
         if (r.dropped > 0) pushToast(`粒子上限：丢弃 ${r.dropped} 个`);
+        // functionlist 在游戏内输出注册函数到聊天栏；预览端无终端输出，
+        // 以 toast 说明（引擎侧为空操作）
+        if (cmd.kind === 'functionlist') pushToast('functionlist：列出已注册数学函数（预览端无终端输出，函数清单见 Wiki 02-expressions）');
       } catch (err) {
         pushToast((err as Error).message);
       }
