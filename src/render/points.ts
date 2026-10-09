@@ -483,11 +483,11 @@ export function syncToPoints(
       color[i4 + 2] = b;
       color[i4 + 3] = alpha * tw.alpha * alphaMul;
       size[i] = BASE_SIZE * tw.size * sizeMul * (p.sizeMul ?? 1);
-    } else if (frames === null) {
-      // 无帧类型（dust/block/item 等）特化：通用体 multi 分支（白起点/
-      // colorFrom/colorShift/ageFade）对无帧全部不进 → 颜色 = 出生色纯透传
-      // + hue + alpha，免逐分支判定与函数调用（1M flame 探针 28.8 → 21.1ms，
-      // -27%）。口径与通用体逐字同（无帧 multi=false，r/g/b 不强制白）。
+    } else if (frames === null || frames.length <= 1) {
+      // 非多帧类型（无帧 + 单帧，26.2 帧表 113 型中约 50 型）特化：通用体
+      // multi 分支（白起点/colorFrom/colorShift/ageFade）对 multi=false 全部
+      // 不进 → 颜色 = 出生色纯透传 + hue + alpha，免逐分支判定与函数调用。
+      // 口径与通用体逐字同（multi=false，r/g/b 不强制白、不插值）。
       const tw = vs.tweak;
       let r = p.r, g = p.g, b = p.b;
       const hue = tw.hue;
