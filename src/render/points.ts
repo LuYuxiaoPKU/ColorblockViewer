@@ -29,6 +29,7 @@ import {
   frameSpecFor,
   particleVisualWithSpecOut,
   shiftHue,
+  shiftHueInto,
   textureFor,
   tweakFor,
   visualSpecFor,
@@ -470,17 +471,15 @@ export function syncToPoints(
       let alpha = p.a;
       const lt = p.lifetime;
       alpha *= lt <= 0 || p.age <= lt / 2 ? 1 : 1 - (p.age - lt / 2) / lt;
+      const i4 = i * 4;
       const hue = tw.hue;
       if (hue !== 0) {
-        const s = shiftHue(r, g, b, hue);
-        r = s[0];
-        g = s[1];
-        b = s[2];
+        shiftHueInto(r, g, b, hue, color, i4);
+      } else {
+        color[i4] = r;
+        color[i4 + 1] = g;
+        color[i4 + 2] = b;
       }
-      const i4 = i * 4;
-      color[i4] = r;
-      color[i4 + 1] = g;
-      color[i4 + 2] = b;
       color[i4 + 3] = alpha * tw.alpha * alphaMul;
       size[i] = BASE_SIZE * tw.size * sizeMul * (p.sizeMul ?? 1);
     } else if (frames === null || frames.length <= 1) {
@@ -489,14 +488,15 @@ export function syncToPoints(
       // 不进 → 颜色 = 出生色纯透传 + hue + alpha，免逐分支判定与函数调用。
       // 口径与通用体逐字同（multi=false，r/g/b 不强制白、不插值）。
       const tw = vs.tweak;
-      let r = p.r, g = p.g, b = p.b;
+      const i4 = i * 4;
       const hue = tw.hue;
       if (hue !== 0) {
-        const s = shiftHue(r, g, b, hue);
-        r = s[0]; g = s[1]; b = s[2];
+        shiftHueInto(p.r, p.g, p.b, hue, color, i4);
+      } else {
+        color[i4] = p.r;
+        color[i4 + 1] = p.g;
+        color[i4 + 2] = p.b;
       }
-      const i4 = i * 4;
-      color[i4] = r; color[i4 + 1] = g; color[i4 + 2] = b;
       color[i4 + 3] = p.a * tw.alpha * alphaMul;
       size[i] = BASE_SIZE * tw.size * sizeMul * (p.sizeMul ?? 1);
     } else {
