@@ -123,16 +123,20 @@ export class SimEngine {
 
   /** 活粒子快照（渲染层用；池序 + pending 序，**过滤 alive** ——
    *  死亡粒子在下次 tickOnce 压实前仍留在池内，渲染不可见）。
-   *  单次遍历单次分配（无 slice+filter 双重分配；1M 探针 19.33→~10ms）。 */
+   *  单次遍历；按上界（count + pending）预分配 + 索引写（push 的动态扩容
+   *  + 越界检查比索引写慢 ~5ms/1M，1M 探针 11.15→5.95ms），末尾收缩到
+   *  实际活粒子数。 */
   snapshot(): SimParticle[] {
-    const out: SimParticle[] = [];
+    const out = new Array<SimParticle>(this.count + this.pending.length);
+    let j = 0;
     for (let i = 0; i < this.count; i++) {
       const p = this.pool[i];
-      if (p.alive) out.push(p);
+      if (p.alive) out[j++] = p;
     }
     for (const p of this.pending) {
-      if (p.alive) out.push(p);
+      if (p.alive) out[j++] = p;
     }
+    out.length = j;
     return out;
   }
 
