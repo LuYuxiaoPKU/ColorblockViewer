@@ -7,6 +7,16 @@
 // 小场景（12 粒子）可回放 ~8 万帧（≈70 分钟）；1M 满帧场景只容 1 帧
 // （单帧即 400MB，大场景回放只覆盖最后时刻，拖条前段为空是如实行为）。
 // 按实际粒子数而非粒子上限定容：上限是「可能」，回放预算约束的是「实际」。
+//
+// **大场景自动降频**（2026-10-09 拍板）：单帧拷贝成本与粒子数成正比
+// （1M flame 实测 ~54ms/tick），而大场景缓冲只容很少帧——逐 tick 记录的
+// 拷贝很快被丢，成本白花。规则：count ≤ 1 万逐 tick 记录（常规命令行为
+// 不变）；count > 1 万按**记录成本封顶** k = ⌈count / 20 万⌋ 降频（每 k
+// tick 记一帧，成本 ≈ 10ms/tick 封顶；20 万 = 10ms ÷ 0.054ms/粒子，真实
+// 引擎 1M flame 拷贝实测系数）。1M 满帧 k=5：每 tick 54ms → ~11ms，回放
+// 覆盖 5 个 tick 的历史（缓冲物理上限 1 帧，再多也无意义）。
+// 代价：大场景 seek 粒度从逐 tick 变为逐 k tick（帧 tick 仍严格递增，
+// findFrame 二分语义不变）；end 标记帧（末帧）恒记录。
 
 import type { SimParticle } from './types';
 
@@ -29,6 +39,12 @@ export interface SceneFrame extends FrameMeta {
 export const TOTAL_COPY_BUDGET = 1000000;
 /** 单帧粒子上限：1M（引擎活池上限同口径） */
 const MAX_PARTICLES_PER_FRAME = 1000000;
+/** 降频阈值：单帧粒子数 ≤ 该值逐 tick 记录（常规命令行为不变）；超过按
+ *  成本封顶降频（见 shouldRecord 与文件头「大场景自动降频」）。 */
+export const RECORD_EVERY_TICK_MAX = 10000;
+/** 单帧拷贝成本封顶（粒子数）：k = ⌈count/该值⌋ 使每 tick 记录成本 ≤ ~10ms
+ *  （0.054ms/粒子，真实引擎 1M flame 拷贝实测 54ms）。 */
+const RECORD_COST_CAP = 200000;
 
 /** 粒子 → 可序列化浅拷贝（仅数值/字符串字段；exe/struct/exeStruct 不存）。
  *  渲染层只读 13 个字段（x/y/z/r/g/b/a/name/age/lifetime/vanilla/nbtTint/
@@ -74,8 +90,23 @@ export class Timeline {
   private frames: SceneFrame[] = [];
   /** 缓冲内粒子拷贝总份数（丢帧判据，摊销 O(1)） */
   private copies = 0;
+  /** 最近一次记录的帧的 tick（降频判据；clear 后 = -Infinity 使下一 tick
+   *  恒可记录） */
+  private lastRecordedTick = -Infinity;
 
   constructor(private maxParticles: number) {}
+
+  /** 该 tick 是否应记录一帧（大场景自动降频，见文件头）：
+   * count ≤ RECORD_EVERY_TICK_MAX 或 end（末帧恒记录）→ 恒记录；
+   * 否则 k = ⌈count/成本封顶⌉（≥1），距上次记录满 k 个 tick 才记录
+   * （每 tick 记录成本 ≈ 10ms 封顶）。
+   * 判定基于 tick 差（而非帧数）：seek/跳 tick 后仍按 tick 间隔对齐。
+   * 只由播放循环调用；执行初始帧（App.run）直接 push 不经此判定。 */
+  shouldRecord(tick: number, count: number, end: boolean): boolean {
+    if (end || count <= RECORD_EVERY_TICK_MAX) return true;
+    const k = Math.max(1, Math.ceil(count / RECORD_COST_CAP));
+    return tick - this.lastRecordedTick >= k;
+  }
 
   /** 上限变更（设置抽屉运行期调整）：帧内截断按**当前**上限判；
    *  缓冲里的旧大帧仍按旧截断保留（回放是历史，不重采样）。 */
@@ -135,6 +166,7 @@ export class Timeline {
     for (let i = 0; i < n; i++) particles[i] = copyParticle(snapshot[i]);
     this.frames.push({ tick, count: n, dropped, end, particles });
     this.copies += n;
+    this.lastRecordedTick = tick;
     while (this.copies > TOTAL_COPY_BUDGET && this.frames.length > 1) {
       const old = this.frames.shift()!;
       this.copies -= old.count;
@@ -145,6 +177,7 @@ export class Timeline {
   clear(): void {
     this.frames.length = 0;
     this.copies = 0;
+    this.lastRecordedTick = -Infinity;
   }
 }
 

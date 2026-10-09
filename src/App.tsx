@@ -240,10 +240,14 @@ export default function App() {
           e.tickOnce();
           st.acc -= TICK_MS;
           viewportRef.current?.update(e);
-          // 时间线记录（每 tick 至多一帧；帧满丢最旧）。end = tick 后无活工作
-          // （寿命全部结束且生成器跑完）→ 末帧标记。
+          // 时间线记录（大场景自动降频：count > 1 万按缓冲容量 k = ⌊预算/count⌋
+          // 每 k tick 记一帧，省逐 tick 拷贝成本；≤1 万逐 tick 不变；
+          // end 帧恒记录）。帧满丢最旧。end = tick 后无活工作（寿命全部结束
+          // 且生成器跑完）→ 末帧标记。
           const end = !e.hasLiveWork();
-          timelineRef.current!.push(e.snapshot(), e.tick, e.dropped, end);
+          if (timelineRef.current!.shouldRecord(e.tick, e.aliveCount, end)) {
+            timelineRef.current!.push(e.snapshot(), e.tick, e.dropped, end);
+          }
           playheadTick.current = e.tick;
           syncPlayback();
           didTick = true;

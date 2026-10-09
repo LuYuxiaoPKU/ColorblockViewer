@@ -4,7 +4,7 @@
 // 累计，与粒子上限解耦）。
 
 import { describe, expect, it } from 'vitest';
-import { Timeline, TOTAL_COPY_BUDGET, rewindLiveParticles } from '../../src/sim/timeline';
+import { RECORD_EVERY_TICK_MAX, Timeline, TOTAL_COPY_BUDGET, rewindLiveParticles } from '../../src/sim/timeline';
 import type { SimParticle } from '../../src/sim/types';
 
 /** 最小假粒子（copyParticle 只读固定字段） */
@@ -109,6 +109,57 @@ describe('Timeline', () => {
     expect(tl.oldestTick).toBe(0);
     expect(tl.totalCopies).toBe(0);
     expect(tl.findFrame(1)).toBeNull();
+  });
+
+  it('shouldRecord：count ≤ 阈值逐 tick 记录（常规场景行为不变）', () => {
+    const tl = new Timeline(1000000);
+    for (let t = 1; t <= 5; t++) {
+      expect(tl.shouldRecord(t, RECORD_EVERY_TICK_MAX, false)).toBe(true);
+      tl.push(snap(1), t, 0, false);
+    }
+    expect(tl.length).toBe(5);
+  });
+
+  it('shouldRecord：大场景按成本封顶降频（k = ⌈count/20万⌉，1M 满帧 k=5）', () => {
+    const tl = new Timeline(1000000);
+    const count = 500000; // k = ⌈500k/200k⌉ = 3
+    let recorded = 0;
+    for (let t = 1; t <= 10; t++) {
+      if (tl.shouldRecord(t, count, false)) {
+        recorded++;
+        // 真实 push 太重，只推 1 粒子占位（降频判据只读 tick/count）
+        tl.push(snap(1), t, 0, false);
+      }
+    }
+    expect(recorded).toBe(4); // tick 1,4,7,10
+    // 1M 满帧 → k = 5
+    const tl2 = new Timeline(1000000);
+    expect(tl2.shouldRecord(1, 1000000, false)).toBe(true);
+    tl2.push(snap(1), 1, 0, false);
+    expect(tl2.shouldRecord(2, 1000000, false)).toBe(false);
+    expect(tl2.shouldRecord(6, 1000000, false)).toBe(true);
+  });
+
+  it('shouldRecord：末帧恒记录（无论降频间隔）', () => {
+    const tl = new Timeline(1000000);
+    const count = 500000; // k = 3
+    expect(tl.shouldRecord(1, count, false)).toBe(true);
+    tl.push(snap(1), 1, 0, false);
+    expect(tl.shouldRecord(2, count, false)).toBe(false); // 间隔未满
+    expect(tl.shouldRecord(2, count, true)).toBe(true); // end 帧恒记录
+    tl.push(snap(1), 2, 0, true);
+    // end 帧刷新 lastRecordedTick：之后按新起点计（tick 5 满 k=3）
+    expect(tl.shouldRecord(3, count, false)).toBe(false);
+    expect(tl.shouldRecord(4, count, false)).toBe(false);
+    expect(tl.shouldRecord(5, count, false)).toBe(true);
+  });
+
+  it('shouldRecord：clear 后重新从下一 tick 记录', () => {
+    const tl = new Timeline(1000000);
+    tl.push(snap(1), 1, 0, false);
+    expect(tl.shouldRecord(1, 500000, false)).toBe(false); // 距上次 0
+    tl.clear();
+    expect(tl.shouldRecord(1, 500000, false)).toBe(true); // clear 后视为从未记录
   });
 
   it('trail target 入帧拷贝（ttX/ttY/ttZ；vibration 同 vtX/vtY/vtZ）', () => {
