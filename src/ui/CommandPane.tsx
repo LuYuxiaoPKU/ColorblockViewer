@@ -85,7 +85,7 @@ export function CommandPane({
         <div className={formatIssues.length === 0 ? 'format-check ok' : 'format-check bad'}>
           {formatIssues.length === 0 ? (
             <span>
-              ✅ 格式检查：每行都符合游戏内 brigadier 格式（表达式已按需用 <code>'…'</code> 包住，可直接粘回游戏）
+              ✅ 格式检查：每行都符合游戏内 brigadier 格式
             </span>
           ) : (
             <>
