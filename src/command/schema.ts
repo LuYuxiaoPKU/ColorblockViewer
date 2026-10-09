@@ -15,6 +15,13 @@ export const USAGE: Record<string, string> = {
   'group remove': 'particleex group remove <组> [表达式] [位置]',
   'group change': 'particleex group change <parameter|speedexpression> <组> <表达式> [条件表达式] [位置]',
   clearparticle: 'particleex clearparticle',
+  // 图片/视频（版本演进新增，字段序 = 模组 ImageCommand 逐字段核对）：
+  image: 'particleex image <粒子名> <位置> <path> [scaling] [xRotate] [yRotate] [zRotate] [flip] [dpb] [speed] [age] [速度表达式] [speedStep] [group]',
+  imagematrix: 'particleex imagematrix <粒子名> <位置> <path> [scaling] [matrix] [dpb] [speed] [age] [速度表达式] [speedStep] [group]',
+  video: 'particleex video <粒子名> <位置> <path> [scaling] [xRotate] [yRotate] [zRotate] [flip] [dpb] [speed] [age] [速度表达式] [speedStep] [group]',
+  videomatrix: 'particleex videomatrix <粒子名> <位置> <path> [scaling] [matrix] [dpb] [speed] [age] [速度表达式] [speedStep] [group]',
+  clearcache: 'particleex clearcache',
+  functionlist: 'particleex functionlist',
 };
 
 // 原版 /particle（MC 26.2）：与 particleex 子命令分开——USAGE 的键会进
@@ -39,4 +46,10 @@ export const SUBCOMMANDS = [
   'group remove',
   'group change',
   'clearparticle',
+  'image',
+  'imagematrix',
+  'video',
+  'videomatrix',
+  'clearcache',
+  'functionlist',
 ] as const;

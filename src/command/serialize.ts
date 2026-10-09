@@ -16,6 +16,8 @@ import type {
   ParameterCmd,
   GroupCmd,
   VanillaCmd,
+  ImageVideoCmd,
+  ImageMatrixCmd,
   Coord,
 } from './types';
 
@@ -91,6 +93,24 @@ function group(c: GroupCmd): string {
   return `particleex group change ${c.type} ${fmtStr(c.group)} ${fmtStr(c.expression)} ${fmtStr(c.conditionalExpression)}${c.pos ? ' ' + fmtPos(c.pos) : ''}`;
 }
 
+const FLIP_WORDS_OUT = ['not', 'horizontally', 'vertical'] as const;
+
+function speedOf(s: { x: number; y: number; z: number } | null): string {
+  if (s === null) return 'null null null';
+  return `${fmtNum(s.x)} ${fmtNum(s.y)} ${fmtNum(s.z)}`;
+}
+
+function imageVideo(c: ImageVideoCmd): string {
+  // rotate 内部按 deg/90 存 0-3 → 序列化回 90 倍数；flip 词反向映射
+  return `particleex ${c.kind} ${fmtName(c.name)} ${fmtPos(c.pos)} ${fmtStr(c.path)} ${fmtNum(c.scaling)} ${c.rotate[0] * 90} ${c.rotate[1] * 90} ${c.rotate[2] * 90} ${FLIP_WORDS_OUT[c.flip]} ${fmtNum(c.dpb)} ${speedOf(c.speed)}${tailOf(c)}`;
+}
+
+function imageMatrix(c: ImageMatrixCmd): string {
+  // 命令词全小写（imagematrix/videomatrix）；矩阵字面量含括号/逗号 → fmtStr 加引号
+  const word = c.kind === 'imageMatrix' ? 'imagematrix' : 'videomatrix';
+  return `particleex ${word} ${fmtName(c.name)} ${fmtPos(c.pos)} ${fmtStr(c.path)} ${fmtNum(c.scaling)} ${fmtStr(c.matrix)} ${fmtNum(c.dpb)} ${speedOf(c.speed)}${tailOf(c)}`;
+}
+
 // 原版 /particle：槽位链前缀封闭——null 槽位（命令树默认值）不写，
 // 后面的非 null 槽位前必须补齐前面的 null 槽位（写成命令树默认值），
 // 保证往返后结构一致（round-trip 约定）。
@@ -127,6 +147,14 @@ export function serialize(cmd: ParticleCommand): string {
     case 'group': return '/' + group(cmd);
     case 'vanilla': return '/' + vanilla(cmd);
     case 'clearparticle': return '/particleex clearparticle';
+    case 'image':
+    case 'video':
+      return '/' + imageVideo(cmd);
+    case 'imageMatrix':
+    case 'videoMatrix':
+      return '/' + imageMatrix(cmd);
+    case 'clearcache': return '/particleex clearcache';
+    case 'functionlist': return '/particleex functionlist';
   }
 }
 

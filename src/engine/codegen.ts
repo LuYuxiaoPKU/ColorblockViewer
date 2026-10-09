@@ -236,18 +236,21 @@ function emitUn(ctx: GCtx, n: Extract<Node, { k: 'un' }>, target: number): strin
   const op = n.op;
   let body: string;
   if (t === 7) {
-    if (op === 'NOT') body = '(' + e + '===0?1.0:0.0)';
+    // e 是 emitNode(.,-1) 产物，可能含顶层三元（如 bin 类型不可知 guard）——
+    // 必须整体括起来再比较/取负，否则 JS 把 `e===0`/`typeof e` 解析成
+    // `(三元条件)?…`（typeof 优先级高于 ?:，`typeof X?A:B` = `(typeof X)?A:B`）
+    if (op === 'NOT') body = '((' + e + ')===0?1.0:0.0)';
     else body = '(-(' + e + '))';
   } else if (t === 10) {
-    if (op === 'NOT') body = '(' + e + '===0?1:0)';
+    if (op === 'NOT') body = '((' + e + ')===0?1:0)';
     else body = '(M.isub(0,' + e + ')|0)';
   } else if (t === 12 || t === 13) {
     if (op === 'NOT') throw new ExprError('bad type');
     body = 'M.matNeg(' + e + ')';
   } else if (op === 'NEG') {
-    body = '(typeof ' + e + '=="number"?-(' + e + '):M.matNeg(' + e + '))';
+    body = '(typeof (' + e + ')=="number"?-(' + e + '):M.matNeg(' + e + '))';
   } else {
-    body = '(typeof ' + e + '=="number"?(' + e + '===0?1:0):M.errMatLeft())';
+    body = '(typeof (' + e + ')=="number"?((' + e + ')===0?1:0):M.errMatLeft())';
   }
   return wrap(body, t, target);
 }
