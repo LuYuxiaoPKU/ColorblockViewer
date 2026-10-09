@@ -36,6 +36,11 @@ import { estimateDuration } from './command/parser';
 
 const TICK_MS = 50; // 20 TPS
 
+/** 大场景卡顿预警阈值：完整模式每帧成本 ≈（引擎 tick + syncToPoints +
+ *  GPU 上传）× 粒子数/1M，≥20 万粒子开始掉下 60fps（2026-10-09 浏览器
+ *  实测：1M 每帧 JS 侧 ~80–120ms，GPU 上传 40MB ≈ 12ms）。 */
+const LARGE_SCENE_HINT = 200_000;
+
 /** 两种渲染视口的公共接口（SimViewport / Render2DViewport 结构兼容）：
  *  App 只依赖它，不直接 import 具体渲染模块（按需动态加载）。 */
 interface ViewportApi {
@@ -341,6 +346,11 @@ export default function App() {
     playheadTick.current = t0;
     tl.push(e.snapshot(), t0, e.dropped, !e.hasLiveWork());
     refresh();
+    // 大场景卡顿预警：执行后一次提示（快速模式无 WebGL 上传/贴图，可缓解）。
+    // 只在新执行时弹；fast 模式与常规规模不打扰。
+    if (e.aliveCount >= LARGE_SCENE_HINT && getState().sim.renderMode === 'full') {
+      pushToast(`粒子较多（${e.aliveCount.toLocaleString()}），完整模式可能卡顿；可在设置中切换「快速模式」`);
+    }
   };
 
   // 「上一帧 / 下一帧」：seek 时间线 ±1 tick（◀▶ 按钮）

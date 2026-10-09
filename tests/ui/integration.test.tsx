@@ -667,3 +667,26 @@ describe('首帧预热进度（App ↔ 视口 onProgress 通道）', () => {
     expect(container.querySelector('.vp-progress')).toBeNull(); // 无永卡进度条
   });
 });
+
+describe('大场景卡顿预警（2026-10-09 浏览器实测依据：完整模式 1M 每帧 JS 侧 ~80–120ms）', () => {
+  it('full 模式执行 ≥20 万粒子 → 提示可切换快速模式', () => {
+    act(() => setSim({ maxParticles: 300000, renderMode: 'full' }));
+    setValue(ta(), 'particleex normal flame 0 0 0 1 1 1 1 0 0 0 0 0 0 200000\n');
+    click(button('加入播放器'));
+    expect(getState().toasts.at(-1)).toMatch(/粒子较多.*快速模式/);
+  });
+
+  it('快速模式同规模不提示（无 WebGL 上传，无需引导）', () => {
+    act(() => setSim({ maxParticles: 300000, renderMode: 'fast' }));
+    setValue(ta(), 'particleex normal flame 0 0 0 1 1 1 1 0 0 0 0 0 0 200000\n');
+    click(button('加入播放器'));
+    expect(getState().toasts.filter((t) => /粒子较多/.test(t))).toHaveLength(0);
+  });
+
+  it('小场景不提示', () => {
+    act(() => setSim({ maxParticles: 300000, renderMode: 'full' }));
+    setValue(ta(), 'particleex normal flame 0 0 0 1 1 1 1 0 0 0 0 0 0 5\n');
+    click(button('加入播放器'));
+    expect(getState().toasts.filter((t) => /粒子较多/.test(t))).toHaveLength(0);
+  });
+});
