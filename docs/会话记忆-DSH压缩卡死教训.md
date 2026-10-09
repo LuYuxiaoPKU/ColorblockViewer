@@ -3,10 +3,6 @@
 > 来源：对 `C:\00_Data\RGM\` 下四个 DSH 会话日志（zstd 多帧流，`.tmp/` 下
 > `multiframe.mjs` / `flatten.mjs` / `bigframes.mjs` 可复现）的逐帧量化分析 +
 > DSH 压缩器源码取证（`@deepseek-ai/dsh-compaction-basic`）。
->
-> 状态：Hindsight 记忆库当前不可写（`apiToken` 未配置，
-> `C:\Users\Yuxiao Lu\.hindsight\coding-agent.json` 不存在，所有 hindsight 工具 401）。
-> 配好 token 后应把本文 ingest 进 hindsight（标题建议「Correction/新增：DSH compact 失败根因」）。
 
 ## 一、四种结局的实测判定（signature）
 
@@ -70,9 +66,6 @@
 
 ## 五、给接手者的操作备忘
 
-- Hindsight 要能写：先在 `C:\Users\Yuxiao Lu\.hindsight\coding-agent.json` 配
-  `apiToken`（api_url `https://api.hindsight.vectorize.io`），否则所有
-  hindsight_* 工具 401。
 - 提交身份：`LuYuxiaoPKU <LuYuxiaoPKU@users.noreply.github.com>`，无
   Co-Authored-By；本仓库 `.tmp/` 已 gitignore（含证据/取证目录说明注释，
   不入库，按需清理），见 [.gitignore](../.gitignore)。
