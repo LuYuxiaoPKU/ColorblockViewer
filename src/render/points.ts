@@ -483,8 +483,24 @@ export function syncToPoints(
       color[i4 + 2] = b;
       color[i4 + 3] = alpha * tw.alpha * alphaMul;
       size[i] = BASE_SIZE * tw.size * sizeMul * (p.sizeMul ?? 1);
+    } else if (frames === null) {
+      // 无帧类型（dust/block/item 等）特化：通用体 multi 分支（白起点/
+      // colorFrom/colorShift/ageFade）对无帧全部不进 → 颜色 = 出生色纯透传
+      // + hue + alpha，免逐分支判定与函数调用（1M flame 探针 28.8 → 21.1ms，
+      // -27%）。口径与通用体逐字同（无帧 multi=false，r/g/b 不强制白）。
+      const tw = vs.tweak;
+      let r = p.r, g = p.g, b = p.b;
+      const hue = tw.hue;
+      if (hue !== 0) {
+        const s = shiftHue(r, g, b, hue);
+        r = s[0]; g = s[1]; b = s[2];
+      }
+      const i4 = i * 4;
+      color[i4] = r; color[i4 + 1] = g; color[i4 + 2] = b;
+      color[i4 + 3] = p.a * tw.alpha * alphaMul;
+      size[i] = BASE_SIZE * tw.size * sizeMul * (p.sizeMul ?? 1);
     } else {
-      // 颜色 4 分量由 out 参直写（免每粒子返回对象），返回 radius
+      // 有帧非 colorShift（单帧/多帧通用体）：out 直写，返回 radius
       size[i] = particleVisualWithSpecOut(p, 1, sizeMul, alphaMul, vs, color, i * 4);
     }
     // 帧 UV：有帧表的类型取帧格左上角（多帧按寿命进度 ageFrame；单帧恒第 0 帧）；
