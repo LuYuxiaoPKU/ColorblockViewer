@@ -61,8 +61,8 @@ describe('tweakFor 类型微调', () => {
     expect(tweakFor('minecraft:Flame')).toEqual(tweakFor('flame'));
   });
 
-  it('end_rod 尺寸放大（glitter 帧 8×8 仅 4–14 可见像素，默认尺寸屏上 ~4px 不可见）', () => {
-    expect(tweakFor('end_rod').size).toBeGreaterThan(1);
+  it('end_rod 回调到游戏均值（基类 0.1–0.2 ×0.75f → 均值 0.1125 = BASE 0.15×0.75）', () => {
+    expect(tweakFor('end_rod').size).toBe(0.75);
   });
 });
 

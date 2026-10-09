@@ -34,13 +34,15 @@ export function createScene(container: HTMLElement): SceneBundle {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0b0e14);
 
+  // 默认视角贴近游戏玩家观感（fov 对齐游戏默认 70、相机距原点 ~5.1 格）：
+  // 游戏里玩家站粒子 1–5 格外，原 (6,5,8) 距 10.8 格会让粒子屏幕占比小 2–10 倍。
   const camera = new THREE.PerspectiveCamera(
-    50,
+    70,
     Math.max(container.clientWidth, 1) / Math.max(container.clientHeight, 1),
     0.1,
     1000,
   );
-  camera.position.set(6, 5, 8);
+  camera.position.set(3, 2, 4);
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.target.set(0, 1, 0);
