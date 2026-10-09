@@ -7,10 +7,12 @@
 
 import { PARTICLE_DATA } from './particleData';
 
-/** 基础点尺寸（**世界块单位**）：默认粒子 ≈ 0.1 block（MC 小粒子的典型观感）。
+/** 基础点尺寸（**世界块单位**）：对齐游戏 SingleQuadParticle quadSize 均值 0.15
+ *  （javap：0.1f×(nextFloat×0.5+0.5)×2f = 0.1–0.2 均匀分布）。预览无随机、
+ *  固定均值口径；end_rod 等类型经 ×0.75f 缩小的在 TWEAKS 里单独回调。
  *  像素换算：3D 在顶点着色器里做透视除法（uScale 由 SimViewport 维护），
  *  2D 用统一缩放常数（pxPerBlock）。类型表在此基础上乘倍数。 */
-export const BASE_SIZE = 0.1;
+export const BASE_SIZE = 0.15;
 
 /** 粒子名归一化：小写 + 去 `minecraft:` 命名空间前缀。 */
 function normName(name: string): string {
@@ -36,8 +38,10 @@ const TWEAKS: Record<string, TypeTweak> = {
   dandelion: { size: 0.7, alpha: 0.9, hue: 0 },
   sparkle: { size: 0.6, alpha: 1.0, hue: 0 },
   heart: { size: 1.4, alpha: 1.0, hue: 30 },
-  end_rod: { size: 2.2, alpha: 1.0, hue: 0 }, // 原版 glitter 帧 8×8 仅 4–14 个可见像素
-  // （首帧全透明），0.05 block 默认尺寸下屏上 ~4px 几乎不可见 → 放大展示
+  end_rod: { size: 0.75, alpha: 1.0, hue: 0 }, // 游戏 end_rod = 基类 0.1–0.2 ×0.75f =
+  // 0.075–0.15（均值 0.1125）；0.15×0.75 对齐均值。旧值 2.2 是 BASE_SIZE=0.05 时代
+  // 校准（glitter 帧 8×8 仅 4–14 可见像素、首帧全透明，原尺寸屏上 ~4px 不可见），
+  // BASE_SIZE 翻倍后未回调 → 偏大 2 倍，2026-10-10 修正
   snowflake: { size: 0.8, alpha: 0.9, hue: 0 },
   portal: { size: 0.9, alpha: 0.7, hue: 0 },
   crit: { size: 0.5, alpha: 1.0, hue: 0 },

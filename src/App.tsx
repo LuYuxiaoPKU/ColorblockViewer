@@ -164,7 +164,7 @@ export default function App() {
           });
         }
       };
-      vp.setPointScale(vp.size, 50); // 完整模式：fov 与 scene.ts 相机一致；快速模式空操作
+      vp.setPointScale(vp.size, 70); // 完整模式：fov 与 scene.ts 相机一致；快速模式空操作
       const cfg = engineRef.current!.config;
       vp.setAtlasKey(cfg.mcVersion); // 加载期间版本/网格变更由 ?. 跳过 → 这里补齐
       vp.setGrid(cfg.gridSize, cfg.gridVisible);

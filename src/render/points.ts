@@ -303,7 +303,7 @@ export function createPointsLayer(max: number, atlasKey = '26.2'): PointsLayer {
   const uniforms: PointsLayer['uniforms'] = {
     uSizeMul: { value: 1 },
     uAlphaMul: { value: 1 },
-    // 初始值按 900px 视口 / fov 50° 估；SimViewport.resize 会按实际视口覆写
+    // 初始值按 900px 视口 / fov 70° 估；SimViewport.resize 会按实际视口覆写
     uScale: { value: 100 },
     uHasAtlas: { value: 0 },
     uAtlas: { value: null },
