@@ -239,7 +239,6 @@ export default function App() {
           const e = engineRef.current!;
           e.tickOnce();
           st.acc -= TICK_MS;
-          viewportRef.current?.update(e);
           // 时间线记录（大场景自动降频：count > 1 万按记录成本封顶 k =
           // ⌈count/20万⌋ 每 k tick 记一帧，省逐 tick 拷贝成本；≤1 万逐 tick
           // 不变；end 帧恒记录）。帧满丢最旧。end = tick 后无活工作（寿命
@@ -254,14 +253,21 @@ export default function App() {
           if (end) {
             // 自动停止：停在最后一帧（画面保留末帧快照；时间线不清空，
             // 可拖条回看/◀▶ 导航；再按播放从头重跑 = playFresh 语义不变）。
+            // 末帧画面（update 已移出循环，停止前补一次）
+            viewportRef.current?.update(e);
             st.last = now;
             setPlaying(false);
             return; // 不再调度下一帧；playing 变化触发 effect cleanup
           }
         }
         if (didTick) {
-          // tick 期错误 toast（10Hz 轮询兜底之外的即时路径）
           const e = engineRef.current!;
+          // 渲染同步每 rAF 帧只做一次（末 tick 状态）：补跑多 tick（加速
+          // 播放/切 tab 回来，acc cap 4 tick）时逐 tick 同步的产物会被末
+          // tick 覆盖、纯浪费（1M 探针：4 tick 补跑 349.5→179.4ms，-48.7%）。
+          // 画面与逐 tick 同步的最终显示等价。
+          viewportRef.current?.update(e);
+          // tick 期错误 toast（10Hz 轮询兜底之外的即时路径）
           if (e.tickErrors.length > lastErrLen.current) {
             for (let i = lastErrLen.current; i < e.tickErrors.length; i++) {
               pushToast('tick ' + e.tick + ': ' + e.tickErrors[i]);
