@@ -98,6 +98,9 @@ particleex video <粒子名> <x y z> <路径> [scaling] [xRotate] [yRotate] [zRo
 - `speed` 三槽逐槽可 `null`（全 `null` = 静止）；`dpb` = 每张图片持续 tick
 - 路径含 `/` 等特殊字符时游戏内须单引号包裹（brigadier 未加引号字符集
   不含 `/`，见 06-faq 引号规则）
+- `age` 单位 = **游戏 tick**（模组 `ParticleUtil.spawnParticle` 源码实锤：
+  `age > 0` → `particle.setLifetime(age)`）；NBS2schematic 侧 1 NBS tick =
+  2 游戏 tick（歌词 `age=(end−start)×2` 是单位换算非 bug）
 
 ## imageMatrix / videoMatrix — 矩阵变换版
 
