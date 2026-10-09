@@ -26,7 +26,7 @@ import {
   ageFade,
   ageFrame,
   frameSpecFor,
-  particleVisualWithSpec,
+  particleVisualWithSpecOut,
   shiftHue,
   textureFor,
   tweakFor,
@@ -422,13 +422,8 @@ export function syncToPoints(
     pos[i3] = p.x;
     pos[i3 + 1] = p.y;
     pos[i3 + 2] = p.z;
-    const vis = particleVisualWithSpec(p, 1, sizeMul, alphaMul, vs);
-    const i4 = i * 4;
-    color[i4] = vis.r;
-    color[i4 + 1] = vis.g;
-    color[i4 + 2] = vis.b;
-    color[i4 + 3] = vis.a;
-    size[i] = vis.radius;
+    // 颜色 4 分量由 out 参直写（免每粒子返回对象），返回 radius
+    size[i] = particleVisualWithSpecOut(p, 1, sizeMul, alphaMul, vs, color, i * 4);
     // 帧 UV：有帧表的类型取帧格左上角（多帧按寿命进度 ageFrame；单帧恒第 0 帧）；
     // 无帧表 → (0,0)（着色器走圆点分支时忽略；图集未加载时 uHasAtlas=0 同样忽略）
     const frames = vs.frames;
