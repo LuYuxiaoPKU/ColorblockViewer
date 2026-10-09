@@ -206,6 +206,17 @@ describe('NBS2schematic 真实生成命令回归（生成端 ↔ 引擎互检协
     for (let i = 0; i < 3; i++) en2.tickOnce();
     expect(en2.aliveCount, 'age=0 → 原版寿命公式').toBe(9261);
   });
+  it('⑦ 保险组 remove 兜底（NBS 邀请：age 失效残留场景模拟）', () => {
+    const en = engine();
+    // age=0（不覆写，end_rod 原版寿命长）→ 模拟「age 失效」：演奏推进后粒子残留
+    en.runCommand(parseCommand('particleex conditional minecraft:end_rod ~0 ~2 ~6 1 0.95 0.89 1 0 0 0 1 1 1 null 0.1 0 null 1.0 nbs2sfx_vanish_20'));
+    expect(en.aliveCount, 't0 全部入组').toBe(9261);
+    for (let i = 0; i < 5; i++) en.tickOnce();
+    expect(en.aliveCount, '5 tick 后仍残留（end_rod 原版寿命）').toBe(9261);
+    const r = en.runCommand(parseCommand('particleex group remove nbs2sfx_vanish_20'));
+    expect(r.errors, JSON.stringify(r.errors)).toEqual([]);
+    expect(en.aliveCount, '保险组 remove 全清兜底').toBe(0);
+  });
   it('multi-line 全量解析（NBS 五类命令行集合，bg 除外）', () => {
     const cmds = parseCommands(`particleex polarparameter minecraft:end_rod ~0 ~2 ~6 1 0.95 0.89 1 0 0 0 0 6.2832 'dis=0.05;s1=t;s2=0' 0.0628 20 '(vx,vy,vz)=(0.25*exp(0-(t+0.5)/8)*cos(s1),0,0.25*exp(0-(t+0.5)/8)*sin(s1))' 1 null
 particleex tickpolarparameter minecraft:end_rod ~0 ~2 ~6 1 0.95 0.89 1 0 0 0 0 1.011363636 "s1,s2,dis=0,0,4*t" 0.022727273 9 10 null 1.0 null
