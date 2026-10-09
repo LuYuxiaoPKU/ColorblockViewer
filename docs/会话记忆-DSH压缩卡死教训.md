@@ -74,8 +74,8 @@
   `apiToken`（api_url `https://api.hindsight.vectorize.io`），否则所有
   hindsight_* 工具 401。
 - 提交身份：`LuYuxiaoPKU <LuYuxiaoPKU@users.noreply.github.com>`，无
-  Co-Authored-By；本仓库 `.tmp/` 未 gitignore，大体积证据目录记得按需
-  ignore 或在收尾时清理。
+  Co-Authored-By；本仓库 `.tmp/` 已 gitignore（含证据/取证目录说明注释，
+  不入库，按需清理），见 [.gitignore](../.gitignore)。
 - 本仓库运动学证据链：`.tmp/kin/*.txt`（226 个 javap 转储）+
   `.tmp/client-26.2.jar`（sha1 `2dc72797acbc1b63fc16a11c4ac393605f453754`）
   + `docs/技术路线.md` §7/§10 证据清单 + 每类型一个 commit。
