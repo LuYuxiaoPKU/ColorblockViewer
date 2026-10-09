@@ -64,9 +64,9 @@ export const TEMPLATES: Template[] = [
   {
     id: 'grow',
     name: '逐 tick 生长螺旋（tickparameter）',
-    desc: 'tickparameter 每 tick 生成 3 个粒子、t 持续递增 → 效果随时间「长」出来，而不是一次成形。',
+    desc: 'tickparameter 每 tick 生成 12 个粒子（step 0.25 密步进）→ 效果随时间「长」出来，而不是一次成形；寿命 400 tick（20 秒）。',
     tags: ['tickparameter', '时间演化', 'end_rod'],
-    cmds: ["/particleex tickparameter minecraft:end_rod 0 0 0 1 1 1 1 0 0 0 0 20 'x,y,z=0.3*t*cos(t*6),0.1*t,0.3*t*sin(t*6)' 1 3 200 null 1 null"],
+    cmds: ["/particleex tickparameter minecraft:end_rod 0 0 0 1 1 1 1 0 0 0 0 40 'x,y,z=0.6*t*cos(t*6),0.2*t,0.6*t*sin(t*6)' 0.25 12 400 null 1 null"],
   },
   {
     id: 'gradient',
