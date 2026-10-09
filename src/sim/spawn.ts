@@ -14,7 +14,7 @@
 
 import type { CompiledBlock } from '../engine';
 import { ParticleStruct } from '../engine/struct';
-import type { ParticleCommand } from '../command/types';
+import type { ParticleCommand, ImageVideoCmd, ImageMatrixCmd } from '../command/types';
 import { parseCompound, type NbtVal } from '../nbt/parse';
 import { OPTION_FIELDS, NESTED_OPTION_FIELDS, parseColorField } from '../nbt/particleOptions';
 import {
@@ -464,6 +464,23 @@ export function runGeneratorStep(g: TickGenerator, sink: SpawnSink): boolean {
  *    age=0 走 defaultLifetime（已知近似，README 已注明）；
  *  - normal 字面量只改游戏内 alwaysShow（是否无视粒子数量设置强制显示），
  *    预览无数量限制语义 → 无额外效果（仅影响回显文本）。 */
+/** image / video / imageMatrix / videoMatrix：图片点阵粒子（模组 ImageCommand）。
+ *  预览环境无游戏目录 ./particleImages/ → 统一按模组口径报错（模组端：
+ *  路径越界/文件缺失同为 IOException → MessageBridge 聊天框，无自定义文案；
+ *  预览以同文案呈现，与游戏行为一致）。像素→粒子生成在预览接入图片资源后
+ *  实现（待办：docs/team-collab.md）。 */
+function execImageErrorMessage(cmd: { path: string }, sink: SpawnSink): void {
+  sink.result.errors.push(`invalid image path: ${cmd.path}`);
+}
+
+export function execImageVideo(cmd: ImageVideoCmd, sink: SpawnSink): void {
+  execImageErrorMessage(cmd, sink);
+}
+
+export function execImageMatrix(cmd: ImageMatrixCmd, sink: SpawnSink): void {
+  execImageErrorMessage(cmd, sink);
+}
+
 export function execVanilla(cmd: ParticleCommand & { kind: 'vanilla' }, sink: SpawnSink): void {
   const base = cmd.pos === null ? sink.playerPos : resolveVec3(cmd.pos, sink.playerPos);
   const delta = cmd.delta ?? { x: 0, y: 0, z: 0 };

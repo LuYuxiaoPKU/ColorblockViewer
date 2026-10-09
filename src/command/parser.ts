@@ -25,6 +25,10 @@ import type {
   GroupCmd,
   ClearCmd,
   VanillaCmd,
+  ImageVideoCmd,
+  ImageMatrixCmd,
+  ClearCacheCmd,
+  FunctionListCmd,
 } from './types';
 
 const INT_MAX = 2147483647;
@@ -149,8 +153,13 @@ class Cur {
   i = 0;
   constructor(
     private toks: string[],
-    private usage: string,
-  ) {}
+    usage: string,
+  ) {
+    this.usage = usage;
+  }
+
+  /** 用法提示（报错文案共用；公开供解析辅助函数使用） */
+  readonly usage: string;
 
   eof(): boolean {
     return this.i >= this.toks.length;
@@ -261,6 +270,80 @@ function parseConditional(toks: string[]): ConditionalCmd {
     kind: 'conditional', name, pos, color, speed, range,
     expression, step, age, speedExpression, speedStep, group,
   };
+}
+
+// ---------- image / imagematrix / video / videomatrix / clearcache / functionlist ----------
+// 字段序与校验（2026-10-10 按模组 ImageCommand 逐字段核对 + NBS2schematic 生成端实锤）：
+//  - rotate 命令文本必须 0/90/180/270（模组 RotateArgument 非 90 倍数抛
+//    argument.rotate.invalid，内部按 deg/90 存 0-3）；
+//  - flip 只认枚举词 not/horizontally/vertical（→0/1/2），数字被拒；
+//  - speed 三槽逐槽可 null（全 null = null，混 null 视该分量 0）；
+//  - matrix：'E3' | 'E4' 或 16 值矩阵字面量（预览表达式语法校验）。
+
+const FLIP_WORDS: Record<string, 0 | 1 | 2> = { not: 0, horizontally: 1, vertical: 2 };
+
+function parseRotate(c: Cur, k: string): number {
+  const v = c.int(k, -INT_MAX, INT_MAX);
+  if (v % 90 !== 0) {
+    throw new CommandParseError(`参数 ${k} 应为 90 的倍数（0/90/180/270）：${v}。用法：${c.usage}`);
+  }
+  return v / 90; // 模组内部按 deg/90 存储（0-3）
+}
+
+function parseFlip(c: Cur): 0 | 1 | 2 {
+  const t = c.str('flip');
+  const v = FLIP_WORDS[t];
+  if (v === undefined) {
+    throw new CommandParseError(`参数 flip 应为 not/horizontally/vertical：收到 "${t}"。用法：${c.usage}`);
+  }
+  return v;
+}
+
+/** speed 三槽：逐槽 null 或数字；全 null → null（与模组「speed 可 null」一致）。 */
+function parseSpeedOrNull(c: Cur): { x: number; y: number; z: number } | null {
+  const sx = c.strOrNull('speed');
+  const sy = c.strOrNull('speed');
+  const sz = c.strOrNull('speed');
+  if (sx === null && sy === null && sz === null) return null;
+  const num = (t: string | null, k: string): number => {
+    if (t === null) return 0;
+    if (!isNum(t)) {
+      throw new CommandParseError(`参数 ${k} 应为数字：收到 "${t}"。用法：${c.usage}`);
+    }
+    return Number(t);
+  };
+  return { x: num(sx, 'speed'), y: num(sy, 'speed'), z: num(sz, 'speed') };
+}
+
+function parseImageVideo(toks: string[], kind: 'image' | 'video'): ImageVideoCmd {
+  const c = new Cur(toks, USAGE[kind]);
+  const name = c.str('name');
+  const pos = parseVec3([c.str('pos'), c.str('pos'), c.str('pos')], '位置');
+  const path = c.str('path');
+  const scaling = c.eof() ? 0.1 : c.dbl('scaling', -DBL_MAX, DBL_MAX);
+  const rotate: [number, number, number] = [
+    c.eof() ? 0 : parseRotate(c, 'xRotate'),
+    c.eof() ? 0 : parseRotate(c, 'yRotate'),
+    c.eof() ? 0 : parseRotate(c, 'zRotate'),
+  ];
+  const flip = c.eof() ? 0 : parseFlip(c);
+  const dpb = c.eof() ? 10.0 : c.dbl('dpb', 5e-324, DBL_MAX);
+  const speed = c.eof() ? null : parseSpeedOrNull(c);
+  const tail = parseTail(c);
+  return { kind, name, pos, path, scaling, rotate, flip, dpb, speed, ...tail };
+}
+
+function parseImageMatrix(toks: string[], kind: 'imageMatrix' | 'videoMatrix'): ImageMatrixCmd {
+  const c = new Cur(toks, USAGE[kind]);
+  const name = c.str('name');
+  const pos = parseVec3([c.str('pos'), c.str('pos'), c.str('pos')], '位置');
+  const path = c.str('path');
+  const scaling = c.eof() ? 0.1 : c.dbl('scaling', -DBL_MAX, DBL_MAX);
+  const matrix = c.eof() ? 'E3' : c.str('matrix');
+  const dpb = c.eof() ? 10.0 : c.dbl('dpb', 5e-324, DBL_MAX);
+  const speed = c.eof() ? null : parseSpeedOrNull(c);
+  const tail = parseTail(c);
+  return { kind, name, pos, path, scaling, matrix, dpb, speed, ...tail };
 }
 
 // parameter 家族（polar/tick/rgba 由子命令名决定）
@@ -391,6 +474,22 @@ export function parseCommand(line: string): ParticleCommand {
     const c = new Cur(toks.slice(1), USAGE.clearparticle);
     c.done();
     return { kind: 'clearparticle' } as ClearCmd;
+  }
+  if (head === 'image' || head === 'video') {
+    return parseImageVideo(toks.slice(1), head);
+  }
+  if (head === 'imagematrix' || head === 'videomatrix') {
+    return parseImageMatrix(toks.slice(1), head === 'imagematrix' ? 'imageMatrix' : 'videoMatrix');
+  }
+  if (head === 'clearcache') {
+    const c = new Cur(toks.slice(1), USAGE.clearcache);
+    c.done();
+    return { kind: 'clearcache' } as ClearCacheCmd;
+  }
+  if (head === 'functionlist') {
+    const c = new Cur(toks.slice(1), USAGE.functionlist);
+    c.done();
+    return { kind: 'functionlist' } as FunctionListCmd;
   }
   const paramNames: Record<string, [boolean, boolean, boolean]> = {
     parameter: [false, false, false],

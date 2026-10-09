@@ -22,6 +22,8 @@ import {
   execVanilla,
   execGroupRemove,
   execGroupChange,
+  execImageVideo,
+  execImageMatrix,
   runGeneratorStep,
   type SpawnRequest,
   type SpawnSink,
@@ -204,6 +206,19 @@ export class SimEngine {
         break;
       case 'clearparticle':
         this.clearAll();
+        break;
+      case 'image':
+      case 'video':
+        execImageVideo(cmd, sink);
+        break;
+      case 'imageMatrix':
+      case 'videoMatrix':
+        execImageMatrix(cmd, sink);
+        break;
+      case 'clearcache':
+      case 'functionlist':
+        // 预览无图片/视频资源缓存与聊天框：空操作成功（与模组副作用对齐，
+        // App 层可对 functionlist 做 toast 展示函数表——待办）
         break;
     }
     result.dropped = this.dropped - before;

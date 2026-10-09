@@ -91,6 +91,45 @@ export interface ClearCmd {
   kind: 'clearparticle';
 }
 
+/** image / video（2026-10-10 按模组 ImageCommand 逐字段核对加入）：
+ *  <name> <pos> <path> [scaling=0.1] [xRotate] [yRotate] [zRotate] [flip] [dpb=10] [speed] [age] [速度表达式] [speedStep] [group]
+ *  - rotate 槽命令文本必须写 0/90/180/270（模组 RotateArgument 读整数、非 90 倍数
+ *    抛 argument.rotate.invalid），内部按 deg/90 存储（0-3）；
+ *  - flip 只认枚举词 not/horizontally/vertical（→0/1/2），数字被拒；执行时
+ *    flip==2（vertical）zRotate += 2（叠 180°）——渲染语义，引擎只存原值；
+ *  - speed 可 null（每槽）；dpb = 矩阵像素坐标缩放因子。 */
+export interface ImageVideoCmd extends Base, CommonTail {
+  kind: 'image' | 'video';
+  path: string; // ./particleImages/ 下相对路径（预览无该目录 → 执行报错）
+  scaling: number; // 默认 0.1
+  rotate: [number, number, number]; // deg/90 存储：0-3
+  flip: 0 | 1 | 2;
+  dpb: number; // 默认 10
+  speed: Vec3Plain | null;
+}
+
+/** imageMatrix / videoMatrix：矩阵变换版（无 rotate/flip 槽）：
+ *  <name> <pos> <path> [scaling=0.1] [matrix=E3] [dpb=10] [speed] [age] [速度表达式] [speedStep] [group]
+ *  matrix：'E3' | 'E4' 或 16 值矩阵字面量（双逗号分行，预览表达式语法）。 */
+export interface ImageMatrixCmd extends Base, CommonTail {
+  kind: 'imageMatrix' | 'videoMatrix';
+  path: string;
+  scaling: number;
+  matrix: string;
+  dpb: number;
+  speed: Vec3Plain | null;
+}
+
+/** clearCache：无参（清图片/视频内存缓存；预览无资源缓存 → 空操作成功）。 */
+export interface ClearCacheCmd {
+  kind: 'clearcache';
+}
+
+/** functionList：无参（模组聊天框列全部数学函数；预览在 toast 展示同源函数表）。 */
+export interface FunctionListCmd {
+  kind: 'functionlist';
+}
+
 /** 原版 /particle（MC 26.2，net.minecraft.server.commands.ParticleCommand 逐字核对）：
  *  /particle <name> [pos] [delta] [speed] [count] [force] [normal]
  *  - 槽位链前缀封闭（name 必填，其余依次可选）；
@@ -119,4 +158,4 @@ export interface VanillaCmd {
   nbt: string | null;
 }
 
-export type ParticleCommand = NormalCmd | ConditionalCmd | ParameterCmd | GroupCmd | ClearCmd | VanillaCmd;
+export type ParticleCommand = NormalCmd | ConditionalCmd | ParameterCmd | GroupCmd | ClearCmd | VanillaCmd | ImageVideoCmd | ImageMatrixCmd | ClearCacheCmd | FunctionListCmd;
