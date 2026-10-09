@@ -14,6 +14,7 @@
 
 import { particleVisual, type RenderParticle } from './color';
 import type { SnapshotSource } from './sync';
+import type { ReferenceType } from './reference';
 
 // 等距投影系数（30° 等轴测）：sx = (x−z)·√3/2，sy = (x+z)·√3/4 − y
 const KX = Math.sqrt(3) / 2;
@@ -139,6 +140,9 @@ export class Render2DViewport {
       this.dirty = true;
     }
   }
+
+  /** 参照物：2D 等距视图无 3D 道具，空操作（接口对齐 SimViewport） */
+  setReference(_type: ReferenceType): void {}
 
   setSizeMul(v: number): void {
     this.sizeMul = v;

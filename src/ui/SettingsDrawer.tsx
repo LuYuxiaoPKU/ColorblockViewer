@@ -5,6 +5,8 @@
 import { useState } from 'react';
 import { useAppState, setSim } from '../store/appState';
 import { NumField } from './fields';
+import { REFERENCE_LABELS, REFERENCE_TYPES } from '../render/reference';
+import type { SimConfig } from '../sim/types';
 
 export function SettingsDrawer() {
   const { sim } = useAppState();
@@ -73,6 +75,22 @@ export function SettingsDrawer() {
             >
               <option value="full">完整（WebGL）</option>
               <option value="fast">快速（Canvas 2D）</option>
+            </select>
+          </div>
+          <div className="field-row">
+            <span className="field-row-label">
+              参照物 <em className="muted">（尺寸参照道具，完整模式展示；帮助比对粒子与方块/实体大小）</em>
+            </span>
+            <select
+              value={sim.reference}
+              onChange={(e) => setSim({ reference: e.target.value as SimConfig['reference'] })}
+              aria-label="参照物"
+            >
+              {REFERENCE_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {REFERENCE_LABELS[t]}
+                </option>
+              ))}
             </select>
           </div>
           <div className="field-row">

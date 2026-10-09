@@ -26,6 +26,7 @@ vi.mock('../../src/render/sync', () => ({
     setPointScale() {}
     setAtlasKey() {}
     setGrid() {}
+    setReference() {}
   },
 }));
 

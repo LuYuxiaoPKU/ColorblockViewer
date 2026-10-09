@@ -19,6 +19,7 @@ import { SimEngine } from './sim/engine';
 import { Timeline, rewindLiveParticles } from './sim/timeline';
 import type { SimParticle } from './sim/types';
 import type { SnapshotSource } from './render/sync';
+import type { ReferenceType } from './render/reference';
 import {
   useAppState,
   setHud,
@@ -47,6 +48,7 @@ interface ViewportApi {
   size: number;
   update(source: SnapshotSource): number;
   setGrid(size: number, visible: boolean): void;
+  setReference(type: ReferenceType): void;
   setAtlasKey(key: string): void;
   setPointScale(heightPx: number, fovDeg: number): void;
   resize(): void;
@@ -204,6 +206,11 @@ export default function App() {
   useEffect(() => {
     viewportRef.current?.setGrid(sim.gridSize, sim.gridVisible);
   }, [sim.gridSize, sim.gridVisible]);
+
+  // 参照物切换 → 完整模式 3D 道具（快速模式空操作）
+  useEffect(() => {
+    viewportRef.current?.setReference(sim.reference);
+  }, [sim.reference]);
 
   // 时间线镜像 → store（播放头/末帧/最旧帧/帧数；UI 进度条与 ◀▶ 按钮读它）
   const syncPlayback = () => {
