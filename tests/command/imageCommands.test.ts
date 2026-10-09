@@ -163,9 +163,10 @@ describe('NBS2schematic 真实生成命令回归（生成端 ↔ 引擎互检协
     expect(r.errors, JSON.stringify(r.errors)).toEqual([]);
     expect(r.spawned).toBeGreaterThan(0);
   });
-  it('③ 背景型 bg——待模组确认子命令是否存在（现按未知子命令拒）', () => {
-    // NBS 用户模板用 /particleex bg …（背景型）；模组命令树是否有 bg 待确认。
-    // 若模组无 bg，该模板在游戏内同样无效——生成端侧提醒已记录
+  it('③ 背景型 bg——模组命令树已确认无此子命令（2026-10-10）', () => {
+    // NBS 用户模板用 /particleex bg …（背景型）；模组侧确认命令树无 bg
+    // （11 个一级子命令无背景语义），该模板在游戏内同样无效——生成端
+    // 提醒已记录（候选映射：long-life + group 或 video/normal 持久效果）。
     expect(() => parseCommand('particleex bg minecraft:portal ~ ~0.5 ~ 0.5 0.1 0.1 0 0 0 0 10 0.4 1.0 null')).toThrow(/未知子命令 "bg"/);
   });
   it('④ 消失型（conditional #Cube + 保险组）与保险 remove', () => {
