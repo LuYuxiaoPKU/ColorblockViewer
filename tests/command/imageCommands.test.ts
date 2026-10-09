@@ -11,7 +11,7 @@ import { parseCommand, parseCommands } from '../../src/command/parser';
 import { serialize } from '../../src/command/serialize';
 import { SimEngine } from '../../src/sim/engine';
 import { getState } from '../../src/store/appState';
-import type { ImageVideoCmd, ImageMatrixCmd } from '../../src/command/types';
+import type { ImageVideoCmd, ImageMatrixCmd, NormalCmd } from '../../src/command/types';
 
 function engine(): SimEngine {
   return new SimEngine({ ...getState().sim, seed: 1, nativeKinematics: true, mcVersion: '26.2' });
@@ -180,6 +180,18 @@ describe('NBS2schematic 真实生成命令回归（生成端 ↔ 引擎互检协
     const en = engine();
     const r = en.runCommand(parseCommand('particleex image minecraft:end_rod 11 8 0 lyric/s0000_l0.png 0.03125 0 90 0 not 10 0 0 0 16 null 1 null'));
     expect(r.errors).toEqual(['invalid image path: lyric/s0000_l0.png']); // 预览无图片资源
+  });
+  it('⑤ bg 替代默认形态（NBS 护栏置换后的 normal，可作 UI placeholder 示例）', () => {
+    const en = engine();
+    const r = en.runCommand(parseCommand('particleex normal minecraft:portal ~ ~0.5 ~ 0.5 0.1 0.1 0 0 0 0 1 1 1 100 10 null 1.0 null'));
+    expect(r.errors, JSON.stringify(r.errors)).toEqual([]);
+    expect(r.spawned, 'spawned').toBe(100);
+    // 字段序核验：pos 相对 (0,0.5,0) / color 4 槽 / speed 3 槽 / range 3 槽 / count / age=10
+    const c = parseCommand('particleex normal minecraft:portal ~ ~0.5 ~ 0.5 0.1 0.1 0 0 0 0 1 1 1 100 10 null 1.0 null') as NormalCmd;
+    expect(c.color).toEqual({ r: 0.5, g: 0.1, b: 0.1, a: 0 });
+    expect(c.age).toBe(10);
+    expect(c.speedStep).toBe(1);
+    expect(c.group).toBeNull();
   });
   it('multi-line 全量解析（NBS 五类命令行集合，bg 除外）', () => {
     const cmds = parseCommands(`particleex polarparameter minecraft:end_rod ~0 ~2 ~6 1 0.95 0.89 1 0 0 0 0 6.2832 'dis=0.05;s1=t;s2=0' 0.0628 20 '(vx,vy,vz)=(0.25*exp(0-(t+0.5)/8)*cos(s1),0,0.25*exp(0-(t+0.5)/8)*sin(s1))' 1 null
