@@ -67,13 +67,12 @@ export class SimEngine {
 
   /** tick 期错误收集（无命令上下文；UI 轮询 toast） */
   readonly tickErrors: string[] = [];
-  /** animate 用的运动学 spec 查找（缓存版）：同粒子同版本一次查找。
-   *  p.name 引擎内不改写（全 src 无粒子 name 赋值点）；键 = 原始名字
-   *  （normKey 是纯函数，按原始串缓存安全），唯一键数 ≤ 类型表大小。
-   *  mcVersion 切换时清缓存（低频操作，重查成本可接受）。
-   *  1M 探针实测 native=true 时逐粒子 normKey+Map 查找 ≈60ms/tick。 */
-  private specCache = new Map<string, NativeKinematics | null>();
-  private specCacheVersion = '';
+  /** animate 用的运动学 spec 查找：**粒子对象直挂**（p.__cbSpec = {v, spec}，
+   *  版本戳判废，mcVersion 变化时逐粒子惰性重查；对象同生命周期，无对象键
+   *  索引）。p.name 引擎内不改写（全 src 无粒子 name 赋值点）；normKey 是
+   *  纯函数，同名字粒子结果一致 → 按对象缓存安全（seek 回看的帧拷贝对象
+   *  名字相同、重查同值）。1M 探针：Map 缓存版 normKey+get/set ≈31–35ms
+   *  /次，直挂读取 ≈3.9ms/次。 */
 
   constructor(config: SimConfig) {
     this.config = { ...config };
@@ -84,15 +83,10 @@ export class SimEngine {
 
   private specOf(p: SimParticle): NativeKinematics | null {
     const v = this.config.mcVersion;
-    if (v !== this.specCacheVersion) {
-      this.specCacheVersion = v;
-      this.specCache.clear();
-    }
-    const hit = this.specCache.get(p.name);
-    if (hit !== undefined) return hit;
-    const spec = nativeSpecFor(p.name, v);
-    this.specCache.set(p.name, spec);
-    return spec;
+    const hit = p.__cbSpec;
+    if (hit && hit.v === v) return hit.spec;
+    p.__cbSpec = { v, spec: nativeSpecFor(p.name, v) };
+    return p.__cbSpec.spec;
   }
 
   /** 活粒子数（含 pending；**过滤 alive** —— 同批次里 group remove 杀掉的

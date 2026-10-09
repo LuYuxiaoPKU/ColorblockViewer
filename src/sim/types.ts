@@ -3,6 +3,7 @@
 
 import type { CompiledBlock } from '../engine';
 import type { ParticleStruct } from '../engine/struct';
+import type { NativeKinematics } from './kinematics';
 
 export interface SimConfig {
   /** 玩家位置：`~`/`^` 相对坐标与 group 命令缺省 ref 的求值基准 */
@@ -85,6 +86,11 @@ export interface SimParticle {
    *  每个粒子一个实例，对应 spawnParticle 里 ExpressionUtil.parse 的每次新实例。 */
   exeStruct: ParticleStruct | null;
   alive: boolean;
+  /** animate 用的运动学 spec 直挂缓存（引擎私有；与对象同生命周期：入池/seek
+   *  复用/seek 回看（帧拷贝复活）均保有效值。v = 查表时的 mcVersion 戳，版本
+   *  变化时逐粒子惰性重查；无对象键索引（1M 探针：直挂 3.9ms vs Map 35ms/次）。
+   *  渲染层不读（copyParticle 逐字段拷，天然不带它）。 */
+  __cbSpec?: { v: string; spec: NativeKinematics | null };
 }
 
 /** tick*parameter 的分 tick 生成器（复刻 TickParticleTask；t 跨 tick 持续递增） */
