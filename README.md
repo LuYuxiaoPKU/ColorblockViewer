@@ -6,7 +6,8 @@
 
 [🎮 在线体验](https://luyuxiaopku.github.io/ColorblockViewer/) ·
 [📖 使用手册](docs/使用手册.md) ·
-[🗺 技术路线](docs/技术路线.md) · v0.2.1
+[🗺 技术路线](docs/技术路线.md) ·
+[📚 模组 Wiki](docs/wiki/README.md) · v0.2.1
 
 ## 这是做什么的
 
