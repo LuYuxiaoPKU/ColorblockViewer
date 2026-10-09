@@ -121,12 +121,22 @@ export class SimEngine {
     return this.pending.find((p) => p.id === id);
   }
 
-  /** 活粒子快照（渲染层用；池序 + pending 序，**过滤 alive** ——
-   *  死亡粒子在下次 tickOnce 压实前仍留在池内，渲染不可见）。
-   *  单次遍历；按上界（count + pending）预分配 + 索引写（push 的动态扩容
-   *  + 越界检查比索引写慢 ~5ms/1M，1M 探针 11.15→5.95ms），末尾收缩到
-   *  实际活粒子数。 */
+  /** 快路径判定：当前池**前缀**（[0,count)）是否全活。
+   *  tickOnce 的 ② 入池后为 true（spawn 即活）；演进里碰到死粒子才置 false
+   *  （多数存活的 tick 零额外比较）；setPool/compact 压实后为 true（前缀全活）。
+   *  死粒子在 compact 前仍在池内（忠实 Java 延迟移除）→ 不能按 aliveN 推定。 */
+  private poolAllLive = true;
+
+  /** 活粒子快照（渲染层用；池序 + pending 序，**过滤 alive**）。
+   *  返回**独立数组**（调用方可长期持有；池后续压实不改动它——元素仍与池
+   *  共享对象引用，原语义）。
+   *  快路径（O(n) 连续引用拷贝）：池前缀全活 + pending 空 → slice(0)
+   *  （1M 探针：慢路径预分配+过滤写 ≈21.6ms/轮，slice 快 ~19ms）。
+   *  慢路径：按上界预分配 + 索引写（1M 探针 11.15→5.95ms vs push）。 */
   snapshot(): SimParticle[] {
+    if (this.poolAllLive && this.pending.length === 0) {
+      return this.pool.slice(0);
+    }
     const out = new Array<SimParticle>(this.count + this.pending.length);
     let j = 0;
     for (let i = 0; i < this.count; i++) {
@@ -163,6 +173,7 @@ export class SimEngine {
     this.pool.length = m; // 释放压实尾部的死粒子引用
     this.count = m;
     this.aliveN = m;
+    this.poolAllLive = true; // 前缀全活（压实后）
   }
 
   // ---------- 命令入口 ----------
@@ -404,6 +415,7 @@ export class SimEngine {
       for (const p of this.pending) this.pool.push(p);
       this.count = this.pool.length;
       this.pending = [];
+      this.poolAllLive = true; // 入池的均为活粒子 → 前缀全活（演进段再判）
     }
     for (let i = 0; i < this.count; i++) {
       this.animate(this.pool[i]);
@@ -644,15 +656,18 @@ export class SimEngine {
     if (p && p.alive) {
       p.alive = false;
       this.aliveN--;
+      this.poolAllLive = false;
     }
   }
 
   /** animate 内的死亡（p 已在手）：直接置位免 id 查找（1M 批量死亡时
-   *  逐个 this.get(id) 线性扫描 = O(n²)：lifetime=20 探针 171s/tick）。 */
+   *  逐个 this.get(id) 线性扫描 = O(n²)：lifetime=20 探针 171s/tick）。
+   *  同时破快路径（snapshot 此后走过滤慢路径，直到 compact 恢复）。 */
   private killRef(p: SimParticle): void {
     if (p.alive) {
       p.alive = false;
       this.aliveN--;
+      this.poolAllLive = false;
     }
   }
 
@@ -664,7 +679,8 @@ export class SimEngine {
     });
   }
 
-  /** swap-remove 压实：死粒子移出前缀，count = 存活数 */
+  /** swap-remove 压实：死粒子移出前缀，count = 存活数；
+   *  压实后前缀全活 → 快路径恢复 */
   private compact(): void {
     let w = 0;
     for (let i = 0; i < this.count; i++) {
@@ -673,7 +689,9 @@ export class SimEngine {
       if (w !== i) this.pool[w] = p;
       w++;
     }
+    this.pool.length = w; // 释放尾部引用（原实现的 count 截断语义 + 内存释放）
     this.count = w;
+    this.poolAllLive = true;
   }
 
   /** clearparticle：全部粒子死亡 + 清组索引。
@@ -684,6 +702,7 @@ export class SimEngine {
     for (const p of this.pending) p.alive = false;
     this.aliveN = 0;
     this.pending = [];
+    this.poolAllLive = false;
     this.groups.clear();
   }
 
