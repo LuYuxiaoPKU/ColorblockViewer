@@ -55,6 +55,7 @@ vi.mock('../../src/render/sync', () => {
       setGrid(size: number, visible: boolean) {
         gridCalls.push([size, visible]);
       }
+      setReference() {}
     },
   };
 });

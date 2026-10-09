@@ -30,6 +30,9 @@ export interface SimConfig {
    *  'fast' = 快速（Canvas 2D 颜色圆点，不加载 three、无 WebGL，仿真照常 1:1 运行）。
    *  纯渲染层设置，引擎不读（mcVersion 先例）。 */
   renderMode: 'full' | 'fast';
+  /** 场景参照物（纯展示道具，尺寸参照）：无 / 史蒂夫 / 命令方块 / 橡树 / 袭击哨塔；
+   *  完整模式 3D 展示，快速模式忽略。纯渲染层设置，引擎不读（mcVersion 先例）。 */
+  reference: 'none' | 'steve' | 'command_block' | 'oak_tree' | 'outpost_tower';
 }
 
 export interface SimParticle {

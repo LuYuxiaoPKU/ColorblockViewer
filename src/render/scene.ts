@@ -4,6 +4,7 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { buildReference, ReferenceType } from './reference';
 
 export interface SceneBundle {
   renderer: THREE.WebGLRenderer;
@@ -13,6 +14,8 @@ export interface SceneBundle {
   resize(): void;
   /** 网格：size = 边长（block，1 block/格）；visible 只隐藏不销毁（避免重建抖动） */
   setGrid(size: number, visible: boolean): void;
+  /** 参照物切换：type 变化时替换 group（旧组 dispose，防累积）；'none' → 卸载 */
+  setReference(type: ReferenceType): void;
   dispose(): void;
 }
 
@@ -33,6 +36,12 @@ export function createScene(container: HTMLElement): SceneBundle {
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0b0e14);
+
+  // 参照物材质用 Lambert → 需要灯光（点云自带 shader，不受影响）
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+  dirLight.position.set(5, 10, 7);
+  scene.add(dirLight);
 
   // 默认视角贴近游戏玩家观感（fov 对齐游戏默认 70、相机距原点 ~5.1 格）：
   // 游戏里玩家站粒子 1–5 格外，原 (6,5,8) 距 10.8 格会让粒子屏幕占比小 2–10 倍。
@@ -78,6 +87,27 @@ export function createScene(container: HTMLElement): SceneBundle {
     grid.visible = visible;
   };
 
+  let refGroup: THREE.Group | null = null;
+  const setReference = (type: ReferenceType): void => {
+    if (refGroup) {
+      scene.remove(refGroup);
+      refGroup.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh) {
+          m.geometry.dispose();
+          (m.material as THREE.Material).dispose();
+        }
+      });
+      refGroup = null;
+    }
+    const g = buildReference(type);
+    if (g) {
+      scene.add(g);
+      refGroup = g;
+    }
+  };
+  setReference('none');
+
   return {
     renderer,
     scene,
@@ -85,6 +115,7 @@ export function createScene(container: HTMLElement): SceneBundle {
     controls,
     resize,
     setGrid,
+    setReference,
     dispose: () => {
       controls.dispose();
       scene.remove(grid);
@@ -93,6 +124,16 @@ export function createScene(container: HTMLElement): SceneBundle {
       scene.remove(axes);
       axes.geometry.dispose();
       (axes.material as THREE.Material).dispose();
+      if (refGroup) {
+        scene.remove(refGroup);
+        refGroup.traverse((o) => {
+          const m = o as THREE.Mesh;
+          if (m.isMesh) {
+            m.geometry.dispose();
+            (m.material as THREE.Material).dispose();
+          }
+        });
+      }
       renderer.dispose();
       if (renderer.domElement.parentElement === container) {
         container.removeChild(renderer.domElement);

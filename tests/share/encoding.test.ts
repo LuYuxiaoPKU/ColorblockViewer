@@ -15,6 +15,7 @@ const SIM: SimConfig = {
   gridVisible: true,
   nativeKinematics: true,
   renderMode: 'full',
+  reference: 'none',
 };
 
 const CMDS = [

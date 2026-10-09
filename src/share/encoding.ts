@@ -138,6 +138,13 @@ function sanitizeSim(raw: unknown, def: SimConfig): SimConfig {
     gridVisible: typeof o.gridVisible === 'boolean' ? o.gridVisible : def.gridVisible,
     nativeKinematics: typeof o.nativeKinematics === 'boolean' ? o.nativeKinematics : def.nativeKinematics,
     renderMode: o.renderMode === 'full' || o.renderMode === 'fast' ? o.renderMode : def.renderMode,
+    reference:
+      o.reference === 'steve' ||
+      o.reference === 'command_block' ||
+      o.reference === 'oak_tree' ||
+      o.reference === 'outpost_tower'
+        ? o.reference
+        : def.reference,
   };
 }
 

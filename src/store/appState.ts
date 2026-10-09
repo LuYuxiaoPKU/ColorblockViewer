@@ -46,7 +46,7 @@ function defaultState(): AppState {
   return {
     commands: [],
     input: '',
-    sim: { playerPos: { x: 0, y: 0, z: 0 }, defaultLifetime: 20, maxParticles: 1000000, seed: 1, mcVersion: '26.2', gridSize: 10, gridVisible: true, nativeKinematics: true, renderMode: 'full' },
+    sim: { playerPos: { x: 0, y: 0, z: 0 }, defaultLifetime: 20, maxParticles: 1000000, seed: 1, mcVersion: '26.2', gridSize: 10, gridVisible: true, nativeKinematics: true, renderMode: 'full', reference: 'none' },
     playing: false,
     speed: 1,
     playback: { tick: 0, endTick: -1, oldestTick: 0, frames: 0, totalCopies: 0, maxTick: 0 },
