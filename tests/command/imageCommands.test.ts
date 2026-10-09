@@ -181,17 +181,30 @@ describe('NBS2schematic 真实生成命令回归（生成端 ↔ 引擎互检协
     const r = en.runCommand(parseCommand('particleex image minecraft:end_rod 11 8 0 lyric/s0000_l0.png 0.03125 0 90 0 not 10 0 0 0 16 null 1 null'));
     expect(r.errors).toEqual(['invalid image path: lyric/s0000_l0.png']); // 预览无图片资源
   });
-  it('⑤ bg 替代默认形态（NBS 护栏置换后的 normal，可作 UI placeholder 示例）', () => {
+  it('⑤ bg 替代默认形态（NBS 护栏置换后的 normal 正式版 alpha=1，已随 45e4b4a 刷新）', () => {
+    // NBS 正式形态：alpha 恒填 1（alpha=0 渲染透明——实测建设后的修正）
     const en = engine();
-    const r = en.runCommand(parseCommand('particleex normal minecraft:portal ~ ~0.5 ~ 0.5 0.1 0.1 0 0 0 0 1 1 1 100 10 null 1.0 null'));
+    const r = en.runCommand(parseCommand('particleex normal minecraft:portal ~ ~0.5 ~ 0.5 0.1 0.1 1 0 0 0 1 1 1 100 10 null 1.0 null'));
     expect(r.errors, JSON.stringify(r.errors)).toEqual([]);
     expect(r.spawned, 'spawned').toBe(100);
     // 字段序核验：pos 相对 (0,0.5,0) / color 4 槽 / speed 3 槽 / range 3 槽 / count / age=10
-    const c = parseCommand('particleex normal minecraft:portal ~ ~0.5 ~ 0.5 0.1 0.1 0 0 0 0 1 1 1 100 10 null 1.0 null') as NormalCmd;
-    expect(c.color).toEqual({ r: 0.5, g: 0.1, b: 0.1, a: 0 });
+    const c = parseCommand('particleex normal minecraft:portal ~ ~0.5 ~ 0.5 0.1 0.1 1 0 0 0 1 1 1 100 10 null 1.0 null') as NormalCmd;
+    expect(c.color).toEqual({ r: 0.5, g: 0.1, b: 0.1, a: 1 });
     expect(c.age).toBe(10);
     expect(c.speedStep).toBe(1);
     expect(c.group).toBeNull();
+  });
+  it('⑥ 消失型 age 到期（NBS 模板语义核验：age>0 覆写寿命、tick 单位）', () => {
+    const en = engine();
+    en.runCommand(parseCommand('particleex conditional minecraft:end_rod ~0 ~2 ~6 1 0.95 0.89 1 0 0 0 1 1 1 null 0.1 1 null 1.0 nbs2sfx_vanish_2'));
+    expect(en.aliveCount, 't0 全点生成 21³').toBe(9261);
+    en.tickOnce();
+    expect(en.aliveCount, 'age=1 → 首 tick 后到期全灭').toBe(0);
+    // 对照组：age=0 不覆写 → 走原版寿命公式（end_rod，>3 tick），3 tick 后仍存活
+    const en2 = engine();
+    en2.runCommand(parseCommand('particleex conditional minecraft:end_rod ~0 ~2 ~6 1 0.95 0.89 1 0 0 0 1 1 1 null 0.1 0 null 1.0 g'));
+    for (let i = 0; i < 3; i++) en2.tickOnce();
+    expect(en2.aliveCount, 'age=0 → 原版寿命公式').toBe(9261);
   });
   it('multi-line 全量解析（NBS 五类命令行集合，bg 除外）', () => {
     const cmds = parseCommands(`particleex polarparameter minecraft:end_rod ~0 ~2 ~6 1 0.95 0.89 1 0 0 0 0 6.2832 'dis=0.05;s1=t;s2=0' 0.0628 20 '(vx,vy,vz)=(0.25*exp(0-(t+0.5)/8)*cos(s1),0,0.25*exp(0-(t+0.5)/8)*sin(s1))' 1 null
