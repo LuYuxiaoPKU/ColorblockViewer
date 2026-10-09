@@ -518,8 +518,33 @@ export function syncToPoints(
       }
       color[i4 + 3] = p.a * fade * tw.alpha * alphaMul;
       size[i] = BASE_SIZE * tw.size * sizeMul * (p.sizeMul ?? 1);
+    } else if (p.colorFrom && p.colorTo) {
+      // colorFrom→colorTo 插值多帧（dust_color_transition 等）：通用体 multi
+      // 的插值分支 + ageFade + hue 内联展开。白起点可跳过——插值公式
+      // （cf + (ct-cf)·frac）不依赖出生色，必覆盖白起点结果，逐位同。
+      // 无 colorShift（第一分支已拦走 cs 多帧）。门控 = 插值条件本身。
+      const tw = vs.tweak;
+      const cf = p.colorFrom;
+      const ct = p.colorTo;
+      const frac = p.age / (p.lifetime + 1);
+      const r = cf.r + (ct.r - cf.r) * frac;
+      const g = cf.g + (ct.g - cf.g) * frac;
+      const b = cf.b + (ct.b - cf.b) * frac;
+      const lt = p.lifetime;
+      const fade = lt <= 0 || p.age <= lt / 2 ? 1 : 1 - (p.age - lt / 2) / lt;
+      const i4 = i * 4;
+      const hue = tw.hue;
+      if (hue !== 0) {
+        shiftHueInto(r, g, b, hue, color, i4);
+      } else {
+        color[i4] = r;
+        color[i4 + 1] = g;
+        color[i4 + 2] = b;
+      }
+      color[i4 + 3] = p.a * fade * tw.alpha * alphaMul;
+      size[i] = BASE_SIZE * tw.size * sizeMul * (p.sizeMul ?? 1);
     } else {
-      // 有帧非 colorShift（vanilla 白起点 / colorFrom 插值 / 单帧 multi 例外）
+      // 有帧非 colorShift（vanilla 白起点 / 单帧 multi 例外）
       // 通用体：out 直写，返回 radius
       size[i] = particleVisualWithSpecOut(p, 1, sizeMul, alphaMul, vs, color, i * 4);
     }
