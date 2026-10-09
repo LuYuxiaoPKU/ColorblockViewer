@@ -292,7 +292,7 @@ export function particleVisualWithSpecOut(
 
 /** end_rod colorShift 的 0.8^age 预计算表（age = tick 计数，整数域；
  *  上界 4096：0.8^4096 ≈ 1e-395 已低于 double 最小正规数，视觉不可见区 = 0）。 */
-const FADE08: number[] = (() => {
+export const FADE08: number[] = (() => {
   const t: number[] = [];
   for (let i = 0; i < 4096; i++) t.push(Math.pow(0.8, i));
   return t;

@@ -23,6 +23,7 @@ import * as THREE from 'three';
 import { PARTICLE_DATA } from './particleData';
 import {
   BASE_SIZE,
+  FADE08,
   ageFade,
   ageFrame,
   frameSpecFor,
@@ -416,17 +417,67 @@ export function syncToPoints(
   const { pos, color, size, uv } = layer;
   for (let i = 0; i < n; i++) {
     const p = parts[i];
-    // spec 一次取值两处复用（颜色 + 帧 UV），省掉每粒子第二次 WeakMap get
+    // spec 一次取值多处复用（颜色 + 帧 UV），省掉每粒子第二次 WeakMap get
     const vs = visualSpecFor(p, atlasKey);
     const i3 = i * 3;
     pos[i3] = p.x;
     pos[i3 + 1] = p.y;
     pos[i3 + 2] = p.z;
-    // 颜色 4 分量由 out 参直写（免每粒子返回对象），返回 radius
-    size[i] = particleVisualWithSpecOut(p, 1, sizeMul, alphaMul, vs, color, i * 4);
+    const cs = vs.spec?.colorShift;
+    const frames = vs.frames;
+    // colorShift 类型（end_rod）快路径：通用体（particleVisualWithSpecOut）的
+    // multi/白起点/colorFrom/colorShift/ageFade 分支对它是固定的，内联展开免
+    // 逐分支判定（1M end_rod 探针 47.1 → 37.0ms，-22%）。口径与通用体逐字同：
+    // colorShift 插值只在 multi（frames 多帧）分支生效 → 快路径同条件门控，
+    // 否则走通用体。
+    if (cs && frames !== null && frames.length > 1) {
+      const tw = vs.tweak;
+      let r = p.r;
+      let g = p.g;
+      let b = p.b;
+      if (p.vanilla && !p.nbtTint) {
+        r = 1;
+        g = 1;
+        b = 1;
+      }
+      if (p.colorFrom && p.colorTo) {
+        const frac = p.age / (p.lifetime + 1);
+        r = p.colorFrom.r + (p.colorTo.r - p.colorFrom.r) * frac;
+        g = p.colorFrom.g + (p.colorTo.g - p.colorFrom.g) * frac;
+        b = p.colorFrom.b + (p.colorTo.b - p.colorFrom.b) * frac;
+      }
+      const tr = cs[0] / 255;
+      const tg = cs[1] / 255;
+      const tb = cs[2] / 255;
+      const f =
+        p.age >= 0 && (p.age | 0) === p.age && p.age < FADE08.length
+          ? FADE08[p.age]
+          : Math.pow(0.8, p.age);
+      r = tr + (r - tr) * f;
+      g = tg + (g - tg) * f;
+      b = tb + (b - tb) * f;
+      let alpha = p.a;
+      const lt = p.lifetime;
+      alpha *= lt <= 0 || p.age <= lt / 2 ? 1 : 1 - (p.age - lt / 2) / lt;
+      const hue = tw.hue;
+      if (hue !== 0) {
+        const s = shiftHue(r, g, b, hue);
+        r = s[0];
+        g = s[1];
+        b = s[2];
+      }
+      const i4 = i * 4;
+      color[i4] = r;
+      color[i4 + 1] = g;
+      color[i4 + 2] = b;
+      color[i4 + 3] = alpha * tw.alpha * alphaMul;
+      size[i] = BASE_SIZE * tw.size * sizeMul * (p.sizeMul ?? 1);
+    } else {
+      // 颜色 4 分量由 out 参直写（免每粒子返回对象），返回 radius
+      size[i] = particleVisualWithSpecOut(p, 1, sizeMul, alphaMul, vs, color, i * 4);
+    }
     // 帧 UV：有帧表的类型取帧格左上角（多帧按寿命进度 ageFrame；单帧恒第 0 帧）；
     // 无帧表 → (0,0)（着色器走圆点分支时忽略；图集未加载时 uHasAtlas=0 同样忽略）
-    const frames = vs.frames;
     if (frames && frames.length > 0) {
       const iu = i * 2;
       if (frames.length > 1) {
