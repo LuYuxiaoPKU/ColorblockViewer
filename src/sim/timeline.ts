@@ -205,17 +205,31 @@ export function rewindLiveParticles(
   };
   for (const c of copies) {
     const p = live.get(c.id as number);
-    if (!p || p.lifetime <= 1) continue; // 帧拷贝不动；lifetime=1 的粒子无位移
+    if (!p || p.lifetime <= 1) continue; // 帧拷贝不动（历史值即目标）；lifetime=1 无位移
     const a = c.age as number; // 目标帧的 age（真粒子可能已演进到更晚）
+    // age 回退：渲染端的帧动画/淡出/颜色插值全部由 p.age 驱动（points.ts
+    // 帧选 ageFrame、FADE08 靠拢、ageFade）——不回退则「时光倒流」时
+    // 动画停在播放到的那一帧（2026-10-10 用户报告修复）。
+    p.age = a;
     // 按真粒子**实际**字段选 kind（trail 优先），帧拷贝字段只作兜底
     let target: V3 | undefined;
     if (p.trailTarget) target = p.trailTarget;
     else if (p.vibrationTarget) target = p.vibrationTarget;
     else target = fromCopy(c, ['ttX', 'ttY', 'ttZ']) ?? fromCopy(c, ['vtX', 'vtY', 'vtZ']);
-    if (!target) continue;
-    const k = a / (p.lifetime - 1);
-    p.x = p.cx + (target.x - p.cx) * k;
-    p.y = p.cy + (target.y - p.cy) * k;
-    p.z = p.cz + (target.z - p.cz) * k;
+    if (target) {
+      const k = a / (p.lifetime - 1);
+      p.x = p.cx + (target.x - p.cx) * k;
+      p.y = p.cy + (target.y - p.cy) * k;
+      p.z = p.cz + (target.z - p.cz) * k;
+    } else {
+      // 普通粒子：位置/速度 ← 帧拷贝（目标帧历史值）；续播从该状态继续
+      // 演进（引擎 tick 对 age/vx 继续 ++/摩擦，与历史轨迹一致）
+      p.x = c.x as number;
+      p.y = c.y as number;
+      p.z = c.z as number;
+      p.vx = c.vx as number;
+      p.vy = c.vy as number;
+      p.vz = c.vz as number;
+    }
   }
 }

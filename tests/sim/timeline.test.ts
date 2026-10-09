@@ -6,6 +6,8 @@
 import { describe, expect, it } from 'vitest';
 import { RECORD_EVERY_TICK_MAX, Timeline, TOTAL_COPY_BUDGET, rewindLiveParticles } from '../../src/sim/timeline';
 import type { SimParticle } from '../../src/sim/types';
+import { SimEngine } from '../../src/sim/engine';
+import { parseCommand } from '../../src/command/parser';
 
 /** 最小假粒子（copyParticle 只读固定字段） */
 function fp(i: number): Record<string, unknown> {
@@ -217,12 +219,50 @@ describe('Timeline', () => {
     rewindLiveParticles([vibCopy], new Map([[2, vib as unknown as SimParticle]]));
     expect((vib.x as number)).toBeCloseTo(x4, 10);
 
-    // 无 target 的粒子 / 不在活池的粒子不受影响
-    const plain: Record<string, unknown> = { ...fp(3), x: 42, cx: 1, cy: 1, cz: 1 };
-    const plainCopy = { ...fp(3), id: 3, age: 2 } as Record<string, number | string>;
+    // 普通粒子（无 target）：位置/速度/age 回退为帧拷贝值（时光倒流语义，
+    // 2026-10-10 修复：此前真粒子 age/x 停在播放到的那一帧，end_rod 动画
+    // 不随进度条回溯）
+    const plain: Record<string, unknown> = { ...fp(3), x: 42, y: 7, z: -3, vx: 9, vy: 8, vz: 7, age: 50 };
+    const plainCopy = { ...fp(3), x: 1, y: 2, z: 3, vx: 0.5, vy: 0.25, vz: -0.5, age: 5 } as Record<string, number | string>;
     rewindLiveParticles([plainCopy], new Map([[3, plain as unknown as SimParticle]]));
-    expect(plain.x).toBe(42);
+    expect(plain.x).toBe(1);
+    expect(plain.y).toBe(2);
+    expect(plain.z).toBe(3);
+    expect(plain.vx).toBe(0.5);
+    expect(plain.vy).toBe(0.25);
+    expect(plain.vz).toBe(-0.5);
+    expect(plain.age).toBe(5);
     // 帧里有的 id 不在活池（已死）→ 跳过不报错
     rewindLiveParticles([{ id: 99, age: 2 }], new Map());
+  });
+});
+
+// 端到端（2026-10-10）：真实引擎演进 50 tick 后 seek 到 tick 5 的帧，
+// 池内真粒子的 age/位置/速度与目标帧历史值对齐（时光倒流修复的回归锁；
+// 渲染端帧动画/FADE08 颜色/淡出均由 p.age 驱动，age 对齐 = 动画回溯）。
+describe('seek 帧字段对齐（引擎级）', () => {
+  it('seek 后池内真粒子 age/x/v 等于目标帧拷贝值', () => {
+    const e = new SimEngine({ maxParticles: 1000, seed: 7, playerPos: { x: 0, y: 0, z: 0 } });
+    e.runCommand(parseCommand('particleex normal minecraft:end_rod 0 64 0 1 1 1 1 1 1 1 0 0 0 3'));
+    const tl = new Timeline(1000);
+    for (let i = 0; i < 50; i++) {
+      e.tickOnce();
+      tl.push(e.snapshot(), e.tick, e.dropped, false);
+    }
+    // 模拟 App.seek(5)（与 src/App.tsx seek 同序）
+    const frame = tl.findFrame(5)!;
+    const alive = e.snapshot();
+    const byId = new Map(alive.map((p) => [p.id, p]));
+    const resolved = frame.particles.map((c) => byId.get((c as unknown as SimParticle).id) ?? (c as unknown as SimParticle));
+    for (const p of resolved) p.alive = true;
+    rewindLiveParticles(frame.particles, byId);
+    e.setPool(resolved);
+    e.setTick(frame.tick);
+    const pool = e.snapshot();
+    const targetAges = frame.particles.map((c) => c.age as number);
+    const targetXs = frame.particles.map((c) => c.x as number);
+    expect(pool.map((p) => p.age)).toEqual(targetAges); // age 对齐 → 动画回溯
+    expect(pool.map((p) => p.x)).toEqual(targetXs); // 位置对齐
+    expect(pool.length).toBeGreaterThan(0);
   });
 });
