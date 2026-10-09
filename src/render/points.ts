@@ -165,25 +165,24 @@ export function loadAtlasTexture(
   return texPromise.p;
 }
 
-/** 帧 → 图集 UV 左上角（u = 列左缘；v = 行顶缘，flipY 下文 1 在图顶）。
- *  按帧名缓存（帧表布局在 key 内不变）；atlasKey 切换时清缓存。1M 探针下
- *  帧 UV 查找 ≈ 8ms，缓存后走 Map.get 命中 ≈ 2ms。 */
-const frameUVCache = new Map<string, [number, number]>();
-let frameUVKey = '';
-
-function frameUV(frame: string, key: string): [number, number] {
-  if (key !== frameUVKey) {
-    frameUVKey = key;
-    frameUVCache.clear();
+/** 帧列表 → 图集 UV 预计算（u = 列左缘；v = 行顶缘，flipY 下文 1 在图顶）。
+ *  frames 数组是 PARTICLE_DATA 帧表的共享引用（每 (类型名, 版本) 一个），UV 只
+ *  取决于 frames 列表 + 版本图集布局（key 内不变）→ 每 frames 列表预计算一次，
+ *  直挂到数组上（{key, uv}，atlasKey 切换时判废重算），sync 热循环按数值索引
+ *  直读 `uvArr[idx*2]`，免每 tick 每粒子的帧名字符串哈希（1M 探针：字符串
+ *  Map get ≈30ms/轮 vs 数值直读 ≈4ms/轮）。 */
+function frameUVsFor(frames: string[], key: string): number[] {
+  const arr = frames as string[] & { __cbUVs?: { key: string; uv: number[] } };
+  const hit = arr.__cbUVs;
+  if (hit && hit.key === key) return hit.uv;
+  const { frameX, rows } = atlasMeta(key);
+  const uv = new Array<number>(frames.length * 2);
+  for (let i = 0; i < frames.length; i++) {
+    const col = frameX.get(frames[i]) ?? 0;
+    uv[i * 2] = (col % ATLAS_COLS) / ATLAS_COLS;
+    uv[i * 2 + 1] = 1 - Math.floor(col / ATLAS_COLS) / rows;
   }
-  let uv = frameUVCache.get(frame);
-  if (uv === undefined) {
-    const { frameX, rows } = atlasMeta(key);
-    const col = frameX.get(frame) ?? 0;
-    const row = Math.floor(col / ATLAS_COLS);
-    uv = [(col % ATLAS_COLS) / ATLAS_COLS, 1 - row / rows];
-    frameUVCache.set(frame, uv);
-  }
+  arr.__cbUVs = { key, uv };
   return uv;
 }
 
@@ -434,10 +433,17 @@ export function syncToPoints(
     // 无帧表 → (0,0)（着色器走圆点分支时忽略；图集未加载时 uHasAtlas=0 同样忽略）
     const frames = vs.frames;
     if (frames && frames.length > 0) {
-      const idx = frames.length > 1 ? ageFrame(p.age, p.lifetime, frames.length) : 0;
-      const [u, v] = frameUV(frames[idx], atlasKey);
-      uv[i * 2] = u;
-      uv[i * 2 + 1] = v;
+      const iu = i * 2;
+      if (frames.length > 1) {
+        const idx = ageFrame(p.age, p.lifetime, frames.length);
+        const uvs = frameUVsFor(frames, atlasKey);
+        uv[iu] = uvs[idx * 2];
+        uv[iu + 1] = uvs[idx * 2 + 1];
+      } else {
+        const uvs = frameUVsFor(frames, atlasKey);
+        uv[iu] = uvs[0];
+        uv[iu + 1] = uvs[1];
+      }
     } else {
       uv[i * 2] = 0;
       uv[i * 2 + 1] = 0;
