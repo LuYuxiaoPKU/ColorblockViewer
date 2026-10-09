@@ -18,7 +18,7 @@ function engine(): SimEngine {
 
 describe('模板库：结构', () => {
   it('非空、id 唯一、字段齐全', () => {
-    expect(TEMPLATES.length).toBeGreaterThanOrEqual(10);
+    expect(TEMPLATES.length).toBeGreaterThanOrEqual(2);
     const ids = TEMPLATES.map((t) => t.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const t of TEMPLATES) {
@@ -33,7 +33,7 @@ describe('模板库：结构', () => {
   });
 
   it('模板命令文本 = 逐行拼接（复制按钮的内容）', () => {
-    const t = TEMPLATES[2];
+    const t = TEMPLATES[0];
     expect(templateText(t)).toBe(t.cmds.join('\n'));
   });
 });

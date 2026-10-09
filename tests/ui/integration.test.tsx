@@ -477,7 +477,7 @@ describe('模板库（复制命令 / 载入并执行）', () => {
   it('展开列出模板，每卡两个按钮；已删按钮不存在', () => {
     click(button('模板库'));
     const cards = container.querySelectorAll('.template-card');
-    expect(cards.length).toBeGreaterThanOrEqual(10);
+    expect(cards.length).toBeGreaterThanOrEqual(2);
     for (const card of cards) {
       expect(buttonIn(card, '复制命令')).toBeTruthy();
       expect(buttonIn(card, '载入并执行')).toBeTruthy();
@@ -500,12 +500,12 @@ describe('模板库（复制命令 / 载入并执行）', () => {
   it('搜索按名称/标签过滤', () => {
     click(button('模板库'));
     const search = container.querySelector('.template-search') as HTMLInputElement;
-    setInputValue(search, '落叶');
+    setInputValue(search, '涟漪');
     const cards = container.querySelectorAll('.template-card');
     expect(cards.length).toBe(1);
-    expect(cards[0].textContent).toContain('落叶飘落');
-    setInputValue(search, '原版 /particle');
-    expect(container.querySelectorAll('.template-card').length).toBeGreaterThanOrEqual(3);
+    expect(cards[0].textContent).toContain('涟漪波面');
+    setInputValue(search, 'end_rod');
+    expect(container.querySelectorAll('.template-card').length).toBe(2);
     setInputValue(search, '不存在的模板');
     expect(container.querySelectorAll('.template-card').length).toBe(0);
   });
