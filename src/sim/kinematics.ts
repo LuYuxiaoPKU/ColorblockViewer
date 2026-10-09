@@ -398,11 +398,12 @@ export interface NativeKinematics {
   };
 }
 
-export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>> = {
-  '1.21.11': {
-    end_rod: { friction: 0.9100000262260437, gravityY: -0.0005000000074505806 },
-  },
-  '26.2': {
+// 版本分区：26.2 分区证据来自 26.2 字节码；'1.21.11' 分区 2026-09-25 起逐类型
+// 核对混淆版 client.jar（115 注册表类型全覆盖，映射见 docs/evidence/
+// name_particle_map_1.21.11.json）确认与 26.2 完全一致 → 两版本共享同一张表
+// （2026-10-10 起；若将来 26.2 新增类型，须先在 1.21.11 注册表确认存在再决定
+// 是否继续共享）。
+const KINEMATICS_26_2: Record<string, NativeKinematics> = {
     // 常量来源（26.2 javap）：
     //  friction 字段 putfield 值 / gravity 字段 putfield 值 / 自管 tick 常量。
     //  friction/gravityY = f2d 加宽后的精确 double（见文件头约定）；
@@ -629,7 +630,11 @@ export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>>
     enchant: { motion: 'fly_towards', friction: 1, gravityY: 0 },
     nautilus: { motion: 'fly_towards', friction: 1, gravityY: 0 },
     vault_connection: { motion: 'fly_towards', friction: 1, gravityY: 0 },
-  },
+};
+
+export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>> = {
+  '1.21.11': KINEMATICS_26_2,
+  '26.2': KINEMATICS_26_2,
 };
 
 // ---------- 寿命公式（构造器字节码逐式复刻；F = 下一个 nextFloat，I(n) = 下一个 nextInt(n)）----------
@@ -727,11 +732,9 @@ const L = {
     Math.trunc(Math.max(Math.fround(Math.fround(Math.trunc(32.0 / (r.nextFloat() * 0.8 + 0.2))) * Math.fround(0.9)), 1.0)),
 };
 
-export const NATIVE_LIFETIME: Record<string, Record<string, NativeLifetimeFormula>> = {
-  '1.21.11': {
-    end_rod: L.int(60, 12),
-  },
-  '26.2': {
+// 寿命公式版本分区：同 NATIVE_KINEMATICS——1.21.11 与 26.2 逐类型核对一致，
+// 共享同一张表（2026-10-10 起）。
+const LIFETIME_26_2: Record<string, NativeLifetimeFormula> = {
     end_rod: L.int(60, 12), // EndRod：60 + I(12)
     totem_of_undying: L.int(60, 12), // Totem：60 + I(12)（后缀 I(4)+颜色 F 不消费）
     crit: L.crit,
@@ -848,7 +851,11 @@ export const NATIVE_LIFETIME: Record<string, Record<string, NativeLifetimeFormul
     enchant: L.flyTo(30, 10), // FlyTowardsPosition：30 + f2i(F·10.0f)
     nautilus: L.flyTo(30, 10),
     vault_connection: L.flyTo(30, 10),
-  },
+};
+
+export const NATIVE_LIFETIME: Record<string, Record<string, NativeLifetimeFormula>> = {
+  '1.21.11': LIFETIME_26_2,
+  '26.2': LIFETIME_26_2,
 };
 
 /** 粒子名归一化：小写 + 去 `minecraft:` 命名空间前缀。 */

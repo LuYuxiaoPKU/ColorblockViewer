@@ -110,7 +110,7 @@ describe('estimateDuration', () => {
 });
 
 describe('引擎 lastGenerators（App 剩余生成期预估的数据源）', () => {
-  const cfg = { playerPos: { x: 0, y: 0, z: 0 }, defaultLifetime: 20, maxParticles: 100000, seed: 1, mcVersion: '26.2' as const, gridSize: 10, gridVisible: true, nativeKinematics: true, renderMode: 'full' as const };
+  const cfg = { playerPos: { x: 0, y: 0, z: 0 }, defaultLifetime: 20, maxParticles: 100000, seed: 1, mcVersion: '26.2' as const, gridSize: 10, gridVisible: true, nativeKinematics: true, renderMode: 'full' as const, reference: 'none' as const };
 
   it('tickpolarparameter 执行：注册生成器 t/end/step/cpt 快照', () => {
     const e = new SimEngine({ ...cfg });

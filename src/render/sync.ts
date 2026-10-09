@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { createScene, type SceneBundle } from './scene';
 import { createPointsLayer, setPointsLayerAtlasKey, syncToPoints, type PointsLayer } from './points';
+import type { ReferenceType } from './reference';
 
 /** 渲染层读的最小引擎视图（解耦 render ↔ sim：SimEngine 结构子集）。 */
 export interface SnapshotSource {

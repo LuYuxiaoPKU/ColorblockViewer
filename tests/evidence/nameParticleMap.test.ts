@@ -319,14 +319,14 @@ describe('1.21.11 类型→混淆粒子类映射（取证文件完整性）', ()
     expect(map.verifiedAgainst262).toHaveLength(115);
   });
 
-  it('交叉一致：kinematics 表 1.21.11 分区只含 end_rod（115 类型与 26.2 逐字节码一致 → 差异优先口径；end_rod 唯一表项为引擎 motion 自管口径，非版本差异）', () => {
-    expect(Object.keys(NATIVE_KINEMATICS['1.21.11'])).toEqual(['end_rod']);
-    expect(Object.keys(NATIVE_LIFETIME['1.21.11'])).toEqual(['end_rod']);
-    // 已核对一致的类型分两类：109 个在 26.2 分区有表项（常量一致、表内不重复）；
+  it('交叉一致：kinematics 表 1.21.11 分区与 26.2 共享（115 类型与 26.2 逐字节码一致，2026-10-10 起两版本共享同一张表；end_rod 表项为引擎 motion 自管口径，非版本差异）', () => {
+    // 共享表：1.21.11 分区与 26.2 分区是同一对象（防分叉守护）
+    expect(NATIVE_KINEMATICS['1.21.11']).toBe(NATIVE_KINEMATICS['26.2']);
+    expect(NATIVE_LIFETIME['1.21.11']).toBe(NATIVE_LIFETIME['26.2']);
+    // 已核对一致的类型分两类：109 个在 26.2 分区有表项（共享后 1.21.11 同有）；
     // current_down/explosion_emitter/gust_emitter_* /firefly 在 26.2 分区亦无表项
     // （世界状态/发射器近似，两版本同一口径）；trail 是引擎元例外（p.trailTarget
-    // 分支，两版本均不在表内）；end_rod 是 1.21.11 分区唯一表项（26.2 分区同有，
-    // 常量 0.91f/0.0125f 两侧同源）
+    // 分支，两版本均不在表内）；end_rod 唯一表项（常量 0.91f/0.0125f 两侧同源）
     for (const n of map.verifiedAgainst262) {
       if (n === 'end_rod') {
         expect(NATIVE_KINEMATICS['1.21.11']['end_rod']).toStrictEqual({
@@ -335,7 +335,8 @@ describe('1.21.11 类型→混淆粒子类映射（取证文件完整性）', ()
         });
         continue;
       }
-      expect(NATIVE_KINEMATICS['1.21.11'][n], n).toBeUndefined();
+      // 共享表后 1.21.11 与 26.2 值同源（toBeUndefined 旧口径：差异优先不新增表项，已废）
+      expect(NATIVE_KINEMATICS['1.21.11'][n], n).toBe(NATIVE_KINEMATICS['26.2'][n]);
       if (
         !['current_down', 'explosion_emitter', 'gust_emitter_large', 'gust_emitter_small', 'firefly', 'trail'].includes(n)
       ) {
