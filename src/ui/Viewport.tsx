@@ -100,10 +100,10 @@ export function Viewport({
         <button className={playing ? 'active' : 'primary'} onClick={onTogglePlay}>
           {playing ? '⏸ 暂停' : '▶ 播放'}
         </button>
-        <button className="small" onClick={onPrev} disabled={disabled || playback.tick <= playback.oldestTick} aria-label="上一帧" title="上一帧（回到时间线上一帧）">
+        <button className="small" onClick={onPrev} disabled={disabled || playback.tick <= playback.oldestTick} aria-label="上一帧" title="上一帧">
           ◀
         </button>
-        <button className="small" onClick={onNext} disabled={disabled || (playback.tick >= endTick && playback.tick >= hud.tick)} aria-label="下一帧" title="下一帧（时间线上向前一帧）">
+        <button className="small" onClick={onNext} disabled={disabled || (playback.tick >= endTick && playback.tick >= hud.tick)} aria-label="下一帧" title="下一帧">
           ▶
         </button>
         <div
@@ -114,7 +114,7 @@ export function Viewport({
           aria-valuemin={0}
           aria-valuemax={maxTick}
           aria-valuenow={Math.min(playback.tick, maxTick)}
-          title={disabled ? '播放后出现可回看的时间线' : '拖动回看播放历史'}
+          title={disabled ? '播放后生成可回看时间线' : '拖动回看播放历史'}
           onPointerDown={(e) => {
             if (disabled) return;
             dragging.current = true;
@@ -135,7 +135,7 @@ export function Viewport({
           <div className="tl-fill" style={{ width: `${frac * 100}%` }} />
           <div className="tl-handle" style={{ left: `${frac * 100}%` }} />
         </div>
-        <button className="small" onClick={onReset} aria-label="重置" title="重置：清粒子并重新执行命令">
+        <button className="small" onClick={onReset} aria-label="重置" title="重置并重新执行命令">
           ↺
         </button>
         <select

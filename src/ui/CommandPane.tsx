@@ -43,19 +43,19 @@ export function CommandPane({
     <div className="command-pane">
       <section className="pane-section">
         <div className="pane-section-head">
-          <span>命令（多行，每行一条）</span>
+          <span>命令（每行一条）</span>
           <span className="head-btns">
             <button
               className="small"
               onClick={onPlayFresh}
-              title="重置 + 执行 + 开始播放：粘贴好命令后一键开播（不叠加旧粒子）"
+              title="一键重置并播放（不叠加旧粒子）"
             >
               ▶ 播放
             </button>
             <button
               className="primary small"
               onClick={onRun}
-              title="按当前命令生成粒子（不重置；画布左上角可播放/进度条回看/上下帧）"
+              title="仅生成粒子（不重置；播放/回看走左上角）"
             >
               加入播放器
             </button>
@@ -68,7 +68,7 @@ export function CommandPane({
           <button
             className="small"
             onClick={clearAll}
-            title="清空命令输入框，并清掉画面上正在显示的粒子"
+            title="清空输入框与画面粒子"
           >
             🗑 一键清空
           </button>

@@ -95,14 +95,14 @@ export function TemplateGallery({
                 <button
                   className="small"
                   onClick={() => copyText(templateText(t), `模板「${t.name}」命令已复制到剪贴板`)}
-                  title="复制游戏内可用的命令文本（含表达式引号）"
+                  title="复制命令文本（含表达式引号）"
                 >
                   📋 复制命令
                 </button>
                 <button
                   className="small primary"
                   onClick={() => loadTemplateFresh(t, onRunFresh)}
-                  title="清空现有命令与粒子，再载入该模板并执行"
+                  title="清空命令与粒子后载入执行"
                 >
                   载入并执行
                 </button>

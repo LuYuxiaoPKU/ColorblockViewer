@@ -27,7 +27,7 @@ export function SettingsDrawer() {
           </div>
           <div className="field-row">
             <span className="field-row-label">
-              默认寿命 <em className="muted">（近似值：MC 中因粒子类型而异，age=0 时生效）</em>
+              默认寿命 <em className="muted">（近似值：因粒子类型而异，仅 age=0 时生效）</em>
             </span>
             <NumField label="tick" value={sim.defaultLifetime} min={1} integer onChange={(v) => setSim({ defaultLifetime: v })} />
           </div>
@@ -38,7 +38,7 @@ export function SettingsDrawer() {
                 checked={sim.nativeKinematics}
                 onChange={(e) => setSim({ nativeKinematics: e.target.checked })}
               />
-              原版运动学 <em className="muted">（摩擦/重力/淡出/随机寿命，按类型的反编译证据取值；1.21.11 分区仅 end_rod 入表）</em>
+              原版运动学 <em className="muted">（摩擦/重力/淡出/随机寿命，按反编译证据取值；1.21.11 仅 end_rod）</em>
             </label>
           </div>
           <div className="field-row">
@@ -51,7 +51,7 @@ export function SettingsDrawer() {
           </div>
           <div className="field-row">
             <span className="field-row-label">
-              游戏版本 <em className="muted">（原版 /particle 的粒子贴图与类型表按它分区）</em>
+              游戏版本 <em className="muted">（粒子贴图与类型表按它分区）</em>
             </span>
             <select
               value={sim.mcVersion}
@@ -64,7 +64,7 @@ export function SettingsDrawer() {
           </div>
           <div className="field-row">
             <span className="field-row-label">
-              渲染模式 <em className="muted">（完整 = WebGL + 真实粒子贴图/帧动画；快速 = Canvas 2D 圆点，不加载 three、无 WebGL，仿真照常运行）</em>
+              渲染模式 <em className="muted">（完整 = WebGL + 真实贴图/帧动画；快速 = Canvas 2D 圆点，仿真照常）</em>
             </span>
             <select
               value={sim.renderMode}
