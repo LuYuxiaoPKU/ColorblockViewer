@@ -499,8 +499,28 @@ export function syncToPoints(
       }
       color[i4 + 3] = p.a * tw.alpha * alphaMul;
       size[i] = BASE_SIZE * tw.size * sizeMul * (p.sizeMul ?? 1);
+    } else if (!(p.vanilla && !p.nbtTint) && !(p.colorFrom && p.colorTo)) {
+      // 多帧常规（非 vanilla 白起点、无 colorFrom 插值、无 colorShift——第一
+      // 分支已拦走 cs 多帧）内联：通用体 multi 分支的白起点/插值/colorShift
+      // 全 miss → 颜色 = 出生色 + ageFade（内联）+ hue。门控与通用体判定链
+      // 逐条件同；覆盖模组命令生成的绝大多数多帧类型（smoke/poof/portal 等）。
+      const tw = vs.tweak;
+      const lt = p.lifetime;
+      const fade = lt <= 0 || p.age <= lt / 2 ? 1 : 1 - (p.age - lt / 2) / lt;
+      const i4 = i * 4;
+      const hue = tw.hue;
+      if (hue !== 0) {
+        shiftHueInto(p.r, p.g, p.b, hue, color, i4);
+      } else {
+        color[i4] = p.r;
+        color[i4 + 1] = p.g;
+        color[i4 + 2] = p.b;
+      }
+      color[i4 + 3] = p.a * fade * tw.alpha * alphaMul;
+      size[i] = BASE_SIZE * tw.size * sizeMul * (p.sizeMul ?? 1);
     } else {
-      // 有帧非 colorShift（单帧/多帧通用体）：out 直写，返回 radius
+      // 有帧非 colorShift（vanilla 白起点 / colorFrom 插值 / 单帧 multi 例外）
+      // 通用体：out 直写，返回 radius
       size[i] = particleVisualWithSpecOut(p, 1, sizeMul, alphaMul, vs, color, i * 4);
     }
     // 帧 UV：有帧表的类型取帧格左上角（多帧按寿命进度 ageFrame；单帧恒第 0 帧）；
