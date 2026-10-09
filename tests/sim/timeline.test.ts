@@ -242,7 +242,7 @@ describe('Timeline', () => {
 // 渲染端帧动画/FADE08 颜色/淡出均由 p.age 驱动，age 对齐 = 动画回溯）。
 describe('seek 帧字段对齐（引擎级）', () => {
   it('seek 后池内真粒子 age/x/v 等于目标帧拷贝值', () => {
-    const e = new SimEngine({ maxParticles: 1000, seed: 7, playerPos: { x: 0, y: 0, z: 0 } });
+    const e = new SimEngine({ playerPos: { x: 0, y: 0, z: 0 }, defaultLifetime: 20, maxParticles: 1000, seed: 7, mcVersion: '26.2', gridSize: 10, gridVisible: true, nativeKinematics: true, renderMode: 'full', reference: 'none' });
     e.runCommand(parseCommand('particleex normal minecraft:end_rod 0 64 0 1 1 1 1 1 1 1 0 0 0 3'));
     const tl = new Timeline(1000);
     for (let i = 0; i < 50; i++) {

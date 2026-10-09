@@ -718,7 +718,7 @@ export class SimEngine {
     }
     // mcVersion 不参与引擎语义（贴图/类型表在渲染层与表单按它分区），只保持 config 一致
     if (patch.mcVersion !== undefined) this.config.mcVersion = patch.mcVersion;
-    // nativeKinematics 开关：表内类型（sim/kinematics.ts，26.2 约 50 个，逐类型字节码证据）
+    // nativeKinematics 开关：表内类型（sim/kinematics.ts，26.2 一百余个，逐类型字节码证据）
     // 套用原版摩擦/重力/运动/随机寿命；表外类型保持模组匀速直线
     if (patch.nativeKinematics !== undefined) this.config.nativeKinematics = patch.nativeKinematics;
   }

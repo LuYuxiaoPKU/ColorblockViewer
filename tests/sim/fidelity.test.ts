@@ -4,7 +4,7 @@
 // ❌ = 不在该版本注册表。规则与 docs/技术路线.md §10 证据边界一致。
 
 import { describe, it, expect } from 'vitest';
-import { fidelityFor } from '../../src/sim/kinematics';
+import { fidelityFor, NATIVE_KINEMATICS, NATIVE_LIFETIME } from '../../src/sim/kinematics';
 import { PARTICLE_DATA } from '../../src/render/particleData';
 
 const TYPES_262 = PARTICLE_DATA['26.2'].types;
@@ -75,10 +75,18 @@ describe('fidelityFor（26.2）', () => {
     expect(fidelityFor('ambient_entity_effect', '26.2', TYPES_262)).toBe('approx');
   });
 
-  it('版本分区：1.21.11 仅 end_rod 是 full（2026-09-25 已逐类型核对 115 类型全覆盖：13 个非默认运动学类型与 26.2 一致 → 差异优先口径不新增表项，见 docs/evidence/name_particle_map_1.21.11.json）', () => {
+  it('版本分区：1.21.11 与 26.2 共享运动学/寿命表（2026-09-25 起逐类型核对 115 类型全覆盖、13 个非默认运动学类型与 26.2 一致，2026-10-10 起表镜像，见 docs/evidence/name_particle_map_1.21.11.json）', () => {
     expect(fidelityFor('end_rod', '1.21.11', TYPES_12111)).toBe('full');
-    // 26.2 表内的 totem_of_undying 在 1.21.11 分区无表项 → approx
-    expect(fidelityFor('totem_of_undying', '1.21.11', TYPES_12111)).toBe('approx');
+    // 共享表后 26.2 表内类型在 1.21.11 同为 full（不再 approx）
+    expect(fidelityFor('totem_of_undying', '1.21.11', TYPES_12111)).toBe('full');
+    expect(fidelityFor('dust', '1.21.11', TYPES_12111)).toBe('full');
+  });
+
+  it('两版本表引用相同（共享表防分叉守护）', () => {
+    const k = NATIVE_KINEMATICS['26.2'];
+    expect(NATIVE_KINEMATICS['1.21.11']).toBe(k);
+    const l = NATIVE_LIFETIME['26.2'];
+    expect(NATIVE_LIFETIME['1.21.11']).toBe(l);
   });
 
   it('types 缺省（空）时跳过注册表检查，不产生 unknown', () => {
