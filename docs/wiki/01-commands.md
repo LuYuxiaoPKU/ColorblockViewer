@@ -83,6 +83,41 @@ particleex clearparticle
 
 清掉全部已生成粒子（含组），无需参数。
 
+## image / video — 图片打印与逐帧视频（模组扩展）
+
+```
+particleex image <粒子名> <x y z> <路径> [scaling=0.1] [xRotate] [yRotate] [zRotate] [flip] [dpb=10] [speed x y z] [age] [speedExpression] [speedStep] [group]
+particleex video <粒子名> <x y z> <路径> [scaling] [xRotate] [yRotate] [zRotate] [flip] [dpb] [speed x y z] [age] [speedExpression] [speedStep] [group]
+```
+
+- 图片放模组同级 `particleImages/` 目录；预览暂无图片资源 → 报
+  `invalid image path: <路径>`（与游戏内一致）
+- `rotate` 三槽只接受 **90 的倍数**（0/90/180/270，模组 RotateArgument；
+  NBS 生成端曾因填任意角度上线 4 天未生效）
+- `flip` 枚举词：`not` / `horizontally` / `vertical`（数字被拒）
+- `speed` 三槽逐槽可 `null`（全 `null` = 静止）；`dpb` = 每张图片持续 tick
+- 路径含 `/` 等特殊字符时游戏内须单引号包裹（见 02-expressions 引号规则）
+
+## imageMatrix / videoMatrix — 矩阵变换版
+
+```
+particleex imagematrix <粒子名> <x y z> <路径> [scaling] <matrix> [dpb] [speed x y z] [age] [speedExpression] [speedStep] [group]
+particleex videomatrix …（字段序相同）
+```
+
+- `<matrix>`：`E3` / `E4` 快捷名，或括号 16 值字面量（如
+  `(1,0,0,0,,0,1,0,0,,0,0,1,-100,,0,0,0,1)`，行列以 `,` + 空行分隔）
+- 命令词全小写（`imagematrix` / `videomatrix`）
+
+## clearcache / functionlist — 工具命令
+
+```
+particleex clearcache
+particleex functionlist
+```
+
+`clearcache` 清图片缓存；`functionlist` 列出注册函数——预览端均无实际副作用。
+
 ## 原版 /particle
 
 ```

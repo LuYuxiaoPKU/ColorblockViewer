@@ -79,6 +79,15 @@ particle minecraft:dust{color:[1,0.3,0.2],scale:1} 0 64 0 0 0 0 1 1
 
 ## 更多
 
-- 图片打印（`image` 子命令）与逐帧视频（`video` 子命令）：老版本
-  ≤1.16.5 的社区用法（图片放 mod 同级 particleImages/、flip 取值
-  not/horizontally/vertically），新版本字段序确认中，确认后补本节
+- **图片打印（image）**：字段序已按模组确认（2026-10-10），真实歌词逐帧命令：
+
+```
+particleex image minecraft:end_rod 11 8 0 lyric/s0000_l0.png 0.03125 0 90 0 not 10 0 0 0 16 null 1 null
+```
+
+  - NBS2schematic 生成端实锤；`rotate` 只认 90 倍数、`flip` 枚举
+    not/horizontally/vertical；`speed` 三槽逐槽可 null
+  - 逐帧视频用 `video`（字段序相同）；矩阵变换用 `imagematrix`/`videomatrix`
+  - 路径含 `/` 时游戏内须单引号包裹；预览无图片资源 → 与游戏一致报
+    `invalid image path: <路径>`
+- **呼吸缩放（社区最高频）**：见上方「呼吸缩放」节；`i=0.1*sin(t/5)` 系社区模板库来源。
