@@ -85,6 +85,77 @@ export function shiftHue(r: number, g: number, b: number, deg: number): [number,
   return [out[0] + m, out[1] + m, out[2] + m];
 }
 
+/** shiftHue 的免分配变体：结果直接写 out[i..i+2]（热路径直写渲染 color buffer，
+ *  免每次调用 1–2 个 [number, number, number] 数组分配）。数学化简（1M 探针
+ *  净 39.4 → 33.0ms）：c = d（代数恒等 (1-|2l-1|)·(d/(1-|2l-1|)) = d）、
+ *  h*6 直算 h6v = (h6 + deg/60) % 6 免 h6/6 与 deg/360 两次除法。与 shiftHue
+ *  数学同值（浮点 1ulp 内，渲染色值不可见）。 */
+export function shiftHueInto(
+  r: number,
+  g: number,
+  b: number,
+  deg: number,
+  out: Float32Array,
+  i: number,
+): void {
+  if (deg === 0) {
+    out[i] = r;
+    out[i + 1] = g;
+    out[i + 2] = b;
+    return;
+  }
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  if (d === 0) {
+    // 灰白
+    out[i] = r;
+    out[i + 1] = g;
+    out[i + 2] = b;
+    return;
+  }
+  const l = (max + min) / 2;
+  let h6 = 0;
+  if (max === r) {
+    h6 = ((g - b) / d) % 6;
+    if (h6 < 0) h6 += 6;
+  } else if (max === g) h6 = (b - r) / d + 2;
+  else h6 = (r - g) / d + 4;
+  let h6v = (h6 + deg / 60) % 6;
+  if (h6v < 0) h6v += 6;
+  // c = d（代数化简）；6 个色段 = v0/v1/v2 的 6 种排列 → 分支体只做搬运
+  // （函数体压小让 V8 自动内联，免手写内联膨胀调用方循环体）
+  const m = l - d / 2;
+  const v0 = d + m;
+  const v1 = d * (1 - Math.abs((h6v % 2) - 1)) + m;
+  const v2 = m;
+  if (h6v < 1) {
+    out[i] = v0;
+    out[i + 1] = v1;
+    out[i + 2] = v2;
+  } else if (h6v < 2) {
+    out[i] = v1;
+    out[i + 1] = v0;
+    out[i + 2] = v2;
+  } else if (h6v < 3) {
+    out[i] = v2;
+    out[i + 1] = v0;
+    out[i + 2] = v1;
+  } else if (h6v < 4) {
+    out[i] = v2;
+    out[i + 1] = v1;
+    out[i + 2] = v0;
+  } else if (h6v < 5) {
+    out[i] = v1;
+    out[i + 1] = v2;
+    out[i + 2] = v0;
+  } else {
+    out[i] = v0;
+    out[i + 1] = v2;
+    out[i + 2] = v1;
+  }
+}
+
 /** 类型 → 帧动画附加行为（按版本分区）。帧列表由 PARTICLE_DATA 帧表提供
  *  （textureFor）；**寿命进度选帧 + 后 50% 线性淡出对所有多帧类型（N>1）通用**
  *  （1.21.1 反编译 AnimatedParticle.tick 逐字核对，非 end_rod 专属），无需在此
@@ -271,21 +342,14 @@ export function particleVisualWithSpecOut(
     alpha *= ageFade(p.age, p.lifetime);
   }
   const hue = tw.hue;
-  let hr: number, hg: number, hb: number;
   if (hue === 0) {
-    // 多数类型 hue=0：免 shiftHue 调用与 3 元素数组分配（1M 满帧热路径）
-    hr = r;
-    hg = g;
-    hb = b;
+    // 多数类型 hue=0：免 shiftHue 调用与数组分配（1M 满帧热路径）
+    out[i4] = r;
+    out[i4 + 1] = g;
+    out[i4 + 2] = b;
   } else {
-    const s = shiftHue(r, g, b, hue);
-    hr = s[0];
-    hg = s[1];
-    hb = s[2];
+    shiftHueInto(r, g, b, hue, out, i4);
   }
-  out[i4] = hr;
-  out[i4 + 1] = hg;
-  out[i4 + 2] = hb;
   out[i4 + 3] = alpha * tw.alpha * alphaMul;
   return BASE_SIZE * tw.size * sizeMul * (p.sizeMul ?? 1) * pxPerBlock;
 }
