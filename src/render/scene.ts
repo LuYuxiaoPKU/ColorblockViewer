@@ -101,10 +101,38 @@ export function createScene(container: HTMLElement): SceneBundle {
     });
     refGroup = null;
   };
+  const DEFAULT_CAM_POS = new THREE.Vector3(3, 2, 4);
+  const DEFAULT_CAM_TARGET = new THREE.Vector3(0, 1, 0);
+
+  /** 参照物入镜：相机沿当前视线方向拉远到覆盖包围盒（哨塔 21 格高，默认视角在塔内） */
+  const fitCameraTo = (group: THREE.Group): void => {
+    const b = new THREE.Box3().setFromObject(group);
+    const size = b.getSize(new THREE.Vector3());
+    const center = b.getCenter(new THREE.Vector3());
+    if (size.lengthSq() === 0) return;
+    const dir = camera.position.clone().sub(center);
+    if (dir.lengthSq() < 1e-6) dir.set(1, 0.6, 1);
+    dir.normalize();
+    const dist = (size.length() / Math.sqrt(3)) * 2.4 + 2; // 对角线半径 ×2.4 + 留白
+    camera.position.copy(center).addScaledVector(dir, dist);
+    camera.lookAt(center);
+    controls.target.copy(center);
+    controls.update();
+  };
+
+  const resetCamera = (): void => {
+    camera.position.copy(DEFAULT_CAM_POS);
+    controls.target.copy(DEFAULT_CAM_TARGET);
+    controls.update();
+  };
+
   const setReference = (type: ReferenceType): void => {
     const epoch = ++refEpoch;
     disposeRefGroup();
-    if (type === 'none') return;
+    if (type === 'none') {
+      resetCamera();
+      return;
+    }
     // 贴图 + 结构数据异步就绪后构建（epoch 判废：快速切换参照物时旧加载结果弃置）
     void Promise.all([loadReferenceTextures(), loadTowerData()]).then(([tex, tower]) => {
       if (epoch !== refEpoch) return;
@@ -112,6 +140,7 @@ export function createScene(container: HTMLElement): SceneBundle {
       if (g) {
         scene.add(g);
         refGroup = g;
+        fitCameraTo(g);
       }
     });
   };
