@@ -4,7 +4,7 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { buildReference, ReferenceType } from './reference';
+import { buildReference, loadReferenceTextures, loadTowerData, ReferenceType } from './reference';
 
 export interface SceneBundle {
   renderer: THREE.WebGLRenderer;
@@ -88,23 +88,32 @@ export function createScene(container: HTMLElement): SceneBundle {
   };
 
   let refGroup: THREE.Group | null = null;
+  let refEpoch = 0;
+  const disposeRefGroup = (): void => {
+    if (!refGroup) return;
+    scene.remove(refGroup);
+    refGroup.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.isMesh) {
+        m.geometry.dispose();
+        (m.material as THREE.Material).dispose();
+      }
+    });
+    refGroup = null;
+  };
   const setReference = (type: ReferenceType): void => {
-    if (refGroup) {
-      scene.remove(refGroup);
-      refGroup.traverse((o) => {
-        const m = o as THREE.Mesh;
-        if (m.isMesh) {
-          m.geometry.dispose();
-          (m.material as THREE.Material).dispose();
-        }
-      });
-      refGroup = null;
-    }
-    const g = buildReference(type);
-    if (g) {
-      scene.add(g);
-      refGroup = g;
-    }
+    const epoch = ++refEpoch;
+    disposeRefGroup();
+    if (type === 'none') return;
+    // 贴图 + 结构数据异步就绪后构建（epoch 判废：快速切换参照物时旧加载结果弃置）
+    void Promise.all([loadReferenceTextures(), loadTowerData()]).then(([tex, tower]) => {
+      if (epoch !== refEpoch) return;
+      const g = buildReference(type, tex, tower);
+      if (g) {
+        scene.add(g);
+        refGroup = g;
+      }
+    });
   };
   setReference('none');
 
@@ -134,6 +143,7 @@ export function createScene(container: HTMLElement): SceneBundle {
           }
         });
       }
+      refGroup = null;
       renderer.dispose();
       if (renderer.domElement.parentElement === container) {
         container.removeChild(renderer.domElement);
