@@ -38,7 +38,7 @@ particleex conditional minecraft:end_rod 0 0 0 1 0.95 0.89 1 0 0 0 5 5 5
 `normal` 的「范围」是**高斯分布标准差**（无界）——粒子集中在中心、
 边缘稀疏且可能飘出范围几倍。想规则的方块/网格，必须用 conditional。
 
-## 涟漪波面（conditional 表达式筛选，预览模板一）
+## 涟漪波面（conditional 表达式筛选，预览模板一，清单见 [07-templates](07-templates.md)）
 
 ```
 particleex conditional minecraft:end_rod ~ ~ ~ 1 0.95 0.89 1 0 0 0 8 0.6 8
@@ -48,7 +48,7 @@ particleex conditional minecraft:end_rod ~ ~ ~ 1 0.95 0.89 1 0 0 0 8 0.6 8
 
 水面波形：条件筛出波面网格点，速度表达式让每个粒子沿法向波动、随 t 扩散。
 
-## 圆周环（polarparameter 环形速度，预览模板二）
+## 圆周环（polarparameter 环形速度，预览模板二，清单见 [07-templates](07-templates.md)）
 
 ```
 particleex polarparameter minecraft:end_rod ~ ~2 ~ 1 0.95 0.89 1 0 0 0 0 6.2832
