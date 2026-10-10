@@ -37,9 +37,12 @@ export function createScene(container: HTMLElement): SceneBundle {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0b0e14);
 
-  // 参照物材质用 Lambert → 需要灯光（点云自带 shader，不受影响）
-  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-  const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+  // 参照物材质用 Lambert → 需要灯光（点云自带 shader，不受影响）。
+  // 强度口径：原版 MC 实体接近均匀无阴影光照，且 26.2 新版 Steve 皮肤肤色
+  // 偏暗（R119G80B61）——方向光过强会把脸照成"黑脸"。环境光 0.8 + 方向光
+  // 0.3：最亮面 ≈1.1、脸正面 ≈0.96 → 肤色正常显示。
+  scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.3);
   dirLight.position.set(5, 10, 7);
   scene.add(dirLight);
 
