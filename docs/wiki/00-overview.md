@@ -37,7 +37,7 @@ https://luyuxiaopku.github.io/ColorblockViewer/
 
 ## 能力边界（Wiki 读者须知）
 
-预览引擎已实现：全部 13 个子命令 + 原版 /particle 解析；表达式引擎
+预览引擎已实现：全部 17 个模组子命令 + 原版 /particle 解析；表达式引擎
 （含矩阵、条件、随机）；`type{NBT}` 选项（8 类粒子选项）；26.2 运动学
 覆盖 100+ 类型（摩擦/重力/寿命与游戏逐字节码一致）。
 

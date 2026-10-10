@@ -20,9 +20,12 @@
 0–1 小数（如红色 `1 0 0 1`），不是 0–255。经典首错点（社区教程确认）。
 
 **Q：`particleex image ...` 用不了？**
-`image`（图片打印）在 ≤1.16.5 老版本存在（图放 mod 同级 `particleImages/`，
-flip 取 not/horizontally/vertically）；新版本命令树字段序确认中——
-如果预览报「未知子命令」，说明该版本已移除/改名（Wiki 确认后更新）。
+`image` 图片打印在新版本命令树同样存在（模组实锤：image/imagematrix/
+video/videomatrix 均注册），字段序已按模组确认（见 01-commands：rotate
+须 90 倍数、flip 枚举 not/horizontally/vertical、路径放 mod 同级
+`particleImages/`）。预览暂无图片资源 → 报 `invalid image path: <路径>`
+（与游戏内文件缺失一致，不是未知子命令）。`bg` 子命令**不存在**（模组
+命令树确认），模板里看到它说明是过期用法。
 
 ## 预览工具
 

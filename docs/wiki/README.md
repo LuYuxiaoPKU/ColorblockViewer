@@ -8,7 +8,7 @@
 ## 目录
 
 - [00-overview](00-overview.md) — 模组是什么、历史与命名、版本支持
-- [01-commands](01-commands.md) — 命令大全（13 个子命令逐条 + 参数表）
+- [01-commands](01-commands.md) — 命令大全（17 个子命令逐条 + 参数表）
 - [02-expressions](02-expressions.md) — 表达式系统（语法/变量/函数/矩阵）
 - [03-nbt](03-nbt.md) — `type{NBT}` 选项语法与陷阱
 - [04-particles](04-particles.md) — 粒子类型清单与版本分区
