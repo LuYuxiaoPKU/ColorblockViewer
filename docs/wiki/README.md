@@ -14,6 +14,7 @@
 - [04-particles](04-particles.md) — 粒子类型清单与版本分区
 - [05-examples](05-examples.md) — 实战示例（全部引擎实测）
 - [06-faq](06-faq.md) — 常见问题
+- [07-templates](07-templates.md) — 预览模板库（权威清单，与代码逐字对齐）
 
 > 术语口径：**原版模组** = ColorBlock（MCBBS 版本，CC0 协议，原帖已失）；
 > **社区版** = AnotherColorBlock（内部名 ParticleEx）；**预览工具** =
