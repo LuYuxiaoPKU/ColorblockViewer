@@ -11,6 +11,7 @@ import {
   buildTower,
   REFERENCE_LABELS,
   REFERENCE_TYPES,
+  SKIN_BODY,
   TEXTURE_FILES,
   type ReferenceType,
   type TowerData,
@@ -71,6 +72,18 @@ describe('buildReference 参照物组装（无纹理降级路径）', () => {
     expect(b.spanX).toBeLessThan(1.1);
   });
 
+  it('steve 躯干皮肤分区防拉伸：east/west 为 4px 侧区（深×高）、south/north 为 8px 正/背区（宽×高）——曾用 8px 区贴 4px 面致横向 2 倍压缩', () => {
+    for (const f of [0, 1]) {
+      expect(SKIN_BODY[f][2] - SKIN_BODY[f][0], `面 ${f}（east/west）宽`).toBe(4);
+    }
+    for (const f of [4, 5]) {
+      expect(SKIN_BODY[f][2] - SKIN_BODY[f][0], `面 ${f}（south/north）宽`).toBe(8);
+    }
+    for (const f of [0, 1, 4, 5]) {
+      expect(SKIN_BODY[f][3] - SKIN_BODY[f][1], `面 ${f} 高`).toBe(12);
+    }
+  });
+
   it('command_block：1 个 1 格方块，脚底 y=0、顶 y=1', () => {
     const g = buildReference('command_block')!;
     expect(meshCount(g)).toBe(1);
@@ -89,16 +102,17 @@ describe('buildReference 参照物组装（无纹理降级路径）', () => {
     expect(mat.map!.offset.y).toBeCloseTo(0.75, 6);
   });
 
-  it('oak_tree 树叶材质 alphaTest=0.5（原版 CUTOUT 剪切，非半透明混合）', () => {
+  it('oak_tree 树叶材质：alphaTest=0.5（原版 CUTOUT 剪切）+ foliage 染色 0x619961（jar 贴图为灰度剪影，原版按生物群系 tint——Lambert color×map）', () => {
     const g = buildReference('oak_tree', fakeTex())!;
-    const leaves = ((g.children[1] as THREE.Mesh).material as THREE.Material[])[0] as THREE.MeshLambertMaterial;
+    const leaves = ((g.children[5] as THREE.Mesh).material as THREE.Material[])[0] as THREE.MeshLambertMaterial;
     expect(leaves.alphaTest).toBeCloseTo(0.5, 6);
     expect(leaves.transparent).toBe(false);
+    expect(leaves.color.getHex()).toBe(0x619961);
   });
 
-  it('oak_tree：树干 1 + 树叶 55（球冠 3 层：下层去四角 21、中层 25、顶层 9），总高 8 格、冠宽 4', () => {
+  it('oak_tree：树干 5 块（1:1 原版逐方块，非单个拉伸 Box）+ 树叶 55（球冠 3 层：下层去四角 21、中层 25、顶层 9），总高 8 格、冠宽 4', () => {
     const g = buildReference('oak_tree')!;
-    expect(meshCount(g)).toBe(56);
+    expect(meshCount(g)).toBe(60);
     const b = boxOf(g);
     expect(b.minY).toBeCloseTo(0, 6);
     expect(b.maxY).toBeCloseTo(7.5, 6); // 树冠顶 7.5（原版橡树 5–7 格）
