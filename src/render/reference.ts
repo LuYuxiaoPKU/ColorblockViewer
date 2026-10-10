@@ -136,35 +136,19 @@ type Tex = Record<string, THREE.Texture | null> | null;
 const fallbackFor = (key: string): THREE.MeshLambertMaterial =>
   new THREE.MeshLambertMaterial({ color: FALLBACK_COLORS[key] ?? 0x777777 });
 
-/** 方块材质：贴图可用 → 贴图材质（树叶/火把透明）；否则降级纯色。 */
-function blockMat(tex: Tex, file: string, fallback: string, transparent = false): THREE.MeshLambertMaterial {
+/** 树叶/火把等透贴图：用 alphaTest 剪切（原版 MC 即 CUTOUT 渲染）——避免半透明混合的
+ *  深度排序穿帮（树冠内部互相穿插时暗部透出、观感发灰发白，曾致误认为 pale oak）。 */
+function blockMat(tex: Tex, file: string, fallback: string, cutout = false): THREE.MeshLambertMaterial {
   const map = tex && tex[file];
   return map
-    ? new THREE.MeshLambertMaterial({ map, transparent })
+    ? new THREE.MeshLambertMaterial({ map, ...(cutout ? { alphaTest: 0.5 } : {}) })
     : fallbackFor(fallback);
 }
 
-/** 六个同材质面 */
-function mats6(tex: Tex, file: string, fallback: string, transparent = false): THREE.MeshLambertMaterial[] {
-  const m = blockMat(tex, file, fallback, transparent);
+/** 六个同材质面（cutout = alphaTest 贴图剪切） */
+function mats6(tex: Tex, file: string, fallback: string, cutout = false): THREE.MeshLambertMaterial[] {
+  const m = blockMat(tex, file, fallback, cutout);
   return [m, m, m, m, m, m];
-}
-
-/** 六面材质（BoxGeometry 面序 0..5 = +x east, -x west, +y top, -y bottom, +z south, -z north；
- *  top/bottom 用 side 贴图，同原版 cube_directional） */
-function mats6Map(
-  tex: Tex,
-  files: { front: string; back: string; side: string },
-  fallback: string,
-): THREE.MeshLambertMaterial[] {
-  return [
-    blockMat(tex, files.side, fallback),
-    blockMat(tex, files.side, fallback),
-    blockMat(tex, files.side, fallback),
-    blockMat(tex, files.side, fallback),
-    blockMat(tex, files.front, fallback),
-    blockMat(tex, files.back, fallback),
-  ];
 }
 
 function box(mats: THREE.MeshLambertMaterial[], size: [number, number, number], pos: [number, number, number]): THREE.Mesh {
@@ -239,11 +223,26 @@ function steve(tex: Tex): THREE.Group {
 
 // ---------- 命令方块：1 格方块，原版贴图（north=front / south=back / 其余 side）----------
 
+/** 命令方块六面：贴图是 16×64 动画贴图（mcmeta 4 帧垂直排列，原版按帧偏移采样）——
+ *  这里只取第一帧（纵向 1/4：offset 0.75 + repeat 1×0.25，v=1 在图像顶）。 */
+const CMD_ANIM_FRAMES = 4;
+function cmdMat(tex: Tex, file: string): THREE.MeshLambertMaterial {
+  const map = tex && tex[file];
+  if (map) {
+    const m = new THREE.MeshLambertMaterial({ map });
+    map.repeat.set(1, 1 / CMD_ANIM_FRAMES);
+    map.offset.set(0, 1 - 1 / CMD_ANIM_FRAMES);
+    m.needsUpdate = true;
+    return m;
+  }
+  return fallbackFor('command_block');
+}
+
 function commandBlock(tex: Tex): THREE.Group {
   const g = new THREE.Group();
   g.add(
     box(
-      mats6Map(tex, { front: 'command_block_front.png', back: 'command_block_back.png', side: 'command_block_side.png' }, 'command_block'),
+      [cmdMat(tex, 'command_block_side.png'), cmdMat(tex, 'command_block_side.png'), cmdMat(tex, 'command_block_side.png'), cmdMat(tex, 'command_block_side.png'), cmdMat(tex, 'command_block_front.png'), cmdMat(tex, 'command_block_back.png')],
       [1, 1, 1],
       [0.5, 0.5, 0.5],
     ),

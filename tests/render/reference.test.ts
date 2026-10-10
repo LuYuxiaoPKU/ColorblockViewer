@@ -11,9 +11,17 @@ import {
   buildTower,
   REFERENCE_LABELS,
   REFERENCE_TYPES,
+  TEXTURE_FILES,
   type ReferenceType,
   type TowerData,
 } from '../../src/render/reference';
+
+/** 注入假贴图（无 image 的 Texture 即可测材质参数） */
+function fakeTex(): Record<string, THREE.Texture> {
+  const t: Record<string, THREE.Texture> = {};
+  for (const f of TEXTURE_FILES) t[f] = new THREE.Texture();
+  return t;
+}
 
 function boxOf(g: THREE.Group): { minY: number; maxY: number; minX: number; spanX: number; spanZ: number } {
   const b = new THREE.Box3().setFromObject(g);
@@ -71,6 +79,21 @@ describe('buildReference 参照物组装（无纹理降级路径）', () => {
     expect(b.maxY).toBeCloseTo(1, 6);
     expect(b.spanX).toBeCloseTo(1, 6);
     expect(b.spanZ).toBeCloseTo(1, 6);
+  });
+
+  it('command_block 动画贴图只取第一帧：map.repeat=(1,0.25) offset=(0,0.75)（16×64 四帧垂直排列，原版按帧偏移采样）', () => {
+    const g = buildReference('command_block', fakeTex())!;
+    const mat = ((g.children[0] as THREE.Mesh).material as THREE.Material[])[0] as THREE.MeshLambertMaterial;
+    expect(mat.map).toBeTruthy();
+    expect(mat.map!.repeat.y).toBeCloseTo(0.25, 6);
+    expect(mat.map!.offset.y).toBeCloseTo(0.75, 6);
+  });
+
+  it('oak_tree 树叶材质 alphaTest=0.5（原版 CUTOUT 剪切，非半透明混合）', () => {
+    const g = buildReference('oak_tree', fakeTex())!;
+    const leaves = ((g.children[1] as THREE.Mesh).material as THREE.Material[])[0] as THREE.MeshLambertMaterial;
+    expect(leaves.alphaTest).toBeCloseTo(0.5, 6);
+    expect(leaves.transparent).toBe(false);
   });
 
   it('oak_tree：树干 1 + 树叶 55（球冠 3 层：下层去四角 21、中层 25、顶层 9），总高 8 格、冠宽 4', () => {
