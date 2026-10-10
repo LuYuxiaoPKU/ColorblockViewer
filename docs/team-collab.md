@@ -41,6 +41,7 @@ NBS2schematic（命令生成器 —— 反向验证我的解析器）
 - [x] 模组会话提供 6 个缺失子命令字段序 → 预览补解析 + Wiki 同步（2026-10-10 完成：rotate 90 倍数、flip 枚举词、speed 逐槽 null、imageMatrix 用 matrix）
 - [x] 视频学习会话回传 image 老版本证据（已收：18 token 语法/flip 取值/particleImages/ 路径）→ 与模组确认新版差异（结论：新版字段序同老版本，rotate 必须 90 倍数——NBS 上线 4 天未生效即因字段序）
 - [ ] 预览模板库采纳社区高频用法（呼吸缩放 i=0.1*sin(t/5) 等）
+- [ ] 参照物原版化：4 种参照物（史蒂夫/命令方块/橡树/袭击哨塔）须用原版贴图、原版建模与建筑结构（2026-10-10 用户要求；当前 121c2df 为纯 three 几何道具，无贴图）
 - [x] NBS 参考笔记 ↔ 预览引擎互检（生成命令可被引擎解析：polarparameter/tickpolarparameter/group remove/conditional/image 五类真实命令已进 tests/command/imageCommands.test.ts 回归）
 
 ## 环境口径备忘
