@@ -167,8 +167,11 @@ function box(mats: THREE.MeshLambertMaterial[], size: [number, number, number], 
 const SKIN_HEAD: Array<[number, number, number, number]> = [
   [0, 8, 8, 16], [16, 8, 24, 16], [8, 0, 16, 8], [16, 0, 24, 8], [8, 8, 16, 16], [24, 8, 32, 16],
 ];
-const SKIN_BODY: Array<[number, number, number, number]> = [
-  [32, 20, 40, 32], [28, 20, 36, 32], [20, 16, 28, 20], [28, 16, 36, 20], [20, 20, 28, 32], [40, 20, 48, 32],
+/** 躯干皮肤分区（导出供测试断言防拉伸回归：面序 east/west 为 深×高 = 4×12px
+ *  侧区，south/north 为 宽×高 = 8×12px 正/背区；曾误用 8px 区贴 4px 面 → 横向
+ *  2 倍压缩成"贴图被拉伸"）。 */
+export const SKIN_BODY: Array<[number, number, number, number]> = [
+  [28, 20, 32, 32], [40, 20, 44, 32], [20, 16, 28, 20], [28, 16, 36, 20], [20, 20, 28, 32], [32, 20, 40, 32],
 ];
 const SKIN_ARM_R: Array<[number, number, number, number]> = [
   [52, 20, 56, 32], [48, 20, 52, 32], [44, 16, 48, 20], [48, 16, 52, 20], [44, 20, 48, 32], [56, 20, 60, 32],
@@ -252,25 +255,33 @@ function commandBlock(tex: Tex): THREE.Group {
 
 // ---------- 橡树：原版方块贴图（橡木原木 + 橡树树叶）+ 原版树形（树干 5 格 + 球冠树冠）----------
 
+/** 原版树叶默认染色（defaultFoliageColor = 0x619961）：jar 内 oak_leaves.png 是
+ *  灰度剪影贴图（R=G=B=alpha 形状），游戏按生物群系 tint 染色——Lambert
+ *  color × map 即该机制，灰剪影 × 绿 = 原版树叶观感（近似平原色）。 */
+const FOLIAGE_TINT = 0x619961;
+
+function leavesMat(tex: Tex): THREE.MeshLambertMaterial {
+  const map = tex && tex['oak_leaves.png'];
+  return map
+    ? new THREE.MeshLambertMaterial({ map, color: FOLIAGE_TINT, alphaTest: 0.5 })
+    : fallbackFor('oak');
+}
+
 function oakTree(tex: Tex): THREE.Group {
   const g = new THREE.Group();
-  // 树干：1 格见方高 5；侧 = oak_log，顶/底 = oak_log_top
-  g.add(
-    box(
-      [
-        blockMat(tex, 'oak_log.png', 'oak'),
-        blockMat(tex, 'oak_log.png', 'oak'),
-        blockMat(tex, 'oak_log_top.png', 'oak'),
-        blockMat(tex, 'oak_log_top.png', 'oak'),
-        blockMat(tex, 'oak_log.png', 'oak'),
-        blockMat(tex, 'oak_log.png', 'oak'),
-      ],
-      [1, 5, 1],
-      [0.5, 2.5, 0.5],
-    ),
-  );
+  // 树干：5 个 1×1×1 方块堆叠（原版逐方块；单个高 5 格 Box 会让侧面贴图
+  // 纵向拉伸 5 倍）。侧 = oak_log，顶/底 = oak_log_top
+  const logMats = [
+    blockMat(tex, 'oak_log.png', 'oak'),
+    blockMat(tex, 'oak_log.png', 'oak'),
+    blockMat(tex, 'oak_log_top.png', 'oak'),
+    blockMat(tex, 'oak_log_top.png', 'oak'),
+    blockMat(tex, 'oak_log.png', 'oak'),
+    blockMat(tex, 'oak_log.png', 'oak'),
+  ];
+  for (let y = 0; y < 5; y++) g.add(box(logMats, [1, 1, 1], [0.5, y + 0.5, 0.5]));
   // 树冠：原版橡树生成形状（树干顶 3 层球冠：下两层半径 2、顶层半径 1）
-  const leafMats = mats6(tex, 'oak_leaves.png', 'oak', true);
+  const leafMats = [leavesMat(tex), leavesMat(tex), leavesMat(tex), leavesMat(tex), leavesMat(tex), leavesMat(tex)];
   const leaves: Array<[number, number, number]> = [];
   for (let y = 5; y <= 7; y++) {
     const r = y === 7 ? 1 : 2;
