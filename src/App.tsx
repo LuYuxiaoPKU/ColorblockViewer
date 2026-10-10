@@ -168,8 +168,9 @@ export default function App() {
       };
       vp.setPointScale(vp.size, 70); // 完整模式：fov 与 scene.ts 相机一致；快速模式空操作
       const cfg = engineRef.current!.config;
-      vp.setAtlasKey(cfg.mcVersion); // 加载期间版本/网格变更由 ?. 跳过 → 这里补齐
+      vp.setAtlasKey(cfg.mcVersion); // 加载期间版本/网格/参照物变更由 ?. 跳过 → 这里补齐
       vp.setGrid(cfg.gridSize, cfg.gridVisible);
+      vp.setReference(sim.reference); // 漏补 bug（2026-10-11）：挂载首轮 setReference effect 执行时 ref 尚为 null，缺失则分享链接打开的参照物永不显示
       vp.update(engineRef.current!); // 初始快照（模式切换后暂停态立即恢复显示，不空等下一 tick）
       // start 内部 compileAsync（预热着色器，把 GL 编译从首帧 render 提前）
       vp.start();
