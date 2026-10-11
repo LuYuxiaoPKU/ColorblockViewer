@@ -84,6 +84,17 @@ describe('buildReference 参照物组装（无纹理降级路径）', () => {
     }
   });
 
+  it('steve 各部件 UV 顶点数 = 几何顶点数（24 顶点 × 2 分量 = 48 float；曾 24 float → 12 vec2，后 3 面顶点 UV 越界 → 脸/后脑/底面采垃圾 UV → 观感贴图斜线）', () => {
+    const g = buildReference('steve')!;
+    const parts = g.children.filter((c): c is THREE.Mesh => c instanceof THREE.Mesh);
+    expect(parts.length).toBe(6);
+    for (const m of parts) {
+      const pos = m.geometry.attributes.position;
+      const uv = m.geometry.attributes.uv;
+      expect(uv.count, 'uv 顶点数须等于 position 顶点数').toBe(pos.count);
+    }
+  });
+
   it('command_block：1 个 1 格方块，脚底 y=0、顶 y=1', () => {
     const g = buildReference('command_block')!;
     expect(meshCount(g)).toBe(1);

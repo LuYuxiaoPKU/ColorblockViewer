@@ -193,7 +193,10 @@ function stevePart(
   pos: [number, number, number],
 ): THREE.Mesh {
   const geo = new THREE.BoxGeometry(...size);
-  const uv = new Float32Array(24);
+  // 24 顶点 × 2 分量 = 48 float：3 个顶点取 2 分量（32 float）不足以覆盖 24 个
+  // 顶点——曾用 new Float32Array(24)（24 float = 12 vec2），后 3 面（bottom/
+  // south/north）顶点 UV 越界 → 脸/后脑/底面采到垃圾 UV → 观感贴图斜线
+  const uv = new Float32Array(48);
   for (let f = 0; f < 6; f++) {
     const [x0, y0, x1, y1] = skin[f];
     const u0 = x0 / 64;
