@@ -123,6 +123,9 @@ particleex functionlist
 
 `clearcache` 清图片缓存；`functionlist` 列出注册函数——预览端均无实际副作用。
 
+命令名口径（2026-10-11 拍板）：预览与模组现状统一为 `functionlist`，
+模组侧历史名 `funlist` / `functions` 不再使用、不改名。
+
 ## 原版 /particle
 
 ```
