@@ -38,13 +38,10 @@ export function createScene(container: HTMLElement): SceneBundle {
   scene.background = new THREE.Color(0x0b0e14);
 
   // 参照物材质用 Lambert → 需要灯光（点云自带 shader，不受影响）。
-  // 强度口径：原版 MC 实体接近均匀无阴影光照，且 26.2 新版 Steve 皮肤肤色
-  // 偏暗（R119G80B61）——方向光过强会把脸照成"黑脸"。环境光 0.8 + 方向光
-  // 0.3：最亮面 ≈1.1、脸正面 ≈0.96 → 肤色正常显示。
-  scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-  const dirLight = new THREE.DirectionalLight(0xffffff, 0.3);
-  dirLight.position.set(5, 10, 7);
-  scene.add(dirLight);
+  // 强度口径：原版 MC 实体近似均匀无阴影光照——取消方向光、环境光拉满
+  // （1.0）：五个面均匀吃满贴图原色，正面/侧面无明暗差（曾用 0.8 环境光
+  // + 0.3 方向光，方向光从侧上方打来 → 正面背光发黑，观感"只有侧面有贴图"）。
+  scene.add(new THREE.AmbientLight(0xffffff, 1.0));
 
   // 默认视角贴近游戏玩家观感（fov 对齐游戏默认 70、相机距原点 ~5.1 格）：
   // 游戏里玩家站粒子 1–5 格外，原 (6,5,8) 距 10.8 格会让粒子屏幕占比小 2–10 倍。
