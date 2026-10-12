@@ -336,21 +336,24 @@ function fullBlock(tex: Tex, name: string, props: Record<string, string>, pos: [
   return box([east, west, up, down, south, north], [1, 1, 1], [pos[0] + 0.5, pos[1] + 0.5, pos[2] + 0.5]);
 }
 
-/** 台阶：半格（type=top → 上移半格），原版 slab 模型 0-8px。中心 = 格中心 pos+0.5
- *  （曾漏 +0.5 → 横向错开半格）。 */
+/** 台阶：半格（type=top → 贴格顶 0.5-1.0，否则贴格底 0-0.5）。原版 slab 模型 0-8px / 8-16px。
+ *   box 中心语义 → bottom 中心 pos+0.25、top 中心 pos+0.75（曾误用 pos+0 / pos+0.5，
+ *   几何 ±0.25 使上下半砖都居中悬在格中部）。 */
 function slabBlock(tex: Tex, name: string, props: Record<string, string>, pos: [number, number, number]): THREE.Mesh {
   const { side } = towerTextures(name);
-  return box(mats6(tex, side, 'tower'), [1, 0.5, 1], [pos[0] + 0.5, pos[1] + (props.type === 'top' ? 0.5 : 0), pos[2] + 0.5]);
+  return box(mats6(tex, side, 'tower'), [1, 0.5, 1], [pos[0] + 0.5, pos[1] + (props.type === 'top' ? 0.75 : 0.25), pos[2] + 0.5]);
 }
 
 /** 楼梯：原版模型两段（底 0-8px 全宽 + 后 8-16px 高台），默认 facing=east 高台在东，
- *  组旋转 Y 对齐朝向；half=top 上移半格 */
+ *  组旋转 Y 对齐朝向；half=top 上移半格。组系原点 = 方块底面（box 中心语义：
+ *  底段中心 y=0.25 → 组系 [0,0.5]，高台中心 y=0.75 → [0.5,1.0]；曾误用 0/0.5
+ *  使两段整体偏下 0.25） */
 function stairsBlock(tex: Tex, name: string, props: Record<string, string>, pos: [number, number, number]): THREE.Group {
   const { side } = towerTextures(name);
   const g = new THREE.Group();
   const mats = mats6(tex, side, 'tower');
-  g.add(box(mats, [1, 0.5, 1], [0, 0, 0]));
-  g.add(box(mats, [0.5, 0.5, 1], [0.25, 0.5, 0])); // 局部底面 y=0 → 组中心对齐方块底
+  g.add(box(mats, [1, 0.5, 1], [0, 0.25, 0]));
+  g.add(box(mats, [0.5, 0.5, 1], [0.25, 0.75, 0])); // 局部底面 y=0 → 组中心对齐方块底
   g.rotation.y = ({ east: 0, south: Math.PI / 2, west: Math.PI, north: -Math.PI / 2 } as Record<string, number>)[props.facing ?? 'east'];
   g.position.set(pos[0] + 0.5, pos[1] + (props.half === 'top' ? 0.5 : 0), pos[2] + 0.5);
   return g;
