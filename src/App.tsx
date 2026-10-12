@@ -51,6 +51,8 @@ interface ViewportApi {
   setReference(type: ReferenceType): void;
   setAtlasKey(key: string): void;
   setPointScale(heightPx: number, fovDeg: number): void;
+  /** 自由视角开关（完整模式 3D 场景专属；快速模式无此方法 → App 判空调用） */
+  setFreeMode?(on: boolean): void;
   resize(): void;
   start(): void;
   dispose(): void;
@@ -74,6 +76,21 @@ export default function App() {
   const { playing, speed, sim } = useAppState();
 
   const [renderCapacity, setRenderCapacity] = useState(0);
+  // 自由视角（完整模式 3D 专属）：UI 镜像开关状态；指针锁丢失（Esc）自动复位
+  const freeModeRef = useRef(false);
+  const [freeMode, setFreeMode] = useState(false);
+  const toggleFreeMode = (on: boolean): void => {
+    freeModeRef.current = on;
+    setFreeMode(on);
+    viewportRef.current?.setFreeMode?.(on);
+  };
+  useEffect(() => {
+    const onLock = () => {
+      if (!document.pointerLockElement && freeModeRef.current) toggleFreeMode(false);
+    };
+    document.addEventListener('pointerlockchange', onLock);
+    return () => document.removeEventListener('pointerlockchange', onLock);
+  }, []);
   const [vpProgress, setVpProgress] = useState<VpProgress | null>(null);
   const readyRef = useRef(false);
   const engineRef = useRef<SimEngine | null>(null);
@@ -451,7 +468,14 @@ export default function App() {
     <div className="app-layout">
       <aside className="pane">
         <h1>ColorBlockViewer</h1>
-        <CommandPane onRun={run} onRunFresh={runFresh} onReset={reset} onPlayFresh={playFresh} />
+        <CommandPane
+          onRun={run}
+          onRunFresh={runFresh}
+          onReset={reset}
+          onPlayFresh={playFresh}
+          freeMode={freeMode}
+          onToggleFreeMode={toggleFreeMode}
+        />
       </aside>
       <Viewport
         containerRef={containerRef}

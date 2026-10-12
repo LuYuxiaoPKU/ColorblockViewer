@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildReference, loadReferenceTextures, loadTowerData, ReferenceType } from './reference';
+import { FreeCameraController } from './freeCamera';
 
 export interface SceneBundle {
   renderer: THREE.WebGLRenderer;
@@ -16,6 +17,10 @@ export interface SceneBundle {
   setGrid(size: number, visible: boolean): void;
   /** 参照物切换：type 变化时替换 group（旧组 dispose，防累积）；'none' → 卸载 */
   setReference(type: ReferenceType): void;
+  /** 自由视角模式开关（完整模式 3D 场景专属；快速模式场景不接此方法） */
+  setFreeMode?(on: boolean): void;
+  /** 每帧推进：轨道模式 → controls.update()；自由模式 → 漫游 update(dt) */
+  tick(dt: number): void;
   dispose(): void;
 }
 
@@ -141,10 +146,83 @@ export function createScene(container: HTMLElement): SceneBundle {
         scene.add(g);
         refGroup = g;
         fitCameraTo(g);
+        if (camMode === 'free') freeCtrl.enter(camera); // fit 后同步自由视角朝向
       }
     });
   };
   setReference('none');
+
+  // ---------- 自由视角模式（MC 旁观者式漫游） ----------
+  const freeCtrl = new FreeCameraController();
+  let camMode: 'orbit' | 'free' = 'orbit';
+  let freeFitStep = 0; // R 键交替：0 → 参照物入镜；1 → 默认视角
+
+  const setFreeMode = (on: boolean): void => {
+    if (on === (camMode === 'free')) return;
+    if (on) {
+      camMode = 'free';
+      controls.enabled = false;
+      freeCtrl.enter(camera);
+      renderer.domElement.requestPointerLock?.();
+    } else {
+      camMode = 'orbit';
+      freeCtrl.clearKeys();
+      freeFitStep = 0;
+      controls.enabled = true;
+      controls.update();
+    }
+  };
+
+  // 指针锁丢失（Esc / 切页）→ 自动退回轨道模式
+  const onLockChange = (): void => {
+    if (camMode === 'free' && document.pointerLockElement !== renderer.domElement) {
+      camMode = 'orbit';
+      freeCtrl.clearKeys();
+      freeFitStep = 0;
+      controls.enabled = true;
+    }
+  };
+  const onMouseMove = (e: MouseEvent): void => {
+    if (camMode !== 'free' || document.pointerLockElement !== renderer.domElement) return;
+    freeCtrl.rotate(e.movementX, e.movementY);
+  };
+  const onKeyDown = (e: KeyboardEvent): void => {
+    if (camMode !== 'free') return;
+    if (e.code === 'KeyR') {
+      e.preventDefault();
+      if (freeFitStep === 0 && refGroup) {
+        fitCameraTo(refGroup);
+        freeFitStep = 1;
+      } else {
+        resetCamera();
+        freeFitStep = 0;
+      }
+      freeCtrl.enter(camera);
+      return;
+    }
+    freeCtrl.press(e.code);
+    if (e.code === 'Space') e.preventDefault(); // 防页面滚动
+  };
+  const onKeyUp = (e: KeyboardEvent): void => {
+    if (camMode !== 'free') return;
+    freeCtrl.release(e.code);
+  };
+
+  const tick = (dt: number): void => {
+    if (camMode === 'free') freeCtrl.update(camera, dt);
+    else controls.update();
+  };
+
+  const freeCleanup = (): void => {
+    document.removeEventListener('pointerlockchange', onLockChange);
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('keydown', onKeyDown);
+    document.removeEventListener('keyup', onKeyUp);
+  };
+  document.addEventListener('pointerlockchange', onLockChange);
+  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('keydown', onKeyDown);
+  document.addEventListener('keyup', onKeyUp);
 
   return {
     renderer,
@@ -154,7 +232,10 @@ export function createScene(container: HTMLElement): SceneBundle {
     resize,
     setGrid,
     setReference,
+    setFreeMode,
+    tick,
     dispose: () => {
+      freeCleanup();
       controls.dispose();
       scene.remove(grid);
       grid.geometry.dispose();

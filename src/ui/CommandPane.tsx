@@ -18,11 +18,15 @@ export function CommandPane({
   onRunFresh,
   onReset,
   onPlayFresh,
+  freeMode,
+  onToggleFreeMode,
 }: {
   onRun: () => void;
   onRunFresh: () => void;
   onReset: () => void;
   onPlayFresh: () => void;
+  freeMode: boolean;
+  onToggleFreeMode: (on: boolean) => void;
 }) {
   const { input, toasts } = useAppState();
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -104,7 +108,7 @@ export function CommandPane({
         </div>
       </section>
 
-      <SettingsDrawer />
+      <SettingsDrawer freeMode={freeMode} onToggleFreeMode={onToggleFreeMode} />
       <StatusToast toasts={toasts} />
       {/* 模板库：右侧覆盖面板（画布保持可见，便于「载入并执行」边看边试） */}
       <TemplateGallery

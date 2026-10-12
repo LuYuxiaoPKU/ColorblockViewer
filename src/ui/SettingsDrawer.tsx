@@ -8,7 +8,13 @@ import { NumField } from './fields';
 import { REFERENCE_LABELS, REFERENCE_TYPES } from '../render/reference';
 import type { SimConfig } from '../sim/types';
 
-export function SettingsDrawer() {
+export function SettingsDrawer({
+  freeMode,
+  onToggleFreeMode,
+}: {
+  freeMode: boolean;
+  onToggleFreeMode: (on: boolean) => void;
+}) {
   const { sim } = useAppState();
   const [open, setOpen] = useState(false);
 
@@ -92,6 +98,18 @@ export function SettingsDrawer() {
                 </option>
               ))}
             </select>
+          </div>
+          <div className="field-row">
+            <label className="check-inline">
+              <input
+                type="checkbox"
+                checked={freeMode}
+                onChange={(e) => onToggleFreeMode(e.target.checked)}
+                aria-label="自由视角"
+              />
+              自由视角
+              <em className="muted">（点击画面锁定鼠标：WASD 平移 · 空格/Shift 升降 · 转鼠标转向 · R 回位 · Esc 退出）</em>
+            </label>
           </div>
           <div className="field-row">
             <span className="field-row-label">
