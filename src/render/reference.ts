@@ -9,11 +9,10 @@
 
 import * as THREE from 'three';
 
-export type ReferenceType = 'none' | 'steve' | 'command_block' | 'oak_tree' | 'outpost_tower';
+export type ReferenceType = 'none' | 'command_block' | 'oak_tree' | 'outpost_tower';
 
 export const REFERENCE_TYPES: ReferenceType[] = [
   'none',
-  'steve',
   'command_block',
   'oak_tree',
   'outpost_tower',
@@ -21,7 +20,6 @@ export const REFERENCE_TYPES: ReferenceType[] = [
 
 export const REFERENCE_LABELS: Record<ReferenceType, string> = {
   none: '无',
-  steve: '史蒂夫（玩家，1.8m）',
   command_block: '命令方块（1 格）',
   oak_tree: '橡树（高 6–7 格）',
   outpost_tower: '袭击哨塔（掠夺者前哨站）',
@@ -32,7 +30,6 @@ const RES = `${import.meta.env.BASE_URL}references/1.21.11/`;
 
 /** 贴图加载失败/无纹理时的纯色降级（v1 配色） */
 const FALLBACK_COLORS: Record<string, number> = {
-  steve: 0xc69c6d, // 肤色（无贴图时整体单色，取肤色）
   command_block: 0xffb000,
   oak: 0x2c6b2f,
   tower: 0x8b8b8b,
@@ -41,7 +38,6 @@ const FALLBACK_COLORS: Record<string, number> = {
 // ---------- 贴图加载（仿 loadAtlasTexture：Image + Promise 缓存；headless → null）----------
 
 export const TEXTURE_FILES = [
-  'steve.png',
   'command_block_front.png',
   'command_block_back.png',
   'command_block_side.png',
@@ -155,76 +151,6 @@ function box(mats: THREE.MeshLambertMaterial[], size: [number, number, number], 
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), mats);
   mesh.position.set(...pos);
   return mesh;
-}
-
-// ---------- 史蒂夫：原版玩家 box 布局 + 原版皮肤贴图 ----------
-// Box 尺寸（格）：头 8×8×8px=0.5；身 8×12×4；臂/腿 4×12×4（0.25×0.75×0.25）。身高 1.8 格。
-// 皮肤 UV 布局 = 标准 wide 64×64 分区（像素坐标，v=1 在上，直接除以 64；面序见 mats6Map 注释：
-// east/west/top/bottom/south/north）。
-
-/** 各部件贴图分区（px）：head/body/arm/leg，每部件 6 面 = east, west, top, bottom, south, north。
- *  左右侧部件贴图对称 → 左件与右件仅 east/west 互换（原版皮肤即镜像分区）。 */
-const SKIN_HEAD: Array<[number, number, number, number]> = [
-  [0, 8, 8, 16], [16, 8, 24, 16], [8, 0, 16, 8], [16, 0, 24, 8], [8, 8, 16, 16], [24, 8, 32, 16],
-];
-/** 躯干皮肤分区（导出供测试断言防拉伸回归：面序 east/west 为 深×高 = 4×12px
- *  侧区，south/north 为 宽×高 = 8×12px 正/背区；曾误用 8px 区贴 4px 面 → 横向
- *  2 倍压缩成"贴图被拉伸"）。 */
-export const SKIN_BODY: Array<[number, number, number, number]> = [
-  [28, 20, 32, 32], [40, 20, 44, 32], [20, 16, 28, 20], [28, 16, 36, 20], [20, 20, 28, 32], [32, 20, 40, 32],
-];
-const SKIN_ARM_R: Array<[number, number, number, number]> = [
-  [52, 20, 56, 32], [48, 20, 52, 32], [44, 16, 48, 20], [48, 16, 52, 20], [44, 20, 48, 32], [56, 20, 60, 32],
-];
-const SKIN_ARM_L: Array<[number, number, number, number]> = [
-  [40, 20, 44, 32], [48, 20, 52, 32], [44, 16, 48, 20], [48, 16, 52, 20], [44, 20, 48, 32], [52, 20, 56, 32],
-];
-const SKIN_LEG_R: Array<[number, number, number, number]> = [
-  [0, 20, 4, 32], [8, 20, 12, 32], [4, 16, 8, 20], [8, 16, 12, 20], [4, 20, 8, 32], [12, 20, 16, 32],
-];
-const SKIN_LEG_L: Array<[number, number, number, number]> = [
-  [8, 20, 12, 32], [0, 20, 4, 32], [4, 16, 8, 20], [8, 16, 12, 20], [4, 20, 8, 32], [12, 20, 16, 32],
-];
-
-function stevePart(
-  tex: Tex,
-  size: [number, number, number],
-  skin: Array<[number, number, number, number]>,
-  pos: [number, number, number],
-): THREE.Mesh {
-  const geo = new THREE.BoxGeometry(...size);
-  // 24 顶点 × 2 分量 = 48 float：3 个顶点取 2 分量（32 float）不足以覆盖 24 个
-  // 顶点——曾用 new Float32Array(24)（24 float = 12 vec2），后 3 面（bottom/
-  // south/north）顶点 UV 越界 → 脸/后脑/底面采到垃圾 UV → 观感贴图斜线
-  const uv = new Float32Array(48);
-  for (let f = 0; f < 6; f++) {
-    const [x0, y0, x1, y1] = skin[f];
-    const u0 = x0 / 64;
-    const u1 = x1 / 64;
-    const v0 = (64 - y1) / 64;
-    const v1 = (64 - y0) / 64;
-    // 每面顶点序 A=(u0,v1) B=(u1,v1) C=(u0,v0) D=(u1,v0)
-    uv[f * 4] = u0; uv[f * 4 + 1] = v1;
-    uv[f * 4 + 2] = u1; uv[f * 4 + 3] = v1;
-    uv[f * 4 + 4] = u0; uv[f * 4 + 5] = v0;
-    uv[f * 4 + 6] = u1; uv[f * 4 + 7] = v0;
-  }
-  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-  const mesh = new THREE.Mesh(geo, blockMat(tex, 'steve.png', 'steve'));
-  mesh.position.set(...pos);
-  return mesh;
-}
-
-function steve(tex: Tex): THREE.Group {
-  const g = new THREE.Group();
-  // 双腿（脚底 0 → 胯 0.75），躯干（0.75 → 1.5），双臂（肩 1.5 → 肘下），头（1.5 → 2.0）
-  g.add(stevePart(tex, [0.25, 0.75, 0.25], SKIN_LEG_R, [-0.125, 0.375, 0]));
-  g.add(stevePart(tex, [0.25, 0.75, 0.25], SKIN_LEG_L, [0.125, 0.375, 0]));
-  g.add(stevePart(tex, [0.5, 0.75, 0.25], SKIN_BODY, [0, 1.125, 0]));
-  g.add(stevePart(tex, [0.25, 0.75, 0.25], SKIN_ARM_R, [-0.375, 1.125, 0]));
-  g.add(stevePart(tex, [0.25, 0.75, 0.25], SKIN_ARM_L, [0.375, 1.125, 0]));
-  g.add(stevePart(tex, [0.5, 0.5, 0.5], SKIN_HEAD, [0, 1.75, 0]));
-  return g;
 }
 
 // ---------- 命令方块：1 格方块，原版贴图（north=front / south=back / 其余 side）----------
@@ -503,8 +429,6 @@ export function buildTower(tex: Tex, data: TowerData): THREE.Group {
 
 export function buildReference(type: ReferenceType, tex: Tex = null, tower: TowerData | null = null): THREE.Group | null {
   switch (type) {
-    case 'steve':
-      return steve(tex);
     case 'command_block':
       return commandBlock(tex);
     case 'oak_tree':

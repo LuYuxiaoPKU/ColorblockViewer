@@ -11,7 +11,6 @@ import {
   buildTower,
   REFERENCE_LABELS,
   REFERENCE_TYPES,
-  SKIN_BODY,
   TEXTURE_FILES,
   type ReferenceType,
   type TowerData,
@@ -39,60 +38,14 @@ function meshCount(g: THREE.Group): number {
   return n;
 }
 
-/** 无纹理（headless 降级）路径下所有材质 = 无 map 的 Lambert */
-function allPlainLambert(g: THREE.Group): boolean {
-  let ok = true;
-  g.traverse((o) => {
-    const m = o as THREE.Mesh;
-    if (m.isMesh) {
-      const mats = Array.isArray(m.material) ? m.material : [m.material];
-      for (const mat of mats) {
-        const lm = mat as THREE.MeshLambertMaterial;
-        if (!lm.isMeshLambertMaterial || lm.map !== null) ok = false;
-      }
-    }
-  });
-  return ok;
-}
-
 describe('buildReference 参照物组装（无纹理降级路径）', () => {
   it('none → null（无参照物）', () => {
     expect(buildReference('none')).toBeNull();
   });
 
-  it('steve：6 个 mesh（双腿/躯干/双臂/头），脚底 y=0、总高 ≈1.9 格、肩宽 1 格', () => {
-    const g = buildReference('steve')!;
-    expect(meshCount(g)).toBe(6);
-    expect(allPlainLambert(g)).toBe(true);
-    const b = boxOf(g);
-    expect(b.minY).toBeCloseTo(0, 6);
-    expect(b.maxY).toBeGreaterThan(1.85);
-    expect(b.maxY).toBeLessThan(2.05); // 头顶 2.0（原版 1.8 格 + 头 0.5）
-    expect(b.spanX).toBeGreaterThan(0.9); // 臂展 0.375×2 + 躯干 0.5
-    expect(b.spanX).toBeLessThan(1.1);
-  });
-
-  it('steve 躯干皮肤分区防拉伸：east/west 为 4px 侧区（深×高）、south/north 为 8px 正/背区（宽×高）——曾用 8px 区贴 4px 面致横向 2 倍压缩', () => {
-    for (const f of [0, 1]) {
-      expect(SKIN_BODY[f][2] - SKIN_BODY[f][0], `面 ${f}（east/west）宽`).toBe(4);
-    }
-    for (const f of [4, 5]) {
-      expect(SKIN_BODY[f][2] - SKIN_BODY[f][0], `面 ${f}（south/north）宽`).toBe(8);
-    }
-    for (const f of [0, 1, 4, 5]) {
-      expect(SKIN_BODY[f][3] - SKIN_BODY[f][1], `面 ${f} 高`).toBe(12);
-    }
-  });
-
-  it('steve 各部件 UV 顶点数 = 几何顶点数（24 顶点 × 2 分量 = 48 float；曾 24 float → 12 vec2，后 3 面顶点 UV 越界 → 脸/后脑/底面采垃圾 UV → 观感贴图斜线）', () => {
-    const g = buildReference('steve')!;
-    const parts = g.children.filter((c): c is THREE.Mesh => c instanceof THREE.Mesh);
-    expect(parts.length).toBe(6);
-    for (const m of parts) {
-      const pos = m.geometry.attributes.position;
-      const uv = m.geometry.attributes.uv;
-      expect(uv.count, 'uv 顶点数须等于 position 顶点数').toBe(pos.count);
-    }
+  it('steve 参照物已移除（2026-10-12 用户拍板：修复成本高，删除）', () => {
+    expect(REFERENCE_TYPES).not.toContain('steve');
+    expect(buildReference('steve' as ReferenceType)).toBeNull();
   });
 
   it('command_block：1 个 1 格方块，脚底 y=0、顶 y=1', () => {
@@ -301,8 +254,8 @@ describe('哨塔结构数据（仓库 watchtower.json = 原版 nbt 1:1）', () =
 });
 
 describe('枚举与标签完整覆盖', () => {
-  it('5 类型齐全，标签非空', () => {
-    expect(REFERENCE_TYPES).toEqual(['none', 'steve', 'command_block', 'oak_tree', 'outpost_tower']);
+  it('4 类型齐全，标签非空', () => {
+    expect(REFERENCE_TYPES).toEqual(['none', 'command_block', 'oak_tree', 'outpost_tower']);
     for (const t of REFERENCE_TYPES as ReferenceType[]) {
       expect(REFERENCE_LABELS[t], t).toBeTruthy();
     }
