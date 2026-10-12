@@ -157,14 +157,14 @@ describe('哨塔结构数据（仓库 watchtower.json = 原版 nbt 1:1）', () =
     expect(findSlab(1.5, 4.5)).toBeCloseTo(3.25, 6); // bottom：中心 pos+0.25，几何 [3.0, 3.5] 贴格底
   });
 
-  it('stairs 贴地/上移：bottom (9,1,4) 整体顶 y=2.0（16px 满格）、top (3,3,4) 顶 y=4.5（+0.5）——曾整体偏下 0.25', () => {
+  it('stairs half 语义：bottom (9,1,4) 整体顶 y=2.0（16px 满格）、top (3,3,4) 顶 y=4.0（x:180 翻转：可踩面在上半、高台翻到下半）——曾把 top 误作上移半格致高台侵入上方圆石', () => {
     const g = buildTower(null, data);
     g.updateMatrixWorld(true);
     const v = new THREE.Vector3();
     const stairsTopY = (cx: number, cz: number): number => {
       let maxY = -Infinity;
       g.traverse((o) => {
-        if (!(o as THREE.Group).isGroup) return; // 楼梯 = 2-mesh 组：底段 0-0.5 + 高台 0.5-1.0
+        if (!(o as THREE.Group).isGroup) return; // 楼梯 = 2-mesh 组：底段 + 高台
         const grp = o as THREE.Group;
         const gp = grp.position;
         if (Math.abs(gp.x - cx) < 1e-6 && Math.abs(gp.z - cz) < 1e-6 && grp.children.length === 2) {
@@ -183,8 +183,8 @@ describe('哨塔结构数据（仓库 watchtower.json = 原版 nbt 1:1）', () =
     };
     // bottom (9,1,4) facing=east：底段 world 1.0-1.5、高台 1.5-2.0
     expect(stairsTopY(9.5, 4.5)).toBeCloseTo(2.0, 6);
-    // top (3,3,4) facing=north：整体上移半格 → 底段 3.5-4.0、高台 4.0-4.5
-    expect(stairsTopY(3.5, 4.5)).toBeCloseTo(4.5, 6);
+    // top (3,3,4) facing=north：翻转后底段 3.5-4.0（顶 = 格子顶 4.0），高台 3.0-3.5
+    expect(stairsTopY(3.5, 4.5)).toBeCloseTo(4.0, 6);
   });
 
   it('fence 横杆伸到方块边缘：east+west 连接的 (4,14,1)，最远杆中心 x=4.71875 / 3.28125（原版从柱边 7px 到边 16px，边界对接）', () => {

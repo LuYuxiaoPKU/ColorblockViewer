@@ -21,10 +21,10 @@ describe('哨塔 stairs 朝向（facing 与高台方向一致）', () => {
       const pal = data.palette[b[3]];
       if (!String(pal.Name).includes('stairs')) continue;
       const [x, y, z] = b;
-      const { half = 'bottom', facing = 'east' } = pal.Properties ?? {};
+      const { facing = 'east' } = pal.Properties ?? {};
       const gx = x + 0.5;
       const gz = z + 0.5;
-      const gy = y + (half === 'top' ? 0.5 : 0);
+      const gy = y; // 组 position.y 恒 = 方块底（half=top 为 x:180 翻转，非上移）
       // 找到该位置的 2-mesh 组（stairs）
       let dir = '';
       g.traverse((o) => {
@@ -42,7 +42,7 @@ describe('哨塔 stairs 朝向（facing 与高台方向一致）', () => {
           }
         });
       });
-      if (dir !== facing) bad.push(`(${x},${y},${z}) half=${half} facing=${facing} 渲染高台=${dir || '未找到'}`);
+      if (dir !== facing) bad.push(`(${x},${y},${z}) facing=${facing} 渲染高台=${dir || '未找到'}`);
     }
     expect(bad, bad.join('；')).toEqual([]);
   });

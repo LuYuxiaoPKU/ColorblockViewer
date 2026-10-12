@@ -270,19 +270,20 @@ function slabBlock(tex: Tex, name: string, props: Record<string, string>, pos: [
 }
 
 /** 楼梯：原版模型两段（底 0-8px 全宽 + 后 8-16px 高台），默认 facing=east 高台在东，
- *  组旋转 Y 对齐朝向；half=top 上移半格。组系原点 = 方块底面（box 中心语义：
- *  底段中心 y=0.25 → 组系 [0,0.5]，高台中心 y=0.75 → [0.5,1.0]；曾误用 0/0.5
- *  使两段整体偏下 0.25） */
+ *  组旋转 Y 对齐朝向。half=top = blockstate "x":180 绕中心翻转（uvlock）：底段翻到
+ *  格子上半 [0.5,1.0]、高台翻到格子下半 [0,0.5]——即两段 y 中心互换（曾误作
+ *  "整体上移半格"致高台顶侵入上方格 → 与圆石柱重叠）。组系原点 = 方块底面。 */
 function stairsBlock(tex: Tex, name: string, props: Record<string, string>, pos: [number, number, number]): THREE.Group {
   const { side } = towerTextures(name);
   const g = new THREE.Group();
+  const top = props.half === 'top';
   const mats = mats6(tex, side, 'tower');
-  g.add(box(mats, [1, 0.5, 1], [0, 0.25, 0]));
-  g.add(box(mats, [0.5, 0.5, 1], [0.25, 0.75, 0])); // 局部底面 y=0 → 组中心对齐方块底
+  g.add(box(mats, [1, 0.5, 1], [0, top ? 0.75 : 0.25, 0]));
+  g.add(box(mats, [0.5, 0.5, 1], [0.25, top ? 0.25 : 0.75, 0]));
   // 组旋转 Y 对齐朝向：three.js rotation.y 正方向与 MC 模型 "y" 旋转相反 →
   // south 用 -π/2、north 用 +π/2（曾 south=+π/2/north=-π/2 致南北两向反置）。
   g.rotation.y = ({ east: 0, south: -Math.PI / 2, west: Math.PI, north: Math.PI / 2 } as Record<string, number>)[props.facing ?? 'east'];
-  g.position.set(pos[0] + 0.5, pos[1] + (props.half === 'top' ? 0.5 : 0), pos[2] + 0.5);
+  g.position.set(pos[0] + 0.5, pos[1], pos[2] + 0.5);
   return g;
 }
 
