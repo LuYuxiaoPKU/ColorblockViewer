@@ -7,8 +7,3 @@ scripts/.mc_extract/
 # 本地证据/取证目录（26.2 client.jar 的 javap dump、JDK 探针输出、一次性脚本）：
 # 体积大且可由 jar 重新生成，不入库（文档 §10 只引用其路径）
 .tmp/
-# 本地保留文件（隐私：Claude 协作登记/会话记忆，已移出版本库）
-docs/team-collab.md
-docs/会话记忆-DSH压缩卡死教训.md
-# 历史备份（本地恢复用，不入库）
-colorblockviewer-history-backup.bundle
