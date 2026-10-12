@@ -1,4 +1,6 @@
-// 自由视角控制器（MC 旁观者式）：指针锁定转向 + WASD/Space/Shift 漫游。
+// 自由视角控制器（MC 旁观者式）：指针锁定转向 + WASD/Space/Shift/Ctrl 漫游。
+// 按键对齐 MC 飞行模式默认键位：Space 上升、Shift 下降（潜行键语义）、
+// Ctrl 加速（疾跑键语义）——曾把加速绑 Shift 与下降冲突。
 // 纯状态机：不直接操作 DOM；由 scene.ts 接线（pointer lock 生命周期、按键事件、rAF dt）。
 // 移动/灵敏度常量集中于此，实机微调只改这里。
 
@@ -6,10 +8,10 @@ import * as THREE from 'three';
 
 export const FREE_SPEED = 8; // 格/秒（≈游戏奔跑）
 export const FREE_SENSITIVITY = 0.002; // rad/px（鼠标位移 → 转角）
-export const FREE_SPEED_BOOST = 3; // Shift 加速倍率
+export const FREE_SPEED_BOOST = 3; // Ctrl 加速倍率
 export const FREE_MIN_Y = 0.2; // 防陷地：y 相机的下限
 
-/** 按键语义：keydown/keyup 接口（scene 转发 DOM 事件） */
+/** 按键语义（MC 飞行模式默认键位）：keydown/keyup 接口（scene 转发 DOM 事件） */
 export const FREE_KEYS = {
   forward: 'KeyW',
   back: 'KeyS',
@@ -82,7 +84,8 @@ export class FreeCameraController {
       mx /= hor;
       mz /= hor;
     } // 斜向不超速
-    const boost = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') ? FREE_SPEED_BOOST : 1;
+    // MC 疾跑键（Ctrl）加速；Shift 专属下降、不再兼加速
+    const boost = this.keys.has('ControlLeft') || this.keys.has('ControlRight') ? FREE_SPEED_BOOST : 1;
     const step = FREE_SPEED * dt * boost;
     camera.position.x += mx * step;
     camera.position.z += mz * step;

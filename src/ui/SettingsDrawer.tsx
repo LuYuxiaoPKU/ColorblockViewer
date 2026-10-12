@@ -98,7 +98,7 @@ export function SettingsDrawer({
             >
               {freeMode ? '移动中 · 按 Esc 退出' : '启动'}
             </button>
-            <em className="muted">（点击画面锁定鼠标：WASD 平移 · 空格/Shift 升降 · 转鼠标转向 · R 回位）</em>
+            <em className="muted">（点击画面锁定鼠标：WASD 平移 · 空格上升/Shift 下降 · Ctrl 加速 · 转鼠标转向 · R 回位）</em>
           </div>
           <div className="field-row">
             <span className="field-row-label">

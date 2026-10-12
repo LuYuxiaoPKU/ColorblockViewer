@@ -72,7 +72,7 @@ describe('FreeCameraController', () => {
     expect(c.position.y).toBeCloseTo(FREE_MIN_Y + FREE_SPEED * 0.5, 6);
   });
 
-  it('update：斜向移动归一化不超速、Shift 加速 ×3', () => {
+  it('update：斜向移动归一化不超速、Ctrl 加速 ×3（疾跑键语义）', () => {
     const c = cam();
     const f = new FreeCameraController();
     f.press('KeyW');
@@ -84,10 +84,12 @@ describe('FreeCameraController', () => {
     f.release('KeyD');
     f.clearKeys();
     f.press('KeyW');
-    f.press('ShiftLeft');
+    f.press('ControlLeft');
     const before = c.position.clone();
     f.update(c, 1);
-    expect(c.position.z - before.z).toBeCloseTo(-FREE_SPEED * FREE_SPEED_BOOST, 6); // W+Shift 增量
+    expect(c.position.z - before.z).toBeCloseTo(-FREE_SPEED * FREE_SPEED_BOOST, 6); // W+Ctrl 增量
+    // Ctrl 不触发下降（曾 Shift 兼加速 → 边加速边下降）
+    expect(c.position.y).toBe(before.y);
   });
 
   it('update：松开移动键 → 位置不变、仅应用旋转', () => {
