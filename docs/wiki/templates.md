@@ -1,10 +1,10 @@
 # 07 · 预览模板库（权威清单）
 
 > 预览工具内置「📚 模板库」的权威清单（侧栏 📚 按钮 → 模板画廊，支持
-> 复制命令 / 载入预览 / 一键直达 `https://luyuxiaopku.github.io/ColorblockViewer/?t=<id>`）。
+> 复制命令 / 载入预览 / 一键直达 `https://yuer159.github.io/ColorblockViewer/?t=<id>`）。
 > 本页与代码 [src/templates/library.ts](../../src/templates/library.ts) **逐字对齐**
 > （命令文本、标签、说明），代码侧是执行来源，本页是文档来源；代码模板变更时本页同步。
-> 模板的详细效果解读见 [05-examples](05-examples.md)。
+> 模板的详细效果解读见 [05-examples](examples.md)。
 
 ## 硬性约定（每条模板都过三道闸，测试守护）
 
@@ -44,4 +44,4 @@
 
 | 模板 | 来源 | 状态 |
 |---|---|---|
-| **呼吸缩放**（`i=0.1*sin(t/5);(vx,vy,vz)=(x*i,y*i,z*i)`，速度指向当前位置 × 正弦系数 → 构型整体缩放） | B 站社区用法，[05-examples](05-examples.md) 已收录（含幅度/周期调参说明） | 待代码模板库采纳 |
+| **呼吸缩放**（`i=0.1*sin(t/5);(vx,vy,vz)=(x*i,y*i,z*i)`，速度指向当前位置 × 正弦系数 → 构型整体缩放） | B 站社区用法，[05-examples](examples.md) 已收录（含幅度/周期调参说明） | 待代码模板库采纳 |

@@ -27,6 +27,12 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - name: 构建 wiki 网页（VitePress，docs/wiki → docs/wiki/.vitepress/dist）
+        run: npm run wiki:build
+      - name: 合并 wiki 产物到 dist/wiki（base=/ColorblockViewer/wiki/）
+        run: |
+          mkdir -p dist/wiki
+          cp -r docs/wiki/.vitepress/dist/. dist/wiki/
       - name: 断言资源路径带 base 前缀
         run: |
           bad=$(grep -oE '(src|href)="[^"]*"' dist/index.html | grep -E '(src|href)="/' | grep -vE '(src|href)="/ColorblockViewer/' || true)

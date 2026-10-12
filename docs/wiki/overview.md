@@ -28,11 +28,11 @@ ColorBlock（MCBBS 原版）是一个为 Minecraft 增加粒子命令的模组�
 
 ## 预览工具（强烈推荐配合使用）
 
-https://luyuxiaopku.github.io/ColorblockViewer/
+https://yuer159.github.io/ColorblockViewer/
 
 - 粘贴命令 → 立刻看效果 → 满意后复制回游戏，命令文本一字不改
 - 引擎与模组 1:1 复刻：报错文案、表达式求值、粒子寿命与运动全部一致
-- 内置模板（涟漪波面 / 圆周环，清单见 [07-templates](07-templates.md)）演示模组招牌写法
+- 内置模板（涟漪波面 / 圆周环，清单见 [07-templates](templates.md)）演示模组招牌写法
 - 设置面板可切快速模式（纯色圆点）跑大场景
 
 ## 能力边界（Wiki 读者须知）

@@ -1,3 +1,8 @@
+---
+title: ColorBlock 模组 Wiki
+description: 面向玩家与进阶用户的 ColorBlock 模组知识库——命令大全、表达式系统、NBT 语法、粒子类型与实战示例
+---
+
 # ColorBlock 模组 Wiki
 
 > 面向玩家与进阶用户的 ColorBlock 模组知识库。内容由
@@ -7,14 +12,14 @@
 
 ## 目录
 
-- [00-overview](00-overview.md) — 模组是什么、历史与命名、版本支持
-- [01-commands](01-commands.md) — 命令大全（17 个子命令逐条 + 参数表）
-- [02-expressions](02-expressions.md) — 表达式系统（语法/变量/函数/矩阵）
-- [03-nbt](03-nbt.md) — `type{NBT}` 选项语法与陷阱
-- [04-particles](04-particles.md) — 粒子类型清单与版本分区
-- [05-examples](05-examples.md) — 实战示例（全部引擎实测）
-- [06-faq](06-faq.md) — 常见问题
-- [07-templates](07-templates.md) — 预览模板库（权威清单，与代码逐字对齐）
+- [00-overview](overview.md) — 模组是什么、历史与命名、版本支持
+- [01-commands](commands.md) — 命令大全（17 个子命令逐条 + 参数表）
+- [02-expressions](expressions.md) — 表达式系统（语法/变量/函数/矩阵）
+- [03-nbt](nbt.md) — `type{NBT}` 选项语法与陷阱
+- [04-particles](particles.md) — 粒子类型清单与版本分区
+- [05-examples](examples.md) — 实战示例（全部引擎实测）
+- [06-faq](faq.md) — 常见问题
+- [07-templates](templates.md) — 预览模板库（权威清单，与代码逐字对齐）
 
 > 术语口径：**原版模组** = ColorBlock（MCBBS 版本，CC0 协议，原帖已失）；
 > **社区版** = AnotherColorBlock（内部名 ParticleEx）；**预览工具** =
@@ -22,7 +27,7 @@
 
 ## 快速上手
 
-1. 在游戏内（或 [预览工具](https://luyuxiaopku.github.io/ColorblockViewer/)）输入：
+1. 在游戏内（或 [预览工具](https://yuer159.github.io/ColorblockViewer/)）输入：
    ```
    particleex normal minecraft:flame 0 0 0 1 1 1 1 0 0 0 0 0 0 100
    ```

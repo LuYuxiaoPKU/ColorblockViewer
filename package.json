@@ -9,7 +9,10 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "assets": "node scripts/gen-particle-assets.mjs"
+    "assets": "node scripts/gen-particle-assets.mjs",
+    "wiki:dev": "vitepress dev docs/wiki",
+    "wiki:build": "vitepress build docs/wiki",
+    "wiki:preview": "vitepress preview docs/wiki"
   },
   "dependencies": {
     "react": "^19.2.8",
@@ -24,6 +27,7 @@
     "happy-dom": "^20.14.0",
     "typescript": "^7.0.2",
     "vite": "^8.2.2",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.0",
+    "vitepress": "^1.6.4"
   }
 }
