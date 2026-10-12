@@ -4,7 +4,7 @@
 > **一模一样**（命令语义按模组 Java 源码 1:1 复刻，1154 个测试锁定），
 > 满意后把命令复制回游戏即可直接使用。
 
-[🎮 在线体验](https://luyuxiaopku.github.io/ColorblockViewer/) ·
+[🎮 在线体验](https://yuer159.github.io/ColorblockViewer/) ·
 [📖 使用手册](docs/使用手册.md) ·
 [🗺 技术路线](docs/技术路线.md) ·
 [📚 模组 Wiki](docs/wiki/README.md) · v0.2.1
@@ -22,7 +22,7 @@
 
 ## 快速上手（30 秒）
 
-1. 打开[在线体验](https://luyuxiaopku.github.io/ColorblockViewer/)（或 `git clone` 后本地跑，见文末）
+1. 打开[在线体验](https://yuer159.github.io/ColorblockViewer/)（或 `git clone` 后本地跑，见文末）
 2. **不想写命令**：点左侧「📚 模板库」，精选特效（涟漪波面/圆周环）选一个，点「载入并执行」直接看效果
 3. **想自己试**：在左侧粘贴一行命令，点「▶ 播放」
 4. 满意了？把命令文本复制回游戏执行（预览里的回显已自动整理成游戏内合法格式）
