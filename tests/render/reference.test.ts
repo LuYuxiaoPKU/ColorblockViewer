@@ -108,7 +108,6 @@ describe('哨塔结构数据（仓库 watchtower.json = 原版 nbt 1:1）', () =
       'minecraft:cobblestone_stairs',
       'minecraft:dark_oak_stairs',
       'minecraft:cobblestone_wall',
-      'minecraft:white_wall_banner',
       'minecraft:torch',
       'minecraft:chest',
       'minecraft:jigsaw',
@@ -128,13 +127,13 @@ describe('哨塔结构数据（仓库 watchtower.json = 原版 nbt 1:1）', () =
     expect(meshCount(g)).toBeGreaterThan(nonAir);
     expect(meshCount(g)).toBeLessThan(nonAir * 2 + 300);
     const b = boxOf(g);
-    // 结构 envelope 15×21×15 含留白：y 满 0..21；x/z 由四角 banner 布贴墙面决定
-    // （布 1px 厚完全贴在 facing 方向墙外表面 → min -0.0625 / max 15.0625）
+    // 结构 envelope 15×21×15 含留白：y 满 0..21；x/z 边界 = 墙方块外沿
+    // （banner 已移除，无贴墙外凸出 → min=0 / span=15）
     expect(b.minY).toBeCloseTo(0, 6);
     expect(b.maxY).toBeCloseTo(21, 6);
-    expect(b.minX).toBeCloseTo(-0.0625, 3);
-    expect(b.spanX).toBeCloseTo(15.125, 3);
-    expect(b.spanZ).toBeCloseTo(15.125, 3);
+    expect(b.minX).toBeCloseTo(0, 6);
+    expect(b.spanX).toBeCloseTo(15, 6);
+    expect(b.spanZ).toBeCloseTo(15, 6);
   });
 
   it('outpost_tower 无结构数据（异步未就绪）→ 空组，不报错', () => {
@@ -201,30 +200,29 @@ describe('哨塔结构数据（仓库 watchtower.json = 原版 nbt 1:1）', () =
     expect(east.n).toBe(2); // 上/下各两根(东/西),共 4 → 这里计数东+西各至少 1?
   });
 
-  it('chest (9,14,10)：原版 3 件几何（base 0.625 高 + lid 叠合 1px + lock 凸出），面分区裁剪材质（把手只在 south）', () => {
+  it('chest (9,14,10)：原版 3 件几何（base 0.625 高 + lid 叠合 1px + lock 凸出），面分区裁剪材质（把手只在局部 south）', () => {
     const g = buildTower(fakeTex(), data);
-    const found: THREE.Mesh[] = [];
+    g.updateMatrixWorld(true);
+    // 箱子 = 3-mesh 组（base/lid/lock），组 position (9.5,14,10.5)；mesh 为局部坐标
+    let group: THREE.Group | null = null;
     g.traverse((o) => {
-      const m = o as THREE.Mesh;
-      if (!m.isMesh) return;
-      if (
-        Math.abs(m.position.x - 9.5) < 1e-6 &&
-        (Math.abs(m.position.z - 10.5) < 1e-6 || Math.abs(m.position.z - 10.96875) < 1e-6)
-      ) {
-        found.push(m);
-      }
+      const grp = o as THREE.Group;
+      if (grp.isGroup && grp.children.length === 3 && Math.abs(grp.position.x - 9.5) < 1e-6 && Math.abs(grp.position.y - 14) < 1e-6 && Math.abs(grp.position.z - 10.5) < 1e-6) group = grp;
     });
-    // lid（y=14.71875）是三个里最高的
-    const lid = found.find((m) => Math.abs(m.position.y - 14.71875) < 1e-6)!;
-    const baseM = found.find((m) => Math.abs(m.position.y - 14.3125) < 1e-6)!;
-    const lock = found.find((m) => Math.abs(m.position.y - 14.5625) < 1e-6)!;
+    expect(group).toBeTruthy();
+    const ms = group!.children as THREE.Mesh[];
+    const lid = ms.find((m) => Math.abs(m.position.y - 0.71875) < 1e-6)!;
+    const baseM = ms.find((m) => Math.abs(m.position.y - 0.3125) < 1e-6)!;
+    const lock = ms.find((m) => Math.abs(m.position.y - 0.5625) < 1e-6)!;
     expect(lid).toBeTruthy();
+    expect(baseM).toBeTruthy();
+    expect(lock).toBeTruthy();
     const lh = (lid.geometry as THREE.BoxGeometry).parameters.height;
     const bh = (baseM.geometry as THREE.BoxGeometry).parameters.height;
     expect(lh).toBeCloseTo(0.3125, 6); // lid 5px
     expect(bh).toBeCloseTo(0.625, 6); // base 10px
     expect((lock.geometry as THREE.BoxGeometry).parameters.depth).toBeCloseTo(0.0625, 6);
-    // 把手只出现在 base south（面 4）：front 区 [0,19,14,29] → repeat=(14/64,10/64) offset=(0,35/64)
+    // 把手只出现在 base 局部 south（面 4）：front 区 [0,19,14,29] → repeat=(14/64,10/64) offset=(0,35/64)
     const south = ((baseM.material as THREE.Material[])[4] as THREE.MeshLambertMaterial).map!;
     expect(south.repeat.x).toBeCloseTo(14 / 64, 6);
     expect(south.repeat.y).toBeCloseTo(10 / 64, 6);
@@ -237,19 +235,23 @@ describe('哨塔结构数据（仓库 watchtower.json = 原版 nbt 1:1）', () =
     expect(lidBottom.repeat.y).toBeCloseTo(14 / 64, 6); // 盖底也木纹（非把手）
   });
 
-  it('banner 贴墙外表面：布中心局部 z=-0.53125（墙外 0.5px）、杆嵌墙内 z=-0.40625（8 面旗全部一致）', () => {
+  it('chest 朝向：哨塔内唯一箱子 (9,14,10) facing=west → 锁扣（局部 +Z）世界朝西', () => {
     const g = buildTower(null, data);
-    const cloth = { n: 0 };
-    const pole = { n: 0 };
+    g.updateMatrixWorld(true);
+    const v = new THREE.Vector3();
+    let lockDir = '';
     g.traverse((o) => {
       const m = o as THREE.Mesh;
       if (!m.isMesh) return;
       const size = (m.geometry as THREE.BoxGeometry).parameters;
-      if (size.width === 0.5 && m.position.x === 0 && Math.abs(m.position.z + 0.53125) < 1e-6 && m.position.y === 0.5) cloth.n++;
-      if (size.width === 0.125 && size.height === 1 && m.position.x === 0 && Math.abs(m.position.z + 0.40625) < 1e-6 && m.position.y === 0.5) pole.n++;
+      if (size.width === 0.125 && size.height === 0.25 && size.depth === 0.0625) {
+        m.getWorldPosition(v);
+        // 锁扣中心在组中心 +Z 0.46875 → 世界 x/z 相对 (9.5, 10.5)：dx<0 = 西
+        if (Math.abs(v.x - 9.5) < 1e-6 && Math.abs(v.z - 10.5) < 1e-6) return;
+        lockDir = v.x < 9.5 ? 'west' : v.x > 9.5 ? 'east' : v.z > 10.5 ? 'south' : 'north';
+      }
     });
-    expect(cloth.n).toBe(8);
-    expect(pole.n).toBe(8);
+    expect(lockDir).toBe('west');
   });
 });
 
