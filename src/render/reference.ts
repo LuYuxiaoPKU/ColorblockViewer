@@ -50,7 +50,6 @@ export const TEXTURE_FILES = [
   'birch_planks.png',
   'cobblestone.png',
   'torch.png',
-  'banner_base.png',
   'chest.png',
 ] as const;
 
@@ -280,7 +279,9 @@ function stairsBlock(tex: Tex, name: string, props: Record<string, string>, pos:
   const mats = mats6(tex, side, 'tower');
   g.add(box(mats, [1, 0.5, 1], [0, 0.25, 0]));
   g.add(box(mats, [0.5, 0.5, 1], [0.25, 0.75, 0])); // 局部底面 y=0 → 组中心对齐方块底
-  g.rotation.y = ({ east: 0, south: Math.PI / 2, west: Math.PI, north: -Math.PI / 2 } as Record<string, number>)[props.facing ?? 'east'];
+  // 组旋转 Y 对齐朝向：three.js rotation.y 正方向与 MC 模型 "y" 旋转相反 →
+  // south 用 -π/2、north 用 +π/2（曾 south=+π/2/north=-π/2 致南北两向反置）。
+  g.rotation.y = ({ east: 0, south: -Math.PI / 2, west: Math.PI, north: Math.PI / 2 } as Record<string, number>)[props.facing ?? 'east'];
   g.position.set(pos[0] + 0.5, pos[1] + (props.half === 'top' ? 0.5 : 0), pos[2] + 0.5);
   return g;
 }
@@ -327,19 +328,6 @@ function torchBlock(tex: Tex, pos: [number, number, number]): THREE.Group {
   return g;
 }
 
-/** 挂墙白旗：杆（2px 厚）嵌墙内靠外表面 + 布（8×14×1px）贴墙外表面、面朝 facing 方向
- *  （组绕方块中心旋转，局部 -z 墙面 → 布完全在墙外 z∈[-0.5625,-0.5]；曾朝对侧半探出）。
- *  贴图 = 原版白色旗帜底布。 */
-function bannerBlock(tex: Tex, props: Record<string, string>, pos: [number, number, number]): THREE.Group {
-  const g = new THREE.Group();
-  g.rotation.y = ({ north: 0, south: Math.PI, west: Math.PI / 2, east: -Math.PI / 2 } as Record<string, number>)[props.facing ?? 'north'];
-  g.position.set(pos[0] + 0.5, pos[1], pos[2] + 0.5);
-  // 杆 y 0-16px 嵌墙内（z -0.4375..-0.375），布 y 1-15px 贴墙外表面（z -0.5625..-0.5）
-  g.add(box(mats6(tex, 'banner_base.png', 'tower'), [0.125, 1, 0.0625], [0, 0.5, -0.40625]));
-  g.add(box(mats6(tex, 'banner_base.png', 'tower'), [0.5, 0.875, 0.0625], [0, 0.5, -0.53125]));
-  return g;
-}
-
 /** 箱子：按原版 ChestModel 拆 3 件（base 14×10×14px / lid 14×5×14px 叠合 1px /
  *  lock 2×4×1px，总高 14px=0.875 格，26.2 javap 实测）；纹理按面分区裁剪（chest.png
  *  布局：lid front 上 5px、lid top 14px、box front 10px、box top 14px）——把手/锁扣
@@ -369,14 +357,17 @@ function chestMats(tex: Tex, front: readonly [number, number, number, number], t
   return [t, t, t, t, f, t]; // east/west/top/bottom/north 木纹；south 为 front
 }
 
-function chestBlock(tex: Tex, _props: Record<string, string>, pos: [number, number, number]): THREE.Group {
+function chestBlock(tex: Tex, props: Record<string, string>, pos: [number, number, number]): THREE.Group {
   const g = new THREE.Group();
+  // 箱子正面（锁扣）默认局部 +Z；旋转使正面朝 facing（three.js 方向映射同 stairs 定标）
+  g.rotation.y = ({ south: 0, east: Math.PI / 2, north: Math.PI, west: -Math.PI / 2 } as Record<string, number>)[props.facing ?? 'south'];
+  g.position.set(pos[0] + 0.5, pos[1], pos[2] + 0.5);
   // base：14×10×14px @(1,0,1)；lid：14×5×14px 抬到 y9-14px（叠合 1px 合页）；lock：2×4×1px 凸出 z 面
-  g.add(box(chestMats(tex, CHEST_BOX_FRONT, CHEST_BOX_TOP), [0.875, 0.625, 0.875], [pos[0] + 0.5, pos[1] + 0.3125, pos[2] + 0.5]));
-  g.add(box(chestMats(tex, CHEST_LID_FRONT, CHEST_LID_TOP), [0.875, 0.3125, 0.875], [pos[0] + 0.5, pos[1] + 0.71875, pos[2] + 0.5]));
+  g.add(box(chestMats(tex, CHEST_BOX_FRONT, CHEST_BOX_TOP), [0.875, 0.625, 0.875], [0, 0.3125, 0]));
+  g.add(box(chestMats(tex, CHEST_LID_FRONT, CHEST_LID_TOP), [0.875, 0.3125, 0.875], [0, 0.71875, 0]));
   // lock：2×4×1px 凸出盖正面（z 15-16px），用盖正面分区裁剪（锁扣图形在其中）
   const lockM = chestFace(tex, CHEST_LID_FRONT);
-  g.add(box([lockM, lockM, lockM, lockM, lockM, lockM], [0.125, 0.25, 0.0625], [pos[0] + 0.5, pos[1] + 0.5625, pos[2] + 0.96875]));
+  g.add(box([lockM, lockM, lockM, lockM, lockM, lockM], [0.125, 0.25, 0.0625], [0, 0.5625, 0.46875]));
   return g;
 }
 
@@ -411,9 +402,6 @@ export function buildTower(tex: Tex, data: TowerData): THREE.Group {
         break;
       case 'minecraft:torch':
         g.add(torchBlock(tex, pos));
-        break;
-      case 'minecraft:white_wall_banner':
-        g.add(bannerBlock(tex, props, pos));
         break;
       case 'minecraft:chest':
         g.add(chestBlock(tex, props, pos));
