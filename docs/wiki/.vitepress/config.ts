@@ -14,6 +14,7 @@ export default defineConfig({
     logo: '/ColorblockViewer/favicon.svg',
     nav: [
       { text: '模组 Wiki', link: '/index' },
+      { text: '示例画廊', link: '/gallery' },
       { text: '预览工具', link: 'https://yuer159.github.io/ColorblockViewer/' },
       { text: 'GitHub', link: 'https://github.com/YuEr159/ColorblockViewer' },
     ],
@@ -27,6 +28,7 @@ export default defineConfig({
           { text: 'type{NBT} 选项语法', link: '/nbt' },
           { text: '粒子类型清单', link: '/particles' },
           { text: '实战示例', link: '/examples' },
+          { text: '示例画廊', link: '/gallery' },
           { text: '常见问题', link: '/faq' },
           { text: '模板库', link: '/templates' },
         ],
