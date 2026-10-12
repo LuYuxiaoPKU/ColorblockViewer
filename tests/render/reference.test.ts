@@ -123,17 +123,17 @@ describe('哨塔结构数据（仓库 watchtower.json = 原版 nbt 1:1）', () =
       const p = data.palette[s];
       return p && p.Name !== 'minecraft:air' && p.Name !== 'minecraft:jigsaw';
     }).length;
-    // 整方块 1 mesh + 特殊方块多 mesh（fence 1+连接杆、stairs 2、chest 2）→ 略多于非空气方块数
+    // 整方块 1 mesh + 特殊方块多 mesh（fence 1+连接杆、stairs 2）→ 略多于非空气方块数
     expect(meshCount(g)).toBeGreaterThan(nonAir);
     expect(meshCount(g)).toBeLessThan(nonAir * 2 + 300);
     const b = boxOf(g);
-    // 结构 envelope 15×21×15 含留白：y 满 0..21；x/z 边界 = 墙方块外沿
-    // （banner 已移除，无贴墙外凸出 → min=0 / span=15）
+    // 结构 envelope：y 满 0..21；x/z 边界 = 主体墙外沿（banner 曾占 x=0/14 撑到
+    // 全宽 15，跳过渲染后主体 x/z ∈ [1,13] → min=1 / span=13）
     expect(b.minY).toBeCloseTo(0, 6);
     expect(b.maxY).toBeCloseTo(21, 6);
-    expect(b.minX).toBeCloseTo(0, 6);
-    expect(b.spanX).toBeCloseTo(15, 6);
-    expect(b.spanZ).toBeCloseTo(15, 6);
+    expect(b.minX).toBeCloseTo(1, 6);
+    expect(b.spanX).toBeCloseTo(13, 6);
+    expect(b.spanZ).toBeCloseTo(13, 6);
   });
 
   it('outpost_tower 无结构数据（异步未就绪）→ 空组，不报错', () => {
@@ -200,58 +200,42 @@ describe('哨塔结构数据（仓库 watchtower.json = 原版 nbt 1:1）', () =
     expect(east.n).toBe(2); // 上/下各两根(东/西),共 4 → 这里计数东+西各至少 1?
   });
 
-  it('chest (9,14,10)：原版 3 件几何（base 0.625 高 + lid 叠合 1px + lock 凸出），面分区裁剪材质（把手只在局部 south）', () => {
+  it('chest/banner 已移除（用户拍板）：箱子 (9,14,10)、旗帜 (0,13,4) 位置均无 mesh——杜绝 default 分支整方块兜底渲染出来', () => {
     const g = buildTower(fakeTex(), data);
-    g.updateMatrixWorld(true);
-    // 箱子 = 3-mesh 组（base/lid/lock），组 position (9.5,14,10.5)；mesh 为局部坐标
-    let group: THREE.Group | null = null;
-    g.traverse((o) => {
-      const grp = o as THREE.Group;
-      if (grp.isGroup && grp.children.length === 3 && Math.abs(grp.position.x - 9.5) < 1e-6 && Math.abs(grp.position.y - 14) < 1e-6 && Math.abs(grp.position.z - 10.5) < 1e-6) group = grp;
-    });
-    expect(group).toBeTruthy();
-    const ms = group!.children as THREE.Mesh[];
-    const lid = ms.find((m) => Math.abs(m.position.y - 0.71875) < 1e-6)!;
-    const baseM = ms.find((m) => Math.abs(m.position.y - 0.3125) < 1e-6)!;
-    const lock = ms.find((m) => Math.abs(m.position.y - 0.5625) < 1e-6)!;
-    expect(lid).toBeTruthy();
-    expect(baseM).toBeTruthy();
-    expect(lock).toBeTruthy();
-    const lh = (lid.geometry as THREE.BoxGeometry).parameters.height;
-    const bh = (baseM.geometry as THREE.BoxGeometry).parameters.height;
-    expect(lh).toBeCloseTo(0.3125, 6); // lid 5px
-    expect(bh).toBeCloseTo(0.625, 6); // base 10px
-    expect((lock.geometry as THREE.BoxGeometry).parameters.depth).toBeCloseTo(0.0625, 6);
-    // 把手只出现在 base 局部 south（面 4）：front 区 [0,19,14,29] → repeat=(14/64,10/64) offset=(0,35/64)
-    const south = ((baseM.material as THREE.Material[])[4] as THREE.MeshLambertMaterial).map!;
-    expect(south.repeat.x).toBeCloseTo(14 / 64, 6);
-    expect(south.repeat.y).toBeCloseTo(10 / 64, 6);
-    expect(south.offset.y).toBeCloseTo(35 / 64, 6);
-    // 顶面（面 2）= 木纹区 [0,29,14,43]；盖底（lid 面 3，箱子内面）= 木纹区
-    const topM = ((baseM.material as THREE.Material[])[2] as THREE.MeshLambertMaterial).map!;
-    expect(topM.repeat.y).toBeCloseTo(14 / 64, 6);
-    expect(topM.offset.y).toBeCloseTo(21 / 64, 6);
-    const lidBottom = ((lid.material as THREE.Material[])[3] as THREE.MeshLambertMaterial).map!;
-    expect(lidBottom.repeat.y).toBeCloseTo(14 / 64, 6); // 盖底也木纹（非把手）
-  });
-
-  it('chest 朝向：哨塔内唯一箱子 (9,14,10) facing=west → 锁扣（局部 +Z）世界朝西', () => {
-    const g = buildTower(null, data);
-    g.updateMatrixWorld(true);
-    const v = new THREE.Vector3();
-    let lockDir = '';
+    let chestMesh = 0;
+    let bannerMesh = 0;
     g.traverse((o) => {
       const m = o as THREE.Mesh;
       if (!m.isMesh) return;
-      const size = (m.geometry as THREE.BoxGeometry).parameters;
-      if (size.width === 0.125 && size.height === 0.25 && size.depth === 0.0625) {
-        m.getWorldPosition(v);
-        // 锁扣中心在组中心 +Z 0.46875 → 世界 x/z 相对 (9.5, 10.5)：dx<0 = 西
-        if (Math.abs(v.x - 9.5) < 1e-6 && Math.abs(v.z - 10.5) < 1e-6) return;
-        lockDir = v.x < 9.5 ? 'west' : v.x > 9.5 ? 'east' : v.z > 10.5 ? 'south' : 'north';
-      }
+      const p = m.position;
+      if (Math.abs(p.x - 9.5) < 1e-6 && Math.abs(p.y - 14) < 1e-6 && Math.abs(p.z - 10.5) < 1e-6) chestMesh++;
+      if (Math.abs(p.x - 0.5) < 1e-6 && Math.abs(p.y - 13) < 1e-6 && Math.abs(p.z - 4.5) < 1e-6) bannerMesh++;
     });
-    expect(lockDir).toBe('west');
+    expect(chestMesh).toBe(0);
+    expect(bannerMesh).toBe(0);
+  });
+
+  it('cobblestone_wall (2,14,2)：post 1:1 复刻（0.5×1×0.5，原版 [4,0,4]-[12,16,12]），侧面贴图按原版默认 UV 采样中间 8 列——曾 16px 纹理压进 8px 面，横向压缩 2 倍、圆石图案竖长变形', () => {
+    const g = buildTower(fakeTex(), data);
+    const found: THREE.Mesh[] = [];
+    g.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      if (Math.abs(m.position.x - 2.5) < 1e-6 && Math.abs(m.position.y - 14.5) < 1e-6 && Math.abs(m.position.z - 2.5) < 1e-6) found.push(m);
+    });
+    expect(found.length).toBe(1);
+    const size = (found[0].geometry as THREE.BoxGeometry).parameters;
+    expect(size.width).toBeCloseTo(0.5, 6);
+    expect(size.height).toBeCloseTo(1, 6);
+    const side = (found[0].material as THREE.Material[])[0] as THREE.MeshLambertMaterial;
+    expect(side.map!.repeat.x).toBeCloseTo(0.5, 6); // 8/16：贴图中间 8 列
+    expect(side.map!.offset.x).toBeCloseTo(0.25, 6); // 起点 4/16
+    expect(side.map!.repeat.y).toBeCloseTo(1, 6); // 纵向 16 行全采 → 无变形
+    expect(side.map!.offset.y).toBeCloseTo(0, 6);
+    const top = (found[0].material as THREE.Material[])[2] as THREE.MeshLambertMaterial; // up 面
+    expect(top.map!.repeat.x).toBeCloseTo(0.5, 6);
+    expect(top.map!.repeat.y).toBeCloseTo(0.5, 6);
+    expect(top.map!.offset.y).toBeCloseTo(0.25, 6); // 中心 8×8 区（v 4-12 从顶计）
   });
 });
 

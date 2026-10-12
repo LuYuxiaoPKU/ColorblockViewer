@@ -3,8 +3,8 @@
 //   - 贴图从 1.21.11 client.jar 提取（public/references/1.21.11/，与粒子贴图 public/particles
 //     同口径）；加载失败/无纹理环境（headless）→ 纯色降级（与 v1 一致）。
 //   - 哨塔 = 原版结构 watchtower.nbt 转 JSON（1:1 方块布局，服务端 jar 提取）；特殊方块
-//     （栅栏/台阶/楼梯/墙/火把/旗帜/箱子）几何按原版模型 json 尺寸复刻（16px = 1 格），
-//     jigsaw 占位跳过。
+//     （栅栏/台阶/楼梯/墙/火把）几何按原版模型 json 尺寸复刻（16px = 1 格），
+//     jigsaw 占位跳过；旗帜/箱子用户拍板移除（模型/贴图问题多，渲染跳过）。
 // 位置约定：脚底 y=0、水平居中 (0.5, *, 0.5)（与原点 1 格网格对齐）；'none' → null。
 
 import * as THREE from 'three';
@@ -50,7 +50,6 @@ export const TEXTURE_FILES = [
   'birch_planks.png',
   'cobblestone.png',
   'torch.png',
-  'chest.png',
 ] as const;
 
 let texPromise: Promise<Record<string, THREE.Texture | null>> | null = null;
@@ -314,11 +313,30 @@ function fenceBlock(tex: Tex, name: string, props: Record<string, string>, pos: 
   return g;
 }
 
-/** 石墙：中心柱（4-12px 见方 16px 高）+ 连接矮墙（高 14px）。哨塔内 wall 无水平连接 → 仅柱 */
-function wallBlock(tex: Tex, _name: string, props: Record<string, string>, pos: [number, number, number]): THREE.Group {
-  void props;
+/** 石墙：中心柱（4-12px 见方 16px 高）。哨塔内 wall 均 up=true 角柱、无水平连接 →
+ *  仅 post（原版 template_wall_post from[4,0,4] to[12,16,12] 1:1 复刻）。
+ *  贴图按原版默认 UV（面投影 [4,0,12,16]）裁剪采样——曾 UV 0-1 全贴致 8px 面
+ *  压进 16px 纹理，横向压缩 2 倍、圆石图案竖长变形（用户报"贴图纵向拉伸"）。 */
+const WALL_UV_SIDE = [4, 0, 12, 16] as const; // 侧面：贴图中间 8 列 × 全高（1:1 无变形）
+const WALL_UV_TOP = [4, 4, 12, 12] as const; // 顶/底：贴图中心 8×8
+
+/** 单面裁剪材质：共享 image 的 Texture clone + repeat/offset 裁到分区（v 从图像顶计，
+ *  three flipY → 顶在 v=1，offset v=(16-v1)/16）。 */
+function wallFace(tex: Tex, region: readonly [number, number, number, number]): THREE.MeshLambertMaterial {
+  const map = tex && tex['cobblestone.png'];
+  if (!map) return fallbackFor('tower');
+  const t = map.clone();
+  t.needsUpdate = true;
+  t.repeat.set((region[2] - region[0]) / 16, (region[3] - region[1]) / 16);
+  t.offset.set(region[0] / 16, (16 - region[3]) / 16);
+  return new THREE.MeshLambertMaterial({ map: t });
+}
+
+function wallBlock(tex: Tex, _name: string, _props: Record<string, string>, pos: [number, number, number]): THREE.Group {
+  const side = wallFace(tex, WALL_UV_SIDE);
+  const top = wallFace(tex, WALL_UV_TOP);
   const g = new THREE.Group();
-  g.add(box(mats6(tex, 'cobblestone.png', 'tower'), [0.5, 1, 0.5], [pos[0] + 0.5, pos[1] + 0.5, pos[2] + 0.5]));
+  g.add(box([side, side, top, top, side, side], [0.5, 1, 0.5], [pos[0] + 0.5, pos[1] + 0.5, pos[2] + 0.5]));
   return g;
 }
 
@@ -329,48 +347,8 @@ function torchBlock(tex: Tex, pos: [number, number, number]): THREE.Group {
   return g;
 }
 
-/** 箱子：按原版 ChestModel 拆 3 件（base 14×10×14px / lid 14×5×14px 叠合 1px /
- *  lock 2×4×1px，总高 14px=0.875 格，26.2 javap 实测）；纹理按面分区裁剪（chest.png
- *  布局：lid front 上 5px、lid top 14px、box front 10px、box top 14px）——把手/锁扣
- *  只出现在正面，盖底/箱顶等内部面是纯木纹（曾整面贴 → 内部面显示把手"内部贴图"）。
- *  面序 east/west/top/bottom/south/north；分区像素坐标 [u0,v0,u1,v1]（v 从图像顶计）。 */
-const CHEST_LID_TOP = [0, 5, 14, 19] as const; // 盖顶木纹（14×14px）
-const CHEST_LID_FRONT = [0, 0, 14, 5] as const; // 盖正面（14×5px，含锁扣）
-const CHEST_BOX_TOP = [0, 29, 14, 43] as const; // 箱顶木纹（14×14px）
-const CHEST_BOX_FRONT = [0, 19, 14, 29] as const; // 箱正面（14×10px，含把手）
-
-/** 单面裁剪材质：共享 image 的 Texture clone + repeat/offset 裁到分区（v 从图像顶计，
- *  three flipY → 顶在 v=1，offset v=(64-v1)/64）。 */
-function chestFace(tex: Tex, region: readonly [number, number, number, number]): THREE.MeshLambertMaterial {
-  const map = tex && tex['chest.png'];
-  if (!map) return fallbackFor('tower');
-  const t = map.clone();
-  t.needsUpdate = true;
-  t.repeat.set((region[2] - region[0]) / 64, (region[3] - region[1]) / 64);
-  t.offset.set(region[0] / 64, (64 - region[3]) / 64);
-  return new THREE.MeshLambertMaterial({ map: t });
-}
-
-/** 六面材质组：south(前) 用 front 区（把手/锁扣），其余含 north(背) 用木纹区 */
-function chestMats(tex: Tex, front: readonly [number, number, number, number], top: readonly [number, number, number, number]): THREE.MeshLambertMaterial[] {
-  const f = chestFace(tex, front);
-  const t = chestFace(tex, top);
-  return [t, t, t, t, f, t]; // east/west/top/bottom/north 木纹；south 为 front
-}
-
-function chestBlock(tex: Tex, props: Record<string, string>, pos: [number, number, number]): THREE.Group {
-  const g = new THREE.Group();
-  // 箱子正面（锁扣）默认局部 +Z；旋转使正面朝 facing（three.js 方向映射同 stairs 定标）
-  g.rotation.y = ({ south: 0, east: Math.PI / 2, north: Math.PI, west: -Math.PI / 2 } as Record<string, number>)[props.facing ?? 'south'];
-  g.position.set(pos[0] + 0.5, pos[1], pos[2] + 0.5);
-  // base：14×10×14px @(1,0,1)；lid：14×5×14px 抬到 y9-14px（叠合 1px 合页）；lock：2×4×1px 凸出 z 面
-  g.add(box(chestMats(tex, CHEST_BOX_FRONT, CHEST_BOX_TOP), [0.875, 0.625, 0.875], [0, 0.3125, 0]));
-  g.add(box(chestMats(tex, CHEST_LID_FRONT, CHEST_LID_TOP), [0.875, 0.3125, 0.875], [0, 0.71875, 0]));
-  // lock：2×4×1px 凸出盖正面（z 15-16px），用盖正面分区裁剪（锁扣图形在其中）
-  const lockM = chestFace(tex, CHEST_LID_FRONT);
-  g.add(box([lockM, lockM, lockM, lockM, lockM, lockM], [0.125, 0.25, 0.0625], [0, 0.5625, 0.46875]));
-  return g;
-}
+/** 箱子已删除（用户拍板：贴图分区问题修复成本高；2026-10-12）——
+ *   buildTower 跳过 minecraft:chest，chestBlock/chestFace/chest.png 一并移除 */
 
 /** 哨塔整体：按结构 JSON 逐方块构建（air/jigsaw 跳过） */
 export function buildTower(tex: Tex, data: TowerData): THREE.Group {
@@ -378,6 +356,8 @@ export function buildTower(tex: Tex, data: TowerData): THREE.Group {
   for (const [x, y, z, state] of data.blocks) {
     const p = data.palette[state];
     if (!p || p.Name === 'minecraft:air' || p.Name === 'minecraft:jigsaw') continue;
+    // 用户拍板移除的方块族：旗帜（模型 bug 多）、箱子（贴图分区问题）——结构数据保留，渲染跳过
+    if (p.Name === 'minecraft:white_wall_banner' || p.Name === 'minecraft:chest') continue;
     const props = p.Properties ?? {};
     const pos: [number, number, number] = [x, y, z];
     switch (p.Name) {
@@ -403,9 +383,6 @@ export function buildTower(tex: Tex, data: TowerData): THREE.Group {
         break;
       case 'minecraft:torch':
         g.add(torchBlock(tex, pos));
-        break;
-      case 'minecraft:chest':
-        g.add(chestBlock(tex, props, pos));
         break;
       default:
         g.add(fullBlock(tex, p.Name, props, pos));
