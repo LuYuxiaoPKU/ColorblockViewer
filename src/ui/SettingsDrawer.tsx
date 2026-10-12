@@ -40,16 +40,6 @@ export function SettingsDrawer({
             <NumField label="tick" value={sim.defaultLifetime} min={1} integer onChange={(v) => setSim({ defaultLifetime: v })} />
           </div>
           <div className="field-row">
-            <label className="check-inline">
-              <input
-                type="checkbox"
-                checked={sim.nativeKinematics}
-                onChange={(e) => setSim({ nativeKinematics: e.target.checked })}
-              />
-              原版运动学 <em className="muted">（摩擦/重力/淡出/随机寿命，按反编译证据取值；1.21.11 与 26.2 行为一致）</em>
-            </label>
-          </div>
-          <div className="field-row">
             <span className="field-row-label">粒子上限</span>
             <NumField label="max" value={sim.maxParticles} min={1} integer onChange={(v) => setSim({ maxParticles: v })} />
           </div>
@@ -100,16 +90,15 @@ export function SettingsDrawer({
             </select>
           </div>
           <div className="field-row">
-            <label className="check-inline">
-              <input
-                type="checkbox"
-                checked={freeMode}
-                onChange={(e) => onToggleFreeMode(e.target.checked)}
-                aria-label="自由视角"
-              />
-              自由视角
-              <em className="muted">（点击画面锁定鼠标：WASD 平移 · 空格/Shift 升降 · 转鼠标转向 · R 回位 · Esc 退出）</em>
-            </label>
+            <span className="field-row-label">视角移动</span>
+            <button
+              type="button"
+              className={freeMode ? 'active' : ''}
+              onClick={() => onToggleFreeMode(!freeMode)}
+            >
+              {freeMode ? '移动中 · 按 Esc 退出' : '启动'}
+            </button>
+            <em className="muted">（点击画面锁定鼠标：WASD 平移 · 空格/Shift 升降 · 转鼠标转向 · R 回位）</em>
           </div>
           <div className="field-row">
             <span className="field-row-label">

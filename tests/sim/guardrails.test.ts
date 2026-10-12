@@ -21,7 +21,6 @@ function cfg(over: Partial<SimConfig> = {}): SimConfig {
     mcVersion: '26.2',
     gridSize: 10,
     gridVisible: true,
-    nativeKinematics: false,
     renderMode: 'full',
     reference: 'none',
     ...over,

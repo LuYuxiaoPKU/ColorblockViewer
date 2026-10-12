@@ -14,7 +14,7 @@ import { getState } from '../../src/store/appState';
 import type { ImageVideoCmd, ImageMatrixCmd, NormalCmd } from '../../src/command/types';
 
 function engine(): SimEngine {
-  return new SimEngine({ ...getState().sim, seed: 1, nativeKinematics: true, mcVersion: '26.2' });
+  return new SimEngine({ ...getState().sim, seed: 1, mcVersion: '26.2' });
 }
 
 describe('image 解析', () => {

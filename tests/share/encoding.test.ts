@@ -13,7 +13,6 @@ const SIM: SimConfig = {
   mcVersion: '26.2',
   gridSize: 10,
   gridVisible: true,
-  nativeKinematics: true,
   renderMode: 'full',
   reference: 'none',
 };

@@ -22,7 +22,6 @@ function cfg(over: Partial<SimConfig> = {}): SimConfig {
     mcVersion: '26.2',
     gridSize: 10,
     gridVisible: true,
-    nativeKinematics: false,
     renderMode: 'full',
     reference: 'none',
     ...over,
@@ -40,7 +39,9 @@ const normal = (
   tail: string,
   over: { name?: string; pos?: string; color?: string; vel?: string; range?: string } = {},
 ) =>
-  `particleex normal ${over.name ?? 'flame'} ${over.pos ?? '0 0 0'} ${over.color ?? '1 1 1 1'} ${over.vel ?? '0 0 0'} ${over.range ?? '0 0 0'} ${count} ${tail}`.trim();
+  // 默认 geyser_base（运动学表外 → 引擎匀速直线）：寿命/位移框架用例与类型
+  // 运动学解耦（曾默认 flame——表内有摩擦，恒开原版运动学后位移断言失效）
+  `particleex normal ${over.name ?? 'geyser_base'} ${over.pos ?? '0 0 0'} ${over.color ?? '1 1 1 1'} ${over.vel ?? '0 0 0'} ${over.range ?? '0 0 0'} ${count} ${tail}`.trim();
 
 // ---------- 寿命与原生位移 ----------
 
@@ -673,7 +674,7 @@ describe('原版 /particle 生成', () => {
   });
 });
 
-// ---------- 原版运动学（nativeKinematics，26.2 javap 核对；常量 = f2d 加宽精确值）----------
+// ---------- 原版运动学（恒开启；26.2 javap 核对；常量 = f2d 加宽精确值）----------
 
 // f2d 加宽辅助（Java float 字段 → double，与 src/sim/kinematics.ts 表值同口径）
 const f = Math.fround;
@@ -689,40 +690,29 @@ describe('原版运动学（end_rod：摩擦 f2d(0.91f)/tick + 重力 −0.04d×
 
   it('age=0：寿命 = 60+nextInt(12)（vanillaRand = SimRandom(seed+1)），可复现', () => {
     // JDK21 ProbeInt：seed=2 nextInt(12) 首个值 = 4 → lifetime = 64
-    const e1 = eng({ seed: 1, nativeKinematics: true });
+    const e1 = eng({ seed: 1});
     e1.runCommand(C(er('0')));
     expect(snap(e1)[0].lifetime).toBe(64);
-    const e2 = eng({ seed: 1, nativeKinematics: true });
+    const e2 = eng({ seed: 1});
     e2.runCommand(C(er('0')));
     expect(snap(e2)[0].lifetime).toBe(snap(e1)[0].lifetime);
   });
 
   it('age=0 多粒子：逐个消费 vanillaRand（序列确定）', () => {
-    const e = eng({ seed: 1, nativeKinematics: true });
+    const e = eng({ seed: 1});
     e.runCommand(C('particleex normal minecraft:end_rod 0 0 0 1 1 1 1 0 0 0 0 0 0 3 0'));
     const lt = snap(e).map((p) => p.lifetime);
     expect(lt).toEqual([64, 60, 68]); // seed=2 nextInt(12)×3 → 4 0 8
   });
 
-  it('显式 age>0 优先：nativeKinematics 开启也不套用随机寿命', () => {
-    const e = eng({ nativeKinematics: true });
+  it('显式 age>0 优先：不套用随机寿命', () => {
+    const e = eng();
     e.runCommand(C(er('20')));
     expect(rod(e).lifetime).toBe(20);
   });
 
-  it('关闭（默认）：end_rod 也走匀速直线（无摩擦/重力）', () => {
-    const e = eng(); // nativeKinematics: false
-    e.runCommand(C(er('100')));
-    // snapshot 返回活引用（对象同一性）→ 先取数值副本再 tick，否则 p0.y 随 tick 变
-    const y0 = rod(e).y;
-    e.tickOnce();
-    expect(rod(e).y).toBeCloseTo(y0 + 1, 10);
-    e.tickOnce();
-    expect(rod(e).y).toBeCloseTo(y0 + 2, 10);
-  });
-
-  it('开启：每 tick 重力先于位移、摩擦后于位移（Particle.tick 逐字顺序）', () => {
-    const e = eng({ nativeKinematics: true });
+  it('每 tick 重力先于位移、摩擦后于位移（Particle.tick 逐字顺序）', () => {
+    const e = eng();
     e.runCommand(C(er('100')));
     const p0 = rod(e);
     expect(p0.vy).toBeCloseTo(1, 10);
@@ -741,23 +731,12 @@ describe('原版运动学（end_rod：摩擦 f2d(0.91f)/tick + 重力 −0.04d×
 
   it('速度表达式路径回滚原生位移 → 不受摩擦/重力影响（用户实况命令语义）', () => {
     // 用户真实命令等价：vel 0 0 0（stop=true）+ 表达式 vy=0.05 → 恒定 0.05/tick
-    const e = eng({ nativeKinematics: true });
+    const e = eng();
     e.runCommand(C('particleex normal minecraft:end_rod 0 0 0 1 0.95 0.89 1 0 0 0 0 0 0 1 0 "vy=0.05" 1.0'));
     e.tickOnce();
     expect(snap(e)[0].y).toBeCloseTo(0.05, 12);
     e.tickOnce();
     expect(snap(e)[0].y).toBeCloseTo(0.1, 12);
-  });
-
-  it('updateConfig 切开关即时生效：从下一 tick 起改变轨迹', () => {
-    const e = eng({ nativeKinematics: false });
-    e.runCommand(C(er('100')));
-    e.tickOnce(); // 匀速：y = 1，vy 仍 1
-    e.updateConfig({ nativeKinematics: true });
-    e.tickOnce(); // 开开后：vy = 1−G → y += → vy *= F
-    const p = snap(e)[0];
-    expect(p.y).toBeCloseTo(1 + (1 - G_END_ROD), 12);
-    expect(p.vy).toBeCloseTo((1 - G_END_ROD) * FRICTION_END_ROD, 12);
   });
 });
 
@@ -813,20 +792,13 @@ describe('updateConfig 与 PRNG 序列（1:1 回归，2026-10-04 审查发现）
 });
 
 describe('原版 /particle 的 end_rod：随机寿命（vanilla=true 路径）', () => {
-  it('age=0 + nativeKinematics → lifetime = 60+nextInt(12)（同种子可复现）', () => {
-    const e1 = eng({ seed: 1, nativeKinematics: true });
+  it('age=0 → lifetime = 60+nextInt(12)（同种子可复现）', () => {
+    const e1 = eng({ seed: 1});
     e1.runCommand(C('particle end_rod 1 2 3'));
     expect(snap(e1)[0].lifetime).toBe(64); // seed+1=2 → nextInt(12)=4
-    const e2 = eng({ seed: 1, nativeKinematics: true });
+    const e2 = eng({ seed: 1});
     e2.runCommand(C('particle end_rod 1 2 3'));
     expect(snap(e2)[0].lifetime).toBe(64);
-  });
-
-  it('nativeKinematics 关闭 → 走 defaultLifetime（预览近似）', () => {
-    const e = eng({ defaultLifetime: 20 });
-    e.runCommand(C('particle end_rod 1 2 3'));
-    expect(snap(e)[0].lifetime).toBe(20);
-    expect(snap(e)[0].vanilla).toBe(true);
   });
 });
 
@@ -836,7 +808,7 @@ describe('原版运动学：26.2 逐类型寿命 golden（age=0，seed=1 → van
   // pos(1 2 3) color(1 1 1 1) vel(0 1 0) range(0 0 0) count=n age=0
   const cmd = (name: string, count: number) =>
     `particleex normal minecraft:${name} 1 2 3 1 1 1 1 0 1 0 0 0 0 ${count} 0`;
-  const e = () => eng({ seed: 1, nativeKinematics: true });
+  const e = () => eng({ seed: 1});
 
   // 序列 = ProbeLifetime2 的 3 连调输出（JDK 21 实测，操作数顺序逐字节码：
   // N/((F·0.8d)+0.2d)；float 族全 2^24 域直方图 ProbeScan 与 JDK 逐桶一致）
@@ -926,7 +898,7 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
   const fr = (d: number) => f(d);
   const gBase = (g: number) => -0.04 * f(g);
   const eng1 = (name: string, vel = '0 1 0') => {
-    const en = eng({ seed: 1, nativeKinematics: true });
+    const en = eng({ seed: 1});
     en.runCommand(C(`particleex normal minecraft:${name} 0 0 0 1 1 1 1 ${vel} 0 0 0 1 0`));
     return en;
   };
@@ -954,7 +926,7 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
   });
 
   it('snowflake：摩擦 1.0 + 重力 −0.04d×fround(0.225f)，之后逐轴附加 0.95/0.9/0.95', () => {
-    const en = eng({ seed: 1, nativeKinematics: true });
+    const en = eng({ seed: 1});
     en.runCommand(C('particleex normal minecraft:snowflake 0 0 0 1 1 1 1 1 1 0 0 0 0 1 0'));
     en.tickOnce();
     const p = snap(en)[0];
@@ -1035,7 +1007,7 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
   });
 
   it('portal：位置绝对式 cubic easing（age=10 的 e 与 y 的 (1−t) 项）', () => {
-    const en = eng({ seed: 1, nativeKinematics: true });
+    const en = eng({ seed: 1});
     en.runCommand(C('particleex normal minecraft:portal 0 0 0 1 1 1 1 0 1 0 0 0 0 1 40'));
     en.tickOnce(); // age=1, t=1/40
     const p = snap(en)[0];
@@ -1051,7 +1023,7 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
   });
 
   it('reverse_portal：增量式 x += v·t（age=10：Σ t_i 累加）', () => {
-    const en = eng({ seed: 1, nativeKinematics: true });
+    const en = eng({ seed: 1});
     en.runCommand(C('particleex normal minecraft:reverse_portal 0 0 0 1 1 1 1 1 0 0 0 0 0 1 0'));
     const life = snap(en)[0].lifetime; // 60+(int)(2.0f·F)：60/61 各半，按实际寿命累加
     let sum = 0;
@@ -1063,7 +1035,7 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
   });
 
   it('campfire：出生初速 vy += 500.0f/F（float 除法；F = 寿命 I(50) 后的下一个 nextFloat）', () => {
-    const en = eng({ seed: 1, nativeKinematics: true });
+    const en = eng({ seed: 1});
     en.runCommand(C('particleex normal minecraft:campfire_cosy_smoke 0 0 0 1 1 1 1 0 1 0 0 0 0 1 0'));
     const p = snap(en)[0];
     // seed=2 交错流（ProbeCampfire 实测）：I(50)=8 → F=4922041/2^24
@@ -1077,7 +1049,7 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
   });
 
   it('campfire 初速消费顺序：寿命/初速交替逐粒子（I(50),F,I(50),F…）', () => {
-    const en = eng({ seed: 1, nativeKinematics: true });
+    const en = eng({ seed: 1});
     en.runCommand(C('particleex normal minecraft:campfire_signal_smoke 0 0 0 1 1 1 1 0 0 0 0 0 0 2 0'));
     const [a, b] = snap(en);
     expect([a.lifetime, b.lifetime]).toEqual([88, 120]); // I(50) 序列 8, 40（交错流第 1/3 个抽取）
@@ -1086,7 +1058,7 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
   });
 
   it('显式 age 的 campfire：不消费初速 float（与构造器顺序一致：仅 age=0 路径）', () => {
-    const en = eng({ seed: 1, nativeKinematics: true });
+    const en = eng({ seed: 1});
     en.runCommand(C('particleex normal minecraft:campfire_cosy_smoke 0 0 0 1 1 1 1 0 0 0 0 0 0 1 300'));
     const p = snap(en)[0];
     expect(p.lifetime).toBe(300);
@@ -1270,7 +1242,7 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
   });
 
   it('falling_dust：零速起步 tick 46 仍未触顶、tick 47 首触终端钳制、之后恒住（age=-1）', () => {
-    const en = eng({ seed: 1, nativeKinematics: true });
+    const en = eng({ seed: 1});
     en.runCommand(C('particleex normal minecraft:falling_dust 0 0 0 1 1 1 1 0 -1 0 0 0 0 1 -1'));
     for (let i = 0; i < 46; i++) en.tickOnce();
     const vy46 = snap(en)[0].vy; // 初速 0 起步 → vy = −0.003d×46 = −0.138…（命令速度不参与）
@@ -1284,7 +1256,7 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
 
   it('falling_dust：命令速度被构造器丢弃（cmdVy=+1 与 −1 逐 tick 轨迹完全相同，age=-1）', () => {
     const run = (cmdVy: number) => {
-      const en = eng({ seed: 1, nativeKinematics: true });
+      const en = eng({ seed: 1});
       en.runCommand(C(`particleex normal minecraft:falling_dust 0 0 0 1 1 1 1 0 ${cmdVy} 0 0 0 0 1 -1`));
       const out: number[] = [];
       for (let i = 0; i < 5; i++) {
@@ -1299,7 +1271,7 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
   });
 
   it('spawnVelocityMul 与显式 age 无关（Java 构造器无条件；campfire 例外仍 age=0）', () => {
-    const en = eng({ seed: 1, nativeKinematics: true });
+    const en = eng({ seed: 1});
     en.runCommand(C('particleex normal minecraft:dust 0 0 0 1 1 1 1 0 1 0 0 0 0 1 50'));
     const p = snap(en)[0];
     expect(p.lifetime).toBe(50); // 显式 age
@@ -1380,7 +1352,7 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
   });
 
   it('enchant（FlyTowardsPosition）：出生位置 = 命令位置 + 速度矢量，逐 tick 走绝对式 f1 曲线 + f2⁴·1.2f 下坠', () => {
-    const en = eng({ seed: 1, nativeKinematics: true });
+    const en = eng({ seed: 1});
     en.runCommand(C('particleex normal minecraft:enchant 0 0 0 1 1 1 1 0 1 0 0 0 0 1 30'));
     expect(snap(en)[0].y).toBe(1); // 构造器 xo = y + yd → 出生即偏移一个速度矢量
     en.tickOnce(); // age=1：t=1/30 → f1=1−t
@@ -1392,7 +1364,7 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
   });
 
   it('ominous_spawning（FlyStraightTowards）：绝对式线性 f1（无下坠项）+ 出生偏移', () => {
-    const en = eng({ seed: 1, nativeKinematics: true });
+    const en = eng({ seed: 1});
     en.runCommand(C('particleex normal minecraft:ominous_spawning 0 0 0 1 1 1 1 1 0 0 0 0 0 1 25'));
     expect(snap(en)[0].x).toBe(1); // xo = x + xd
     en.tickOnce();
@@ -1414,9 +1386,9 @@ describe('原版运动学：26.2 逐类型运动常量（tick 后断言）', () 
     expect(snap(en2)[0].y).toBeCloseTo(1 - 0.04, 12);
   });
 
-  it('nativeKinematics 关闭：新类型全部走模组匀速直线（无摩擦/重力/初速）', () => {
-    const en = eng(); // 默认关闭
-    en.runCommand(C('particleex normal minecraft:rain 0 0 0 1 1 1 1 0 1 0 0 0 0 1 0'));
+  it('表外类型（geyser_base）：匀速直线（无摩擦/重力）', () => {
+    const en = eng();
+    en.runCommand(C('particleex normal minecraft:geyser_base 0 0 0 1 1 1 1 0 1 0 0 0 0 1 0'));
     en.tickOnce();
     expect(snap(en)[0].y).toBeCloseTo(1, 12);
   });
@@ -1617,7 +1589,7 @@ describe('trail{NBT} 消费：lerp 回位 + duration 寿命 + stop 回滚（26.2
   const TR = 'particle trail{target:[10,0,0],color:0xFF0000,duration:100} 0 0 0 1 1 1 0 0';
 
   it('出生：stop=true（零速）、渲染色 = color（0xFF0000 → 红）、lifetime = duration', () => {
-    const e = eng({ nativeKinematics: true });
+    const e = eng();
     e.runCommand(C(TR));
     const p = snap(e)[0];
     expect(p.stop).toBe(true);
@@ -1628,7 +1600,7 @@ describe('trail{NBT} 消费：lerp 回位 + duration 寿命 + stop 回滚（26.2
   });
 
   it('vanilla 路径 stop=true：lerp 位移被模组回滚 → 位置钉在出生点，age 照常递增', () => {
-    const e = eng({ nativeKinematics: true });
+    const e = eng();
     e.runCommand(C(TR));
     for (let i = 0; i < 5; i++) e.tickOnce();
     const p = snap(e)[0];
@@ -1637,7 +1609,7 @@ describe('trail{NBT} 消费：lerp 回位 + duration 寿命 + stop 回滚（26.2
   });
 
   it('stop=false：每 tick lerp 回位（target 绝对坐标，余量 1/(lifetime−age)）', () => {
-    const e = eng({ nativeKinematics: true });
+    const e = eng();
     e.runCommand(C(TR));
     const p0 = snap(e)[0];
     expect(p0.lifetime).toBe(100);
@@ -1663,7 +1635,7 @@ describe('trail{NBT} 消费：lerp 回位 + duration 寿命 + stop 回滚（26.2
   });
 
   it('duration 优先级：命令 age=0 时 duration 覆写寿命（构造器公式不消费）', () => {
-    const e = eng({ seed: 42, nativeKinematics: true });
+    const e = eng({ seed: 42});
     e.runCommand(C(TR));
     expect(snap(e)[0].lifetime).toBe(100); // ≠ defaultLifetime(20)、≠ 任何公式值
     // 寿命到期死亡
@@ -1671,8 +1643,8 @@ describe('trail{NBT} 消费：lerp 回位 + duration 寿命 + stop 回滚（26.2
     expect(e.aliveCount).toBe(0);
   });
 
-  it('nativeKinematics 关闭：trail 零速仍静止（stop 路径无运动学参与）', () => {
-    const e = eng({ nativeKinematics: false });
+  it('trail 零速仍静止（stop 路径无运动学参与）', () => {
+    const e = eng();
     e.runCommand(C(TR));
     for (let i = 0; i < 3; i++) e.tickOnce();
     expect(snap(e)[0].x).toBe(0);
@@ -1683,7 +1655,7 @@ describe('vibration{NBT} 消费：lerp 归位 + arrival_in_ticks 寿命（26.2 j
   const VB = 'particle vibration{destination:{block:{pos:[1,2,3]}},arrival_in_ticks:10} 0 0 0 0 0 0 0 0';
 
   it('出生：stop=true（构造器零速）、lifetime = arrival_in_ticks、target = 方块中心', () => {
-    const e = eng({ nativeKinematics: true });
+    const e = eng();
     e.runCommand(C(VB));
     const p = snap(e)[0];
     expect(p.stop).toBe(true);
@@ -1692,7 +1664,7 @@ describe('vibration{NBT} 消费：lerp 归位 + arrival_in_ticks 寿命（26.2 j
   });
 
   it('vanilla 路径 stop=true：lerp 位移被模组回滚 → 位置钉在出生点，age 照常递增', () => {
-    const e = eng({ nativeKinematics: true });
+    const e = eng();
     e.runCommand(C(VB));
     for (let i = 0; i < 5; i++) e.tickOnce();
     const p = snap(e)[0];
@@ -1701,7 +1673,7 @@ describe('vibration{NBT} 消费：lerp 归位 + arrival_in_ticks 寿命（26.2 j
   });
 
   it('stop=false：每 tick lerp 推进至波源中心（余量 1/(lifetime−age)，double 域）', () => {
-    const e = eng({ nativeKinematics: true });
+    const e = eng();
     e.runCommand(C(VB));
     const p0 = snap(e)[0];
     p0.stop = false; // snapshot 活引用：模拟模组参数模式 setStop(false)
@@ -1723,21 +1695,21 @@ describe('vibration{NBT} 消费：lerp 归位 + arrival_in_ticks 寿命（26.2 j
   });
 
   it('arrival_in_ticks 优先级：命令 age=0 时覆写寿命；负值 → 首 tick 即死', () => {
-    const e = eng({ seed: 42, nativeKinematics: true });
+    const e = eng({ seed: 42});
     e.runCommand(C(VB));
     expect(snap(e)[0].lifetime).toBe(10); // ≠ defaultLifetime(20)、无公式消费
     for (let i = 0; i < 10; i++) e.tickOnce();
     expect(e.aliveCount).toBe(0);
     // arrival_in_ticks:-5（Codec.INT 允许负值）→ lifetime=-5 → 首 tick age=1>=-5 死亡
-    const e2 = eng({ seed: 42, nativeKinematics: true });
+    const e2 = eng({ seed: 42});
     e2.runCommand(C('particle vibration{destination:{block:{pos:[1,2,3]}},arrival_in_ticks:-5} 0 0 0 0 0 0 0 0'));
     expect(snap(e2)[0].lifetime).toBe(-5);
     e2.tickOnce();
     expect(e2.aliveCount).toBe(0);
   });
 
-  it('nativeKinematics 关闭：vibration 零速仍静止（stop 路径无运动学参与）', () => {
-    const e = eng({ nativeKinematics: false });
+  it('vibration 零速仍静止（stop 路径无运动学参与）', () => {
+    const e = eng();
     e.runCommand(C(VB));
     for (let i = 0; i < 3; i++) e.tickOnce();
     expect(snap(e)[0].x).toBe(0);
@@ -1822,7 +1794,7 @@ describe('原版运动学：vibration 轨迹逐位 golden（26.2 字节码；JDK
   ];
   cases.forEach((c, i) => {
     it(`用例 ${'ABCDE'[i]}（${c.cmd.split('{')[0]} target 轨迹逐位一致）`, () => {
-      const e = eng({ nativeKinematics: true });
+      const e = eng();
       e.runCommand(C(c.cmd));
       const p0 = snap(e)[0];
       expect(p0.lifetime).toBe(c.lt);
@@ -1921,7 +1893,7 @@ describe('原版运动学：trail 轨迹逐位 golden（26.2 字节码；JDK21 P
   ];
   cases.forEach((c, i) => {
     it(`用例 ${'ABCDE'[i]}（${c.cmd.split('{')[0]} target 轨迹逐位一致）`, () => {
-      const e = eng({ nativeKinematics: true });
+      const e = eng();
       e.runCommand(C(c.cmd));
       const p0 = snap(e)[0];
       expect(p0.lifetime).toBe(c.lt);

@@ -136,7 +136,6 @@ function sanitizeSim(raw: unknown, def: SimConfig): SimConfig {
     mcVersion: o.mcVersion === '26.2' || o.mcVersion === '1.21.11' ? o.mcVersion : def.mcVersion,
     gridSize: num(o.gridSize, def.gridSize),
     gridVisible: typeof o.gridVisible === 'boolean' ? o.gridVisible : def.gridVisible,
-    nativeKinematics: typeof o.nativeKinematics === 'boolean' ? o.nativeKinematics : def.nativeKinematics,
     renderMode: o.renderMode === 'full' || o.renderMode === 'fast' ? o.renderMode : def.renderMode,
     reference:
       o.reference === 'command_block' ||

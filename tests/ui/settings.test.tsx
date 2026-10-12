@@ -30,7 +30,7 @@ vi.mock('../../src/render/sync', () => ({
   },
 }));
 
-const SIM_BASE = { playerPos: { x: 0, y: 0, z: 0 }, defaultLifetime: 20, maxParticles: 20000, seed: 1, mcVersion: '26.2', gridSize: 10, gridVisible: true, nativeKinematics: true, renderMode: 'full' as const };
+const SIM_BASE = { playerPos: { x: 0, y: 0, z: 0 }, defaultLifetime: 20, maxParticles: 20000, seed: 1, mcVersion: '26.2', gridSize: 10, gridVisible: true, renderMode: 'full' as const };
 
 let container: HTMLDivElement;
 let root: Root;
@@ -172,21 +172,6 @@ describe('设置抽屉（SettingsDrawer ↔ store.sim）', () => {
     expect(getState().sim.gridSize).toBe(100);
   });
 
-  it('原版运动学复选框 → store.nativeKinematics 镜像', () => {
-    act(() => {
-      button('设置').dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    const cb = [...container.querySelectorAll('.pane-section.settings input[type=checkbox]')].find(
-      (e) => e.parentElement?.textContent?.includes('原版运动学'),
-    ) as HTMLInputElement;
-    expect(cb.checked).toBe(true);
-    act(() => {
-      cb.click();
-    });
-    expect(getState().sim.nativeKinematics).toBe(false);
-    expect(cb.checked).toBe(false);
-  });
-
   it('游戏版本下拉 → store.mcVersion 镜像', () => {
     act(() => {
       button('设置').dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -195,5 +180,22 @@ describe('设置抽屉（SettingsDrawer ↔ store.sim）', () => {
     selectValue(sel, '1.21.11');
     expect(getState().sim.mcVersion).toBe('1.21.11');
     expect(sel.value).toBe('1.21.11');
+  });
+
+  it('视角移动按钮（原自由视角复选框）：点击启动 ⇄ 再次点击退出，文案与激活态同步', () => {
+    act(() => {
+      button('设置').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const start = button('启动');
+    expect(start.classList.contains('active')).toBe(false);
+    act(() => {
+      start.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const running = button('移动中 · 按 Esc 退出');
+    expect(running.classList.contains('active')).toBe(true);
+    act(() => {
+      running.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(button('启动').classList.contains('active')).toBe(false);
   });
 });

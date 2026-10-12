@@ -13,7 +13,7 @@ import { getState } from '../../src/store/appState';
 
 function engine(): SimEngine {
   // 用站点默认配置（playerPos 等齐全；`~` 坐标解析需要）
-  return new SimEngine({ ...getState().sim, seed: 1, nativeKinematics: true, mcVersion: '26.2' });
+  return new SimEngine({ ...getState().sim, seed: 1, mcVersion: '26.2' });
 }
 
 describe('模板库：结构', () => {

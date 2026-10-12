@@ -260,11 +260,9 @@ export class SimEngine {
     if (cmdAge > 0) return cmdAge;
     if (cmdAge === -1) return INT_MAX;
     if (nbtLifetime !== undefined) return nbtLifetime;
-    // cmdAge == 0
-    if (this.config.nativeKinematics) {
-      const formula = nativeLifetimeFor(name, this.config.mcVersion);
-      if (formula) return formula(this.vanillaRand, { scale });
-    }
+    // cmdAge == 0（原版运动学恒开启：表内类型套原版寿命公式）
+    const formula = nativeLifetimeFor(name, this.config.mcVersion);
+    if (formula) return formula(this.vanillaRand, { scale });
     return this.config.defaultLifetime;
   }
 
@@ -316,7 +314,7 @@ export class SimEngine {
     // nextInt 之后的下一个 nextFloat —— 消费顺序逐字节码）。Java 侧是粒子私有
     // 随机（不可复现），预览从共享 vanillaRand 取（分布一致，可复现）。
     // 仅 age=0（未显式覆写寿命）路径消费，与构造器顺序一致。
-    if (req.age === 0 && this.config.nativeKinematics) {
+    if (req.age === 0) {
       const spec = nativeSpecFor(req.name, this.config.mcVersion);
       if (spec?.campfireRise) {
         p.vy += Math.fround(500 / this.vanillaRand.nextFloat());
@@ -343,10 +341,9 @@ export class SimEngine {
     //   （与 wax ÷2 同类近似，见 kinematics.ts 头注释）。
     // 注：基类构造器里的 (2F−1)×0.4f 抖动（Particle.<init> 7 参）与 campfire
     // 的 +500.0f/F 上升初速同样不建模（构造器随机/特殊项，分布近似）。
-    if (this.config.nativeKinematics) {
-      const spec = nativeSpecFor(req.name, this.config.mcVersion);
-      if (spec?.spawnVel) {
-        // provider/构造器侧的精确初速表达式（无随机消费；与 spawnVelocityMul 互斥）
+    const spec = nativeSpecFor(req.name, this.config.mcVersion);
+    if (spec?.spawnVel) {
+      // provider/构造器侧的精确初速表达式（无随机消费；与 spawnVelocityMul 互斥）
         const v = spec.spawnVel({ x: p.vx, y: p.vy, z: p.vz });
         p.vx = v.x;
         p.vy = v.y;
@@ -389,7 +386,6 @@ export class SimEngine {
         p.y += p.vy;
         p.z += p.vz;
       }
-    }
     this.groups.add(req.group, p.id); // null/"null"/空 在 GroupIndex.add 内跳过
     this.pending.push(p);
     this.aliveN++;
@@ -489,10 +485,8 @@ export class SimEngine {
         p.z = p.z + (p.trailTarget.z - p.z) * f2;
         return;
       }
-      // 原版运动学（可选；关闭时 = 模组原生匀速直线，1:1 复刻）
-      const spec = this.config.nativeKinematics
-        ? this.specOf(p)
-        : null;
+      // 原版运动学（恒开启）：表内类型套原版摩擦/重力/运动曲线（kinematics.ts）
+      const spec = this.specOf(p);
       if (spec?.motion === 'portal') {
         // Portal.tick（逐字节码浮点顺序）：t = age/lifetime(fdiv)；
         // f1 = (t·t)·2 + (−t)；e = 1 − f1（= 1 + t − 2t²，float 链）；
@@ -733,9 +727,6 @@ export class SimEngine {
     }
     // mcVersion 不参与引擎语义（贴图/类型表在渲染层与表单按它分区），只保持 config 一致
     if (patch.mcVersion !== undefined) this.config.mcVersion = patch.mcVersion;
-    // nativeKinematics 开关：表内类型（sim/kinematics.ts，26.2 一百余个，逐类型字节码证据）
-    // 套用原版摩擦/重力/运动/随机寿命；表外类型保持模组匀速直线
-    if (patch.nativeKinematics !== undefined) this.config.nativeKinematics = patch.nativeKinematics;
   }
 
   /** reset：回放用（粒子/组/生成器/tick 计数/PRNG 全重置） */

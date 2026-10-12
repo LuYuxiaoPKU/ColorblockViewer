@@ -168,9 +168,21 @@ export function createScene(container: HTMLElement): SceneBundle {
       camMode = 'orbit';
       freeCtrl.clearKeys();
       freeFitStep = 0;
+      keepOrbitFocus(); // 轨道聚焦点跟随退出时的视线（不跳回旧 target）
       controls.enabled = true;
       controls.update();
     }
+  };
+
+  /** 退出自由模式时把轨道聚焦点移到当前视线方向、与相机距离保持不变——
+   *  轨道模式继续绕着退出时正看的位置转（曾保留进入前旧 target，
+   *  自由移动后相距过远，旋转中心悬空在视野外）。 */
+  const keepOrbitFocus = (): void => {
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    controls.target
+      .copy(camera.position)
+      .addScaledVector(dir, camera.position.distanceTo(controls.target));
   };
 
   // 指针锁丢失（Esc / 切页）→ 自动退回轨道模式
@@ -179,6 +191,7 @@ export function createScene(container: HTMLElement): SceneBundle {
       camMode = 'orbit';
       freeCtrl.clearKeys();
       freeFitStep = 0;
+      keepOrbitFocus();
       controls.enabled = true;
     }
   };
