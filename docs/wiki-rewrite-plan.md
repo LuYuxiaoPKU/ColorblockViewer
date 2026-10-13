@@ -81,3 +81,49 @@ index            首页：快速上手 + 目录 + 术语口径（保留，微调
 - [ ] OCEAN 站 17 个案例哪些优先收录（需引擎可验证 + 有明确作者归属）
 - [ ] 三代指令树对照表放 01-commands 正文还是 08-history？
 - [ ] 「贡献者图谱」的 Wiki 化程度（全表收录 vs 致谢一句话+外链）
+
+## 六、会话②成品与新增量（2026-10-14 读毕，v0.2 合并源）
+
+会话②（Bili-learn）已备好两份高价值文档（原协作消息投递失败，重发后它回了
+文档指针，全文已读）：
+
+1. **[Wiki汇编-ColorBlock与ExParticle生态.md]**（02-生态情报/情报汇总/，93 行）
+   ——「直接供会话① Wiki 收录」的成品：三代模组表 / 根命令别名链（含
+   **1.21.1 根命令 `/particlex` vs 1.12/1.16 `/particleex` 的元信息差异**——
+   待与预览引擎/模组会话③核对口径）/ 完整字段序 / 表达式语法与技巧 /
+   17 案例清单 / 环境排错速查。来源均已标注，权威顺序：源码(③) > 教程帖 > OCEAN 站 > 视频笔记。
+2. **[ExParticle源码研读-2026-10-13.md]**（01-学习笔记/，313 行，源码直读
+   commit 62ccdd4 / 1.5.2）——**重大增量，改写 01-commands 的范围**：
+   - **教程未记载的命令面**：custom-normal/conditional/parameter/image/
+     image-matrix/video/video-matrix（attr 表达式逐点算属性）、**text**
+     （字体渲染到离屏 FBO → 逐像素粒子，dpb=每方块像素数）、
+     **global-variable**（int/double/quat，define/undefine/peek，引用失效
+     重编译链）、**user-function**（define/undefine/list，ASM 编译自定义函数）、
+     rgba 系列实为 4 变体（rgba-polar/rgba-tick/rgba-tick-polar 教程没讲）。
+     → Wiki 收录口径：**[社区级·源码直读]** 置信级，标注 ExParticle 1.5.2
+     实测源码、与 26.2/1.21.11 预览引擎覆盖范围的差异需单列
+   - **表达式引擎真相**：Lexer→Parser→Optimize→ASM 隐藏类（非解释器）；
+     返回 int 语义；矩阵字面量四类编译期分支；表达式按原文缓存 + 全局变量/
+     用户函数失效链——02-expressions 页「底层实现」节素材
+   - **ParticleStruct 全字段表**（= 表达式全部变量）：size（×0.125=1/8 格
+     语义）、light 0~1、gravity/friction、destroy、dx/dy/dz 初始副本等
+     ——比 post/4889 变量表多 size/light/gravity/friction 四组，02 页变量表
+     以此为准补全
+   - **maxParticleCount 实现真相**：@ModifyArg 直接替换原版 EvictingQueue
+     (16384) 容量，**超出淘汰最旧而非拒绝生成**；ParallelParticleUpdate =
+     parallelStream；**maxParticleTickMillis 源码无读取点（疑似废弃）**——
+     修正既有「配置生效」的记载口径
+   - bind（粒子绑定实体 Supplier）、ExParticleApi/CustomEvaluator 外部
+     mod 接口（08-history 或单独「生态/API」小节）
+
+## 七、v0.2 合并待办（会话②回复裁决后）
+
+- [ ] 以「Wiki汇编」为骨架对照本规划 §三页面结构，逐节归位（哪些进 commands
+  正文 / 哪些进 expressions / 哪些进 history / 排错进 faq）
+- [ ] 01-commands 范围决策：仅 26.2/1.21.11 预览已实现的 17 子命令 vs
+  加 [社区级·源码直读] 的 ExParticle 独有命令面（text/custom/global-variable/
+  user-function）——倾向：正文标「预览支持」徽标 + 附表收录全部命令面，
+  兼顾工具一致性与模组完整性
+- [ ] 变量表以 ParticleStruct 全表为准重排，标注「预览引擎已实现/未实现」
+- [ ] 修正粒子上限口径（原版 16384 淘汰制 vs ColorBlock 2^20 vs ExParticle
+  65536 默认可调——三代三口径，faq 与 overview 各自说清）
