@@ -7,14 +7,34 @@
 
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { createCanvas } from '@napi-rs/canvas';
+import { createCanvas, loadImage } from '@napi-rs/canvas';
 import gifenc from 'gifenc';
 const { GIFEncoder } = gifenc;
 import { SimEngine } from '../src/sim/engine.ts';
 import { parseCommands } from '../src/command/parser.ts';
 import { TEMPLATES } from '../src/templates/library.ts';
 import { particleProjection, fit } from '../src/render/render2d.ts';
-import { particleVisual } from '../src/render/color.ts';
+import { particleVisual, textureFor, ageFrame } from '../src/render/color.ts';
+
+type CanvasImage = import('@napi-rs/canvas').Image;
+
+/** 粒子贴图目录（scripts/gen-particle-assets.mjs 从官方 client.jar 提取） */
+const TEX_DIR = join(process.cwd(), 'public', 'particles', '26.2');
+
+/** 预加载模板涉及的粒子贴图（end_rod → glitter_0..7，8×8 动画帧） */
+async function preloadTextures(): Promise<Map<string, CanvasImage>> {
+  const texs = new Map<string, CanvasImage>();
+  const names = [
+    'glitter_0', 'glitter_1', 'glitter_2', 'glitter_3',
+    'glitter_4', 'glitter_5', 'glitter_6', 'glitter_7',
+  ];
+  await Promise.all(
+    names.map(async (n) => {
+      texs.set(n, await loadImage(join(TEX_DIR, `${n}.png`)));
+    }),
+  );
+  return texs;
+}
 
 /** 与 SimViewport 构造同口径的引擎默认配置（seed 固定 1 → 逐帧可复现） */
 const SIM = {
@@ -54,15 +74,17 @@ const GRID_FRAME = '#3a4150';
 function stepAndDraw(
   ctx: import('@napi-rs/canvas').CanvasRenderingContext2D,
   engine: SimEngine,
+  texs: Map<string, CanvasImage>,
   every: number,
 ): void {
   for (let i = 0; i < every; i++) engine.tickOnce();
-  drawFrame(ctx, engine);
+  drawFrame(ctx, engine, texs);
 }
 
 function drawFrame(
   ctx: import('@napi-rs/canvas').CanvasRenderingContext2D,
   engine: SimEngine,
+  texs: Map<string, CanvasImage>,
 ): void {
   const w = ctx.canvas.width;
   const h = ctx.canvas.height;
@@ -102,14 +124,26 @@ function drawFrame(
   for (const c of [c0, c1, c2, c3]) ctx.lineTo(c.sx, c.sy);
   ctx.closePath();
   ctx.stroke();
-  // 粒子（lighter 加色圆点；particleVisual = 与实况相同的色值/淡出/半径口径）
+  // 粒子：有帧贴图的类型画贴图（MC SimpleAnimatedParticle 口径：贴图 × 渲染色 ×
+  // 淡出，additive 叠加），无贴图回退圆点
   ctx.globalCompositeOperation = 'lighter';
+  ctx.imageSmoothingEnabled = false;
   for (const p of parts) {
     const v = particleVisual(p as never, 1, SIM.mcVersion, 1, 1);
     if (v.a <= 0.004) continue;
     const pr = particleProjection(p.x, p.y, p.z, f.scale, f.ox, f.oy);
     const radius = Math.max(v.radius * f.scale, 0.5);
+    const frames = textureFor(p.name, SIM.mcVersion);
     ctx.globalAlpha = Math.min(1, v.a);
+    if (frames) {
+      const idx = ageFrame(p.age, p.lifetime, frames.length);
+      const tex = texs.get(frames[idx]);
+      if (tex) {
+        const size = Math.max(radius * 3.2, 6); // 发光体放大 3.2× 才在动图里可见
+        ctx.drawImage(tex, pr.sx - size / 2, pr.sy - size / 2, size, size);
+        continue;
+      }
+    }
     const col = `rgb(${Math.round(v.r * 255)},${Math.round(v.g * 255)},${Math.round(v.b * 255)})`;
     if (radius < 1.5) {
       ctx.fillStyle = col;
@@ -137,6 +171,7 @@ type RGB = [number, number, number];
 function collectPalette(
   ctx: import('@napi-rs/canvas').CanvasRenderingContext2D,
   engine: SimEngine,
+  texs: Map<string, CanvasImage>,
   ticks: number,
   every: number,
 ): { table: RGB[]; lut: Map<number, number> } {
@@ -144,7 +179,7 @@ function collectPalette(
   const lut = new Map<number, number>();
   lut.set((BG_RGB[0] << 16) | (BG_RGB[1] << 8) | BG_RGB[2], 0);
   for (let t = 0; t <= ticks; t += every) {
-    stepAndDraw(ctx, engine, every);
+    stepAndDraw(ctx, engine, texs, every);
     const d = ctx.getImageData(0, 0, W, H).data;
     for (let p = 0; p < d.length; p += 4) {
       const r = d[p], g = d[p + 1], b = d[p + 2];
@@ -189,7 +224,7 @@ function idxFor(
   return best;
 }
 
-function gifFromTemplate(id: string): Buffer {
+async function gifFromTemplate(id: string, texs: Map<string, CanvasImage>): Promise<Buffer> {
   const tpl = TEMPLATES.find((t) => t.id === id);
   if (!tpl) throw new Error('模板不存在: ' + id);
   const runCmds = (engine: SimEngine): void => {
@@ -204,7 +239,7 @@ function gifFromTemplate(id: string): Buffer {
   // 第一遍：渲染收集全局调色板
   const engineA = new SimEngine(SIM);
   runCmds(engineA);
-  const { table, lut } = collectPalette(ctx, engineA, ticks, every);
+  const { table, lut } = collectPalette(ctx, engineA, texs, ticks, every);
   console.log(`  ${id}: 全局调色板 ${table.length} 色`);
 
   // 第二遍：同序渲染，用固定全局调色板编码（首帧写全局表，后续帧不写局部表）
@@ -214,7 +249,7 @@ function gifFromTemplate(id: string): Buffer {
   const cache = new Map<number, number>();
   let first = true;
   for (let t = 0; t <= ticks; t += every) {
-    stepAndDraw(ctx, engineB, every);
+    stepAndDraw(ctx, engineB, texs, every);
     const d = ctx.getImageData(0, 0, W, H).data;
     const idx = new Uint8Array(W * H);
     for (let p = 0, o = 0; p < d.length; p += 4, o++) {
@@ -238,10 +273,19 @@ function gifFromTemplate(id: string): Buffer {
 
 const OUT_DIR = join(process.cwd(), 'docs', 'wiki', 'public', 'wiki-gallery');
 mkdirSync(OUT_DIR, { recursive: true });
-for (const id of ['ripple', 'ring']) {
-  const buf = gifFromTemplate(id);
-  const path = join(OUT_DIR, `${id}.gif`);
-  writeFileSync(path, buf);
-  console.log(`✓ ${id}.gif  ${(buf.length / 1024).toFixed(1)} KB`);
+
+async function main(): Promise<void> {
+  const texs = await preloadTextures();
+  console.log(`贴图就绪：${texs.size} 张`);
+  for (const id of ['ripple', 'ring']) {
+    const buf = await gifFromTemplate(id, texs);
+    const path = join(OUT_DIR, `${id}.gif`);
+    writeFileSync(path, buf);
+    console.log(`✓ ${id}.gif  ${(buf.length / 1024).toFixed(1)} KB`);
+  }
+  console.log('完成');
 }
-console.log('完成');
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
