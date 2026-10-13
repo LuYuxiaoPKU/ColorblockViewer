@@ -1,4 +1,4 @@
-# ColorBlockViewer —— 在浏览器里试 Minecraft 粒子效果
+# [开发中]ColorBlockViewer —— 在浏览器里试 Minecraft 粒子效果
 
 > 不用装游戏、不用开服务器，打开网页就能调试粒子命令。效果和游戏内
 > **一模一样**（命令语义按模组 Java 源码 1:1 复刻，1154 个测试锁定），
