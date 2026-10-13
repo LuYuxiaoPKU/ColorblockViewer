@@ -4,8 +4,21 @@
 
 **Q：粒子不出来？**
 ① 检查位置高度——预览场景看原点附近（y=0 地面），游戏常用高度（y=64/100）
-在视野之外，把 y 放 0–4；② 检查粒子上限（默认 100 万，命令生成的粒子
-总数超过会丢弃）；③ 看输入框下方格式检查提示（引号/括号/参数个数）。
+在视野之外，把 y 放 0–4；② 检查粒子上限（预览默认 100 万，命令生成的粒子
+总数超过会丢弃；游戏内的上限见下一条「粒子上限口径」）；③ 看输入框下方
+格式检查提示（引号/括号/参数个数）。
+
+**Q：粒子上限到底是多少？——三代口径不同 [官方级]**
+
+| 环境 | 上限 | 超出行为 |
+|---|---|---|
+| 原版 MC（未装模组） | 16384 | **淘汰最旧**粒子（EvictingQueue 环形队列，不是拒绝生成） |
+| ColorBlock 1.12.2 | `MaxParticleCount:1048576`（2²⁰，.properties 可调） | 拒绝生成并计数 |
+| ExParticle 1.21.1 | `exparticle.json` 的 `maxParticleCount`（默认 65536，可调；文件放**游戏根目录**非 config） | 淘汰最旧（@ModifyArg 直接替换原版队列容量） |
+| 本预览工具 | 设置面板「粒子上限」（默认 100 万） | 拒绝生成，HUD 显示丢弃数 |
+
+另：ExParticle 配置里的 `maxParticleTickMillis` 在 1.5.2 源码中无读取点
+（疑似废弃配置），调它无效 [社区级·源码直读]。
 
 **Q：normal 的范围为什么不是方块？**
 `normal` 的「范围」是高斯分布标准差（源码 `nextGaussian()×range`），
@@ -13,11 +26,15 @@
 `conditional`（见 05-examples）。
 
 **Q：表达式里的引号？**
-含括号/逗号的表达式在游戏里必须用引号包住（`'...'`）；预览会自动补，
-复制回游戏可直接用。
+含括号/逗号的表达式在游戏里必须用引号包住（`'...'` 或 `"..."`）；
+预览会自动补，复制回游戏可直接用。1.12.2 老版不需要引号（历史差异，
+老教程里不带引号的表达式在 1.16.5+ 会报错）。路径含 `/` 时（image 命令）
+必须单引号包裹——brigadier 未加引号字符集不含 `/`。
 
 **Q：RGB 颜色怎么写？**
 0–1 小数（如红色 `1 0 0 1`），不是 0–255。经典首错点（社区教程确认）。
+超范围值不报错但行为怪（2.0≈近白、-1.0≈近黑，byte 截断环绕——见
+02-expressions 颜色管线）。
 
 **Q：`particleex image ...` 用不了？**
 `image` 图片打印在新版本命令树同样存在（模组实锤：image/imagematrix/
@@ -25,7 +42,29 @@ video/videomatrix 均注册），字段序已按模组确认（见 01-commands�
 须 90 倍数、flip 枚举 not/horizontally/vertical、路径放 mod 同级
 `particleImages/`）。预览暂无图片资源 → 报 `invalid image path: <路径>`
 （与游戏内文件缺失一致，不是未知子命令）。`bg` 子命令**不存在**（模组
-命令树确认），模板里看到它说明是过期用法。
+命令树确认），模板里看到它说明是过期用法。**视频命令（video）需要
+JavaCV**（ExParticle 侧放游戏目录 `javacv/`，[官方级·post/4889]）。
+
+## 环境与游戏内 [社区级·B 站教程+论坛]
+
+**Q：装了模组进不去/报错？**
+① **1.16.5 必须 JRE 8**（PCL2/HMCL 游戏设置里把 Java 改成 JRE8，高版本
+Java 会报错）；② 1.16.5 Fabric 版需 JVM 参数
+`--add-opens java.base/java.lang=ALL-UNNAMED`；③ 1.16.5 装 Fabric +
+Fabric API（光影走 OptiFine/OptiFabric 另议）。
+
+**Q：装了光影粒子颜色不对？**
+光影会改变粒子着色（BSL 实证：纯白 → 金黄）。调色/截图需换光影——
+SEUS-DAZZLING 对粒子着色最完整。预览工具不带光影，色值以预览为准。
+（来源：OCEAN 站教程页实测记录）
+
+**Q：`/tick rate` 拉高加速没效果？**
+客户端 20 TPS 硬上限，`/tick rate>20` 无效。要加速动画调大表达式
+步长/速度（speedStep），不是改 tick rate。
+
+**Q：mcfunction 数据包不跑？**
+数据包路径**不能含大写字母**；一条指令语法错误 = 整个指令包无法加载
+（逐条排查或先在预览工具里验证全部命令）。
 
 ## 预览工具
 
@@ -50,13 +89,19 @@ video/videomatrix 均注册），字段序已按模组确认（见 01-commands�
 一致。预览的报错/回显解析器与模组命令树逐字核对（1161 个测试锁定），
 写错会得到和游戏里一样的提示再去改。
 
+**Q：预览支持 text / custom 系列命令吗？**
+不支持——那是 ExParticle（hackerm 版）的独有命令面，AnotherColorBlock
+与预览工具均无（见 01-commands 附表）。粘贴会报未知子命令，是预期行为。
+
 ## 生态
 
 **Q：还有别的工具吗？**
-社区生态：Particlex Viewer（viewer.dbi.top，网页预览，须 Edge/Chrome）、
-HTML 命令生成器（支持 1.12.2/1.16.5 模式、预设、一键复制）；本 Wiki
-对应的预览工具 = ColorblockViewer（GitHub 开源）。
+社区生态：Particlex Viewer（viewer.dbi.top，Minecraft_OCEAN 的网页预览，
+另一条实现路线）、OCEAN 指令生成器站（mc.ecyft.top，选参数出命令 +
+17 个现成案例）；本 Wiki 对应的预览工具 = ColorblockViewer（GitHub 开源）。
+工具总表见 [00-overview](overview.md)。
 
-**Q：网易版（中国版）粒子指令？**
-网易版对原版命令有改动（粒子名/权限），语法差异本节标注「网易版专属」，
-与 Java 国际版口径分开（学习来源：B 站 BV12g411g7Tn 等）。
+**Q：网易版（中国版）/基岩版粒子指令？**
+本 Wiki 只覆盖 Java 版。基岩版粒子名录（约 176 种）见
+[B 站 @1maginer BV12qRVY4E4p]；网易版对原版命令另有改动，与 Java
+国际版口径分开查阅（如 B 站 BV12g411g7Tn），勿混用。

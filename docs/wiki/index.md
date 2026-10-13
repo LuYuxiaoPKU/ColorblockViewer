@@ -12,18 +12,22 @@ description: 面向玩家与进阶用户的 ColorBlock 模组知识库——命�
 
 ## 目录
 
-- [00-overview](overview.md) — 模组是什么、历史与命名、版本支持
-- [01-commands](commands.md) — 命令大全（17 个子命令逐条 + 参数表）
-- [02-expressions](expressions.md) — 表达式系统（语法/变量/函数/矩阵）
+- [00-overview](overview.md) — 模组是什么、三代沿革与命名、生态工具
+- [08-history](history.md) — 模组历史与生态（版本史/延续线/贡献者致谢/引用规范）
+- [01-commands](commands.md) — 命令大全（17 个子命令逐条 + 三代命令名对照）
+- [02-expressions](expressions.md) — 表达式系统（语法/变量表/球坐标/缓动/矩阵）
 - [03-nbt](nbt.md) — `type{NBT}` 选项语法与陷阱
 - [04-particles](particles.md) — 粒子类型清单与版本分区
-- [05-examples](examples.md) — 实战示例（全部引擎实测）
-- [06-faq](faq.md) — 常见问题
+- [05-examples](examples.md) — 实战示例（社区案例 + 全部引擎实测）
+- [06-faq](faq.md) — 常见问题（含三代粒子上限口径）
 - [07-templates](templates.md) — 预览模板库（权威清单，与代码逐字对齐）
 
-> 术语口径：**原版模组** = ColorBlock（MCBBS 版本，CC0 协议，原帖已失）；
-> **社区版** = AnotherColorBlock（内部名 ParticleEx）；**预览工具** =
-> ColorblockViewer（独立浏览器工具，非模组）。三者勿混。
+> 术语口径：**ColorBlock** = 原版模组（MCBBS，CC0，两代：1.12.2 Forge /
+> 1.16.5 Fabric）；**ExParticle** = ColorBlock 高版本延续（hackerm大神，
+> NeoForge 1.21.1，根命令 `/particlex`）；**AnotherColorBlock** = 社区重写
+> 延续（noone89，根命令 `/particleex`，本预览工具的语义基准）；
+> **ColorblockViewer** = 预览工具（独立浏览器工具，非模组）。沿革详见
+> [00-overview](overview.md) 与 [08-history](history.md)。
 
 ## 快速上手
 

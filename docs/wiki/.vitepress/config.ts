@@ -23,6 +23,7 @@ export default defineConfig({
         text: 'ColorBlock 模组 Wiki',
         items: [
           { text: '总览', link: '/overview' },
+          { text: '模组历史与生态', link: '/history' },
           { text: '命令大全', link: '/commands' },
           { text: '表达式系统', link: '/expressions' },
           { text: 'type{NBT} 选项语法', link: '/nbt' },
