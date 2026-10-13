@@ -110,6 +110,32 @@ body {
   box-shadow: 0 0 10px var(--accent-glow);
 }
 
+/* 项目外链（wiki / GitHub / 反馈）：h1 下方一排小按钮样式链接 */
+.project-links {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 10px;
+  flex-wrap: wrap;
+}
+
+.project-links a {
+  font-size: 12px;
+  line-height: 1;
+  color: var(--muted);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  text-decoration: none;
+  transition: color 120ms ease, border-color 120ms ease;
+  white-space: nowrap;
+}
+
+.project-links a:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 .muted {
   color: var(--muted);
   font-size: 12px;
