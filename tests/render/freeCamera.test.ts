@@ -3,7 +3,7 @@
 
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { FreeCameraController, FREE_MIN_Y, FREE_SPEED, FREE_SPEED_BOOST } from '../../src/render/freeCamera';
+import { FreeCameraController, FREE_MIN_Y, FREE_SPEED } from '../../src/render/freeCamera';
 
 function cam(): THREE.PerspectiveCamera {
   const c = new THREE.PerspectiveCamera(70, 1, 0.1, 1000);
@@ -72,7 +72,7 @@ describe('FreeCameraController', () => {
     expect(c.position.y).toBeCloseTo(FREE_MIN_Y + FREE_SPEED * 0.5, 6);
   });
 
-  it('update：斜向移动归一化不超速、Ctrl 加速 ×3（疾跑键语义）', () => {
+  it('update：斜向移动归一化不超速、Ctrl 不再加速（曾 ×3，误触浏览器快捷键 → 移除）', () => {
     const c = cam();
     const f = new FreeCameraController();
     f.press('KeyW');
@@ -87,9 +87,8 @@ describe('FreeCameraController', () => {
     f.press('ControlLeft');
     const before = c.position.clone();
     f.update(c, 1);
-    expect(c.position.z - before.z).toBeCloseTo(-FREE_SPEED * FREE_SPEED_BOOST, 6); // W+Ctrl 增量
-    // Ctrl 不触发下降（曾 Shift 兼加速 → 边加速边下降）
-    expect(c.position.y).toBe(before.y);
+    expect(c.position.z - before.z).toBeCloseTo(-FREE_SPEED, 6); // W+Ctrl 增量 = 常速（不加速）
+    expect(c.position.y).toBe(before.y); // Ctrl 不触发下降
   });
 
   it('update：松开移动键 → 位置不变、仅应用旋转', () => {
