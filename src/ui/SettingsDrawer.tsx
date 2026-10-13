@@ -95,7 +95,7 @@ export function SettingsDrawer({
               <span className="field-row-label">视角移动</span>
               <button
                 type="button"
-                className={freeMode ? 'active' : ''}
+                className={freeMode ? 'active small' : 'small'}
                 onClick={() => onToggleFreeMode(!freeMode)}
               >
                 {freeMode ? '移动中 · 按 Esc 退出' : '启动'}
