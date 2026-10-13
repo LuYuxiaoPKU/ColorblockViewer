@@ -20,6 +20,7 @@ export function CommandPane({
   onPlayFresh,
   freeMode,
   onToggleFreeMode,
+  onResetView,
 }: {
   onRun: () => void;
   onRunFresh: () => void;
@@ -27,6 +28,8 @@ export function CommandPane({
   onPlayFresh: () => void;
   freeMode: boolean;
   onToggleFreeMode: (on: boolean) => void;
+  /** 相机复位到默认视角（视角移动行的「复位」按钮） */
+  onResetView: () => void;
 }) {
   const { input, toasts } = useAppState();
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -108,7 +111,7 @@ export function CommandPane({
         </div>
       </section>
 
-      <SettingsDrawer freeMode={freeMode} onToggleFreeMode={onToggleFreeMode} />
+      <SettingsDrawer freeMode={freeMode} onToggleFreeMode={onToggleFreeMode} onResetView={onResetView} />
       <StatusToast toasts={toasts} />
       {/* 模板库：右侧覆盖面板（画布保持可见，便于「载入并执行」边看边试） */}
       <TemplateGallery

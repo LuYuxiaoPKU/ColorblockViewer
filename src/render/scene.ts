@@ -19,6 +19,8 @@ export interface SceneBundle {
   setReference(type: ReferenceType): void;
   /** 自由视角模式开关（完整模式 3D 场景专属；快速模式场景不接此方法） */
   setFreeMode?(on: boolean): void;
+  /** 相机复位（默认视角：位置 + 目标点）——视角移动 UI 的「复位」按钮 */
+  resetCamera(): void;
   /** 每帧推进：轨道模式 → controls.update()；自由模式 → 漫游 update(dt) */
   tick(dt: number): void;
   dispose(): void;
@@ -179,13 +181,16 @@ export function createScene(container: HTMLElement): SceneBundle {
 
   /** 退出自由模式时把轨道聚焦点移到当前视线方向、与相机距离保持不变——
    *  轨道模式继续绕着退出时正看的位置转（曾保留进入前旧 target，
-   *  自由移动后相距过远，旋转中心悬空在视野外）。 */
+   *  自由移动后相距过远，旋转中心悬空在视野外）。
+   *  注意 distanceTo 必须在 copy 之前取——copy 会把 target 改成相机位置，
+   *  之后再算距离恒为 0 → target=位置 → lookAt 自身 → 朝向退回默认（曾修）。 */
   const keepOrbitFocus = (): void => {
     const dir = new THREE.Vector3();
     camera.getWorldDirection(dir);
+    const dist = camera.position.distanceTo(controls.target);
     controls.target
       .copy(camera.position)
-      .addScaledVector(dir, camera.position.distanceTo(controls.target));
+      .addScaledVector(dir, dist);
   };
 
   // 指针锁丢失（Esc / 切页）→ 自动退回轨道模式
@@ -249,6 +254,7 @@ export function createScene(container: HTMLElement): SceneBundle {
     setGrid,
     setReference,
     setFreeMode,
+    resetCamera,
     tick,
     dispose: () => {
       freeCleanup();

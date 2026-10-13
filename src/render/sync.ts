@@ -86,6 +86,11 @@ export class SimViewport {
     this.scene.setFreeMode?.(on);
   }
 
+  /** 相机复位（默认视角；快速模式无相机概念 → App 判空调用） */
+  resetCamera(): void {
+    this.scene.resetCamera();
+  }
+
   /** tick/命令后调用：全量重写缓冲 + drawRange。返回可见粒子数。
    *  帧动画按粒子自身 age/lifetime（age-progress，原版语义）；
    *  图集异步加载完成前自动走圆点回退。 */

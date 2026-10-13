@@ -11,9 +11,11 @@ import type { SimConfig } from '../sim/types';
 export function SettingsDrawer({
   freeMode,
   onToggleFreeMode,
+  onResetView,
 }: {
   freeMode: boolean;
   onToggleFreeMode: (on: boolean) => void;
+  onResetView: () => void;
 }) {
   const { sim } = useAppState();
   const [open, setOpen] = useState(false);
@@ -69,33 +71,41 @@ export function SettingsDrawer({
               <option value="fast">快速（Canvas 2D）</option>
             </select>
           </div>
-          <div className="field-row">
-            <span className="field-row-label">
-              参照物（仅完整模式）
-            </span>
-            <select
-              value={sim.reference}
-              onChange={(e) => setSim({ reference: e.target.value as SimConfig['reference'] })}
-              aria-label="参照物"
-            >
-              {REFERENCE_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {REFERENCE_LABELS[t]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field-row">
-            <span className="field-row-label">视角移动</span>
-            <button
-              type="button"
-              className={freeMode ? 'active' : ''}
-              onClick={() => onToggleFreeMode(!freeMode)}
-            >
-              {freeMode ? '移动中 · 按 Esc 退出' : '启动'}
-            </button>
-            <em className="muted">（点击画面锁定鼠标：WASD 平移 · 空格上升/Shift 下降 · Ctrl 加速 · 转鼠标转向 · R 回位）</em>
-          </div>
+          {/* 参照物/视角移动是完整模式 3D 专属（快速模式无 3D 道具与相机）→ 仅完整模式显示 */}
+          {sim.renderMode === 'full' && (
+            <div className="field-row">
+              <span className="field-row-label">
+                参照物（仅完整模式）
+              </span>
+              <select
+                value={sim.reference}
+                onChange={(e) => setSim({ reference: e.target.value as SimConfig['reference'] })}
+                aria-label="参照物"
+              >
+                {REFERENCE_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {REFERENCE_LABELS[t]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {sim.renderMode === 'full' && (
+            <div className="field-row">
+              <span className="field-row-label">视角移动</span>
+              <button
+                type="button"
+                className={freeMode ? 'active' : ''}
+                onClick={() => onToggleFreeMode(!freeMode)}
+              >
+                {freeMode ? '移动中 · 按 Esc 退出' : '启动'}
+              </button>
+              <button type="button" className="small" onClick={onResetView}>
+                复位
+              </button>
+              <em className="muted">（点击画面锁定鼠标：WASD 平移 · 空格上升/Shift 下降 · 转鼠标转向 · R 回位）</em>
+            </div>
+          )}
           <div className="field-row">
             <span className="field-row-label">
               3D 网格 <em className="muted">（边长以 block 计，1 block/格）</em>

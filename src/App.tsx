@@ -53,6 +53,8 @@ interface ViewportApi {
   setPointScale(heightPx: number, fovDeg: number): void;
   /** 自由视角开关（完整模式 3D 场景专属；快速模式无此方法 → App 判空调用） */
   setFreeMode?(on: boolean): void;
+  /** 相机复位到默认视角（完整模式 3D 专属；快速模式无相机 → 判空调用） */
+  resetCamera?(): void;
   resize(): void;
   start(): void;
   dispose(): void;
@@ -83,6 +85,10 @@ export default function App() {
     freeModeRef.current = on;
     setFreeMode(on);
     viewportRef.current?.setFreeMode?.(on);
+  };
+  // 「复位视角」：完整模式相机回到默认视角（快速模式无相机 → 判空调用）
+  const resetView = () => {
+    viewportRef.current?.resetCamera?.();
   };
   useEffect(() => {
     const onLock = () => {
@@ -485,6 +491,7 @@ export default function App() {
           onPlayFresh={playFresh}
           freeMode={freeMode}
           onToggleFreeMode={toggleFreeMode}
+          onResetView={resetView}
         />
       </aside>
       <Viewport
