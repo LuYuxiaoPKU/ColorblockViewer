@@ -2,8 +2,11 @@
 
 所有模组命令前缀 `/particleex`（AnotherColorBlock 与两代 ColorBlock；
 ExParticle 的根命令是 `/particlex` 且子命令连字符风格，见
-[00-overview](overview.md) 的根命令提醒），17 个子命令（8 个 parameter
-变体合并叙述；`USAGE` 与模组命令树逐字核对）。
+[00-overview](overview.md) 的根命令提醒），**18 个一级子命令**（8 个
+parameter/rgba 变体合并叙述；`USAGE` 与模组命令树逐字核对，1.21.11
+发行 jar 命令注册字节码实锤）。
+> 口径说明：旧文档写的「17 个」是 video/videomatrix 加入前的历史数字；
+> group 算 1 个一级子命令（remove/change 两个分支）。
 
 通用约定：
 

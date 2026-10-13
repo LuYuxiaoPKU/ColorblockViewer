@@ -14,7 +14,7 @@ description: 面向玩家与进阶用户的 ColorBlock 模组知识库——命�
 
 - [00-overview](overview.md) — 模组是什么、三代沿革与命名、生态工具
 - [08-history](history.md) — 模组历史与生态（版本史/延续线/贡献者致谢/引用规范）
-- [01-commands](commands.md) — 命令大全（17 个子命令逐条 + 三代命令名对照）
+- [01-commands](commands.md) — 命令大全（18 个一级子命令逐条 + 三代命令名对照）
 - [02-expressions](expressions.md) — 表达式系统（语法/变量表/球坐标/缓动/矩阵）
 - [03-nbt](nbt.md) — `type{NBT}` 选项语法与陷阱
 - [04-particles](particles.md) — 粒子类型清单与版本分区
