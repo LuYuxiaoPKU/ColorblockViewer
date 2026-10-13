@@ -321,15 +321,19 @@ const WALL_UV_SIDE = [4, 0, 12, 16] as const; // 侧面：贴图中间 8 列 × 
 const WALL_UV_TOP = [4, 4, 12, 12] as const; // 顶/底：贴图中心 8×8
 
 /** 单面裁剪材质：共享 image 的 Texture clone + repeat/offset 裁到分区（v 从图像顶计，
- *  three flipY → 顶在 v=1，offset v=(16-v1)/16）。 */
-function wallFace(tex: Tex, region: readonly [number, number, number, number]): THREE.MeshLambertMaterial {
-  const map = tex && tex['cobblestone.png'];
+ *  three flipY → 顶在 v=1，offset v=(16-v1)/16）。cutout = alphaTest 贴图剪切（透贴）。 */
+function faceRegion(tex: Tex, file: string, region: readonly [number, number, number, number], cutout = false): THREE.MeshLambertMaterial {
+  const map = tex && tex[file];
   if (!map) return fallbackFor('tower');
   const t = map.clone();
   t.needsUpdate = true;
   t.repeat.set((region[2] - region[0]) / 16, (region[3] - region[1]) / 16);
   t.offset.set(region[0] / 16, (16 - region[3]) / 16);
-  return new THREE.MeshLambertMaterial({ map: t });
+  return new THREE.MeshLambertMaterial({ map: t, ...(cutout ? { alphaTest: 0.5 } : {}) });
+}
+
+function wallFace(tex: Tex, region: readonly [number, number, number, number]): THREE.MeshLambertMaterial {
+  return faceRegion(tex, 'cobblestone.png', region);
 }
 
 function wallBlock(tex: Tex, _name: string, _props: Record<string, string>, pos: [number, number, number]): THREE.Group {
@@ -340,10 +344,19 @@ function wallBlock(tex: Tex, _name: string, _props: Record<string, string>, pos:
   return g;
 }
 
-/** 火把：2px 柱高 10px（原版 template_torch 7-9px × 0-10px），顶面无火焰方块 */
+/** 火把：2px 柱高 10px（原版 template_torch from[7,0,7] to[9,10,9]），顶面无火焰方块。
+ *  贴图按原版 UV 裁剪采样（侧面 [7,6,9,16]、顶 [7,6,9,8]、底 [7,13,9,15]）——曾 UV 0-1
+ *  全贴致 2px 柱身图像铺满整面、花脸压扁（用户报"贴图有问题"）。 */
+const TORCH_UV_SIDE = [7, 6, 9, 16] as const;
+const TORCH_UV_UP = [7, 6, 9, 8] as const;
+const TORCH_UV_DOWN = [7, 13, 9, 15] as const;
+
 function torchBlock(tex: Tex, pos: [number, number, number]): THREE.Group {
   const g = new THREE.Group();
-  g.add(box(mats6(tex, 'torch.png', 'tower', true), [0.125, 0.625, 0.125], [pos[0] + 0.5, pos[1] + 0.3125, pos[2] + 0.5]));
+  const side = faceRegion(tex, 'torch.png', TORCH_UV_SIDE, true);
+  const up = faceRegion(tex, 'torch.png', TORCH_UV_UP, true);
+  const down = faceRegion(tex, 'torch.png', TORCH_UV_DOWN, true);
+  g.add(box([side, side, up, down, side, side], [0.125, 0.625, 0.125], [pos[0] + 0.5, pos[1] + 0.3125, pos[2] + 0.5]));
   return g;
 }
 
