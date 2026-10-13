@@ -1,5 +1,5 @@
 // 示例画廊动图生成器：跑引擎 → 2D 快速模式逐帧渲染 → GIF 编码。
-// 产物 public/wiki-gallery/<templateId>.gif（提交入库，画廊页 <img> 引用）。
+// 产物 docs/wiki/public/wiki-gallery/<templateId>.gif（提交入库，画廊页 <img> 引用）。
 // 渲染口径与 render2d 快速模式一致：等距投影 + 深色底 + lighter 加色圆点
 // （粒子颜色/半径/淡出走 color.ts particleVisual，与实况同一份色值逻辑）。
 // GIF = 引擎从出生到消亡的全过程循环回放（seed 固定 → 每次生成逐帧一致）。
@@ -32,7 +32,8 @@ const SIM = {
 const W = 360;
 const H = 360;
 const FRAME_MS = 80;
-const MAX_COLORS = 248; // GIF 全局调色板容量（留 8 空位防溢出）
+/** GIF 全局调色板容量（索引 0 = 背景，余 255 位；留 5 空位防 256 溢出） */
+const MAX_COLORS = 250;
 
 /** 每模板的回放窗口（tick）与采样间隔（tick/帧）：粒子寿命决定时长。
  *  循环里先 tickOnce 再画帧，末帧 = ticks+1 tick 的状态；取 ticks 使末帧
@@ -45,37 +46,18 @@ const SHOWS: Record<string, { ticks: number; every: number }> = {
 };
 
 const BG = '#0b0e14';
+const BG_RGB = [0x0b, 0x0e, 0x14];
 const GRID_LINE = '#1c2130';
 const GRID_FRAME = '#3a4150';
 
-/** 每帧像素（RGBA）→ 索引图 + 该帧调色板（收集帧内颜色，LRU 兜底复用旧色） */
-function quantizeFrame(
-  rgba: Uint8Array,
-  w: number,
-  h: number,
-  palette: Map<string, number>,
-  palData: Uint8Array,
-  framePal: Uint8Array,
-): Uint8Array {
-  const idx = new Uint8Array(w * h);
-  for (let i = 0, p = 0; i < w * h; i++, p += 4) {
-    const r = rgba[p], g = rgba[p + 1], b = rgba[p + 2];
-    const key = `${r},${g},${b}`;
-    let pi = palette.get(key);
-    if (pi === undefined) {
-      pi = palette.size;
-      if (pi >= MAX_COLORS) pi = 0; // 超容量：背景色兜底（粒子色远少于 248）
-      palette.set(key, pi);
-      palData[pi * 3] = r;
-      palData[pi * 3 + 1] = g;
-      palData[pi * 3 + 2] = b;
-    }
-    framePal[pi * 3] = palData[pi * 3];
-    framePal[pi * 3 + 1] = palData[pi * 3 + 1];
-    framePal[pi * 3 + 2] = palData[pi * 3 + 2];
-    idx[i] = pi;
-  }
-  return idx;
+/** 逐帧推进并渲染到 canvas（与实况 render2d 快速模式同口径） */
+function stepAndDraw(
+  ctx: import('@napi-rs/canvas').CanvasRenderingContext2D,
+  engine: SimEngine,
+  every: number,
+): void {
+  for (let i = 0; i < every; i++) engine.tickOnce();
+  drawFrame(ctx, engine);
 }
 
 function drawFrame(
@@ -149,34 +131,112 @@ function drawFrame(
   ctx.globalCompositeOperation = 'source-over';
 }
 
+type RGB = [number, number, number];
+
+/** 第一遍：逐帧渲染并收集画布上出现的所有颜色 → 全局调色板（索引 0 = 背景色） */
+function collectPalette(
+  ctx: import('@napi-rs/canvas').CanvasRenderingContext2D,
+  engine: SimEngine,
+  ticks: number,
+  every: number,
+): { table: RGB[]; lut: Map<number, number> } {
+  const table: RGB[] = [BG_RGB as RGB]; // 索引 0 = 背景
+  const lut = new Map<number, number>();
+  lut.set((BG_RGB[0] << 16) | (BG_RGB[1] << 8) | BG_RGB[2], 0);
+  for (let t = 0; t <= ticks; t += every) {
+    stepAndDraw(ctx, engine, every);
+    const d = ctx.getImageData(0, 0, W, H).data;
+    for (let p = 0; p < d.length; p += 4) {
+      const r = d[p], g = d[p + 1], b = d[p + 2];
+      if (r === BG_RGB[0] && g === BG_RGB[1] && b === BG_RGB[2]) continue;
+      if (table.length >= MAX_COLORS) continue;
+      const key = (r << 16) | (g << 8) | b;
+      if (!lut.has(key)) {
+        lut.set(key, table.length);
+        table.push([r, g, b]);
+      }
+    }
+  }
+  return { table, lut };
+}
+
+/** 像素颜色 → 调色板索引；调色板已满时对未收录颜色取最近邻（缓存） */
+function idxFor(
+  r: number,
+  g: number,
+  b: number,
+  table: RGB[],
+  lut: Map<number, number>,
+  cache: Map<number, number>,
+): number {
+  const key = (r << 16) | (g << 8) | b;
+  const hit = lut.get(key);
+  if (hit !== undefined) return hit;
+  let idx = cache.get(key);
+  if (idx !== undefined) return idx;
+  let best = 1;
+  let bd = Infinity;
+  for (let i = 1; i < table.length; i++) {
+    const [tr, tg, tb] = table[i];
+    const dr = tr - r, dg = tg - g, db = tb - b;
+    const dist = dr * dr + dg * dg + db * db;
+    if (dist < bd) {
+      bd = dist;
+      best = i;
+    }
+  }
+  cache.set(key, best);
+  return best;
+}
+
 function gifFromTemplate(id: string): Buffer {
   const tpl = TEMPLATES.find((t) => t.id === id);
   if (!tpl) throw new Error('模板不存在: ' + id);
-  const engine = new SimEngine(SIM);
-  for (const c of tpl.cmds) {
-    for (const cmd of parseCommands(c.replace(/^\//, ''))) engine.runCommand(cmd);
-  }
+  const runCmds = (engine: SimEngine): void => {
+    for (const c of tpl.cmds) {
+      for (const cmd of parseCommands(c.replace(/^\//, ''))) engine.runCommand(cmd);
+    }
+  };
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
-  const gif = GIFEncoder();
-  const palData = new Uint8Array(MAX_COLORS * 3);
-  const framePal = new Uint8Array(MAX_COLORS * 3);
-  const palette = new Map<string, number>();
   const { ticks, every } = SHOWS[id] ?? { ticks: 200, every: 4 };
-  const total = Math.floor(ticks / every) + 1;
+
+  // 第一遍：渲染收集全局调色板
+  const engineA = new SimEngine(SIM);
+  runCmds(engineA);
+  const { table, lut } = collectPalette(ctx, engineA, ticks, every);
+  console.log(`  ${id}: 全局调色板 ${table.length} 色`);
+
+  // 第二遍：同序渲染，用固定全局调色板编码（首帧写全局表，后续帧不写局部表）
+  const engineB = new SimEngine(SIM);
+  runCmds(engineB);
+  const gif = GIFEncoder();
+  const cache = new Map<number, number>();
+  let first = true;
   for (let t = 0; t <= ticks; t += every) {
-    for (let i = 0; i < every; i++) engine.tickOnce();
-    drawFrame(ctx, engine);
-    const px = ctx.getImageData(0, 0, W, H).data;
-    const idx = quantizeFrame(px, W, H, palette, palData, framePal);
-    // 帧调色板 = 该帧用到的索引位（其余位置为 0,0,0，GIF 解码不引用）
-    gif.writeFrame(idx, W, H, { palette: framePal, delay: FRAME_MS, transparent: false });
+    stepAndDraw(ctx, engineB, every);
+    const d = ctx.getImageData(0, 0, W, H).data;
+    const idx = new Uint8Array(W * H);
+    for (let p = 0, o = 0; p < d.length; p += 4, o++) {
+      const r = d[p], g = d[p + 1], b = d[p + 2];
+      if (r === BG_RGB[0] && g === BG_RGB[1] && b === BG_RGB[2]) {
+        idx[o] = 0;
+      } else {
+        idx[o] = idxFor(r, g, b, table, lut, cache);
+      }
+    }
+    gif.writeFrame(idx, W, H, {
+      palette: first ? (table as never) : undefined,
+      delay: FRAME_MS,
+      transparent: false,
+    });
+    first = false;
   }
   gif.finish();
   return Buffer.from(gif.bytes());
 }
 
-const OUT_DIR = join(process.cwd(), 'public', 'wiki-gallery');
+const OUT_DIR = join(process.cwd(), 'docs', 'wiki', 'public', 'wiki-gallery');
 mkdirSync(OUT_DIR, { recursive: true });
 for (const id of ['ripple', 'ring']) {
   const buf = gifFromTemplate(id);
