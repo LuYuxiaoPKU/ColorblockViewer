@@ -166,7 +166,7 @@ describe('设置抽屉（SettingsDrawer ↔ store.sim）', () => {
     act(() => {
       button('设置').dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
-    const size = numField('大小');
+    const size = numField('网格大小');
     inputValue(size, '1000');
     commitField(size);
     expect(getState().sim.gridSize).toBe(100);

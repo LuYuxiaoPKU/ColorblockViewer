@@ -107,10 +107,7 @@ export function SettingsDrawer({
             </div>
           )}
           <div className="field-row">
-            <span className="field-row-label">
-              3D 网格 <em className="muted">（边长以 block 计，1 block/格）</em>
-            </span>
-            <NumField label="大小" value={sim.gridSize} min={2} max={100} integer onChange={(v) => setSim({ gridSize: v })} />
+            <NumField label="网格大小" value={sim.gridSize} min={2} max={100} integer onChange={(v) => setSim({ gridSize: v })} />
             <label className="check-inline">
               <input
                 type="checkbox"

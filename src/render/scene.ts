@@ -99,6 +99,18 @@ export function createScene(container: HTMLElement): SceneBundle {
 
   let refGroup: THREE.Group | null = null;
   let refEpoch = 0;
+  /** 销毁 mesh 材质：box 六面材质是 multi-material 数组，需逐项 dispose
+   *  （材质在 mesh 间共享——mats6 同材质 ×6、树干 5 段共用——Material.dispose 幂等可重复）。
+   *  曾直接 (m.material as Material).dispose()：数组无 dispose 方法 → TypeError 冒泡到
+   *  React effect → 整树卸载页面全空（用户报"切换参照物后所有元素消失"）。 */
+  const disposeMaterial = (m: THREE.Mesh): void => {
+    const mat = m.material;
+    if (Array.isArray(mat)) {
+      for (const x of mat) x.dispose();
+    } else {
+      mat.dispose();
+    }
+  };
   const disposeRefGroup = (): void => {
     if (!refGroup) return;
     scene.remove(refGroup);
@@ -106,7 +118,7 @@ export function createScene(container: HTMLElement): SceneBundle {
       const m = o as THREE.Mesh;
       if (m.isMesh) {
         m.geometry.dispose();
-        (m.material as THREE.Material).dispose();
+        disposeMaterial(m);
       }
     });
     refGroup = null;
@@ -273,7 +285,7 @@ export function createScene(container: HTMLElement): SceneBundle {
           const m = o as THREE.Mesh;
           if (m.isMesh) {
             m.geometry.dispose();
-            (m.material as THREE.Material).dispose();
+            disposeMaterial(m);
           }
         });
       }
