@@ -48,15 +48,18 @@ export function createScene(container: HTMLElement): SceneBundle {
   // + 0.3 方向光，方向光从侧上方打来 → 正面背光发黑，观感"只有侧面有贴图"）。
   scene.add(new THREE.AmbientLight(0xffffff, 1.0));
 
-  // 默认视角贴近游戏玩家观感（fov 对齐游戏默认 70、相机距原点 ~5.1 格）：
-  // 游戏里玩家站粒子 1–5 格外，原 (6,5,8) 距 10.8 格会让粒子屏幕占比小 2–10 倍。
+  // 默认视角贴近游戏玩家观感（fov 对齐游戏默认 70、相机距原点 ~3 格）：
+  // 游戏里玩家站粒子 1–5 格外，原 (6,5,8) 距 10.8 格会让粒子屏幕占比小 2–10 倍；
+  // 后改 (3,2,4) 距 5.1 格仍偏远（端 rod 粒子 0.075–0.1125 格在 5 格外仅 ~14px，
+  // 游戏里玩家眼前看是一团光）→ 收到用户反馈后收紧到 ~3 格，取玩家常见站位
+  // 中值；粒子范围更大时滚轮可缩远。
   const camera = new THREE.PerspectiveCamera(
     70,
     Math.max(container.clientWidth, 1) / Math.max(container.clientHeight, 1),
     0.1,
     1000,
   );
-  camera.position.set(3, 2, 4);
+  camera.position.set(1.9, 1.3, 2.3);
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.target.set(0, 1, 0);
