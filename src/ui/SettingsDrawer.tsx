@@ -44,13 +44,11 @@ export function SettingsDrawer({
             <NumField label="max" value={sim.maxParticles} min={1} integer onChange={(v) => setSim({ maxParticles: v })} />
           </div>
           <div className="field-row">
-            <span className="field-row-label">随机种子（变化即重置高斯序列）</span>
+            <span className="field-row-label">随机种子</span>
             <NumField label="seed" value={sim.seed} integer onChange={(v) => setSim({ seed: v })} />
           </div>
           <div className="field-row">
-            <span className="field-row-label">
-              游戏版本 <em className="muted">（粒子贴图与类型表按它分区）</em>
-            </span>
+            <span className="field-row-label">游戏版本</span>
             <select
               value={sim.mcVersion}
               onChange={(e) => setSim({ mcVersion: e.target.value })}
@@ -61,9 +59,7 @@ export function SettingsDrawer({
             </select>
           </div>
           <div className="field-row">
-            <span className="field-row-label">
-              渲染模式 <em className="muted">（完整 = WebGL + 真实贴图/帧动画；快速 = Canvas 2D 圆点，仿真照常）</em>
-            </span>
+            <span className="field-row-label">渲染模式</span>
             <select
               value={sim.renderMode}
               onChange={(e) => setSim({ renderMode: e.target.value as 'full' | 'fast' })}
@@ -75,7 +71,7 @@ export function SettingsDrawer({
           </div>
           <div className="field-row">
             <span className="field-row-label">
-              参照物 <em className="muted">（尺寸参照道具，完整模式展示；帮助比对粒子与方块/实体大小）</em>
+              参照物（仅完整模式）
             </span>
             <select
               value={sim.reference}

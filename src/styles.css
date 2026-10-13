@@ -119,6 +119,9 @@ body {
 }
 
 .project-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 12px;
   line-height: 1;
   color: var(--muted);

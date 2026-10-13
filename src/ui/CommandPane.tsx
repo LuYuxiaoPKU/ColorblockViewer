@@ -67,14 +67,14 @@ export function CommandPane({
         </div>
         <div className="btn-row">
           <button className="small" onClick={() => setGalleryOpen(true)} title="模板展示：复制命令 / 载入并执行">
-            📚 模板库
+            模板库
           </button>
           <button
             className="small"
             onClick={clearAll}
             title="清空输入框与画面粒子"
           >
-            🗑 一键清空
+            一键清空
           </button>
         </div>
         <textarea

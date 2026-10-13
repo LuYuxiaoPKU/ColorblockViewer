@@ -66,7 +66,7 @@ export function TemplateGallery({
         onClick={(e) => e.stopPropagation()} // 面板内点击不关闭
       >
         <div className="gallery-head">
-          <span className="gallery-title">📚 模板库（{TEMPLATES.length}）</span>
+          <span className="gallery-title">模板库（{TEMPLATES.length}）</span>
           <span className="gallery-hint muted">
             「复制命令」= 游戏内可直接粘贴的文本；「载入并执行」= 清空现有命令与粒子后执行
             （画布在左侧，可边看边试）
