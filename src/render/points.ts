@@ -204,8 +204,12 @@ void main() {
   vColor = color;
   vUv = uv;
   vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-  // size 是世界块单位；透视换算：像素 = 块 * 视口高·0.5 / tan(fov/2) / 视距
-  gl_PointSize = size * uSizeMul * (uScale / -mvPosition.z);
+  // size = 原版 quadSize（世界块，quad **半宽**：SingleQuadParticle.renderVertex
+  // 用 Vector3f(±1,±1,0).mul(quadSize) 展开四角 → 全宽 = 2×quadSize）；
+  // gl_PointSize 是点精灵全宽 → ×2 换算。缺了这个 2，点只有游戏内一半大
+  // （2D 快速模式的 arc(radius=quadSize) 直径 = 2×quadSize 一直是对的）。
+  // 透视换算：像素 = 块 * 视口高·0.5 / tan(fov/2) / 视距
+  gl_PointSize = 2.0 * size * uSizeMul * (uScale / -mvPosition.z);
   gl_Position = projectionMatrix * mvPosition;
 }
 `;

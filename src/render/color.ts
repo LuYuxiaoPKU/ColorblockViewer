@@ -7,11 +7,14 @@
 
 import { PARTICLE_DATA } from './particleData';
 
-/** 基础点尺寸（**世界块单位**）：对齐游戏 SingleQuadParticle quadSize 均值 0.15
- *  （javap：0.1f×(nextFloat×0.5+0.5)×2f = 0.1–0.2 均匀分布）。预览无随机、
- *  固定均值口径；end_rod 等类型经 ×0.75f 缩小的在 TWEAKS 里单独回调。
- *  像素换算：3D 在顶点着色器里做透视除法（uScale 由 SimViewport 维护），
- *  2D 用统一缩放常数（pxPerBlock）。类型表在此基础上乘倍数。 */
+/** 基础点尺寸（**世界块单位，quad 半宽**）：对齐游戏 SingleQuadParticle quadSize
+ *  均值 0.15（javap：0.1f×(nextFloat×0.5+0.5)×2f = 0.1–0.2 均匀分布）。
+ *  注意 quadSize 是 **quad 半宽**（26.2 renderVertex：Vector3f(±1,±1,0).mul(quadSize)
+ *  展开四角 → 全宽 = 2×quadSize）；像素换算两侧同口径：
+ *  3D 顶点着色器 `gl_PointSize = 2.0*size*…`（点精灵全宽，2026-10-13 补 ×2）、
+ *  2D `arc(radius=size*pxPerBlock)`（圆直径 = 2×radius）。预览无随机、
+ *  固定均值口径；end_rod 等类型经 ×0.75f 缩小的在 TWEAKS 里单独回调。类型
+ *  表在此基础上乘倍数。 */
 export const BASE_SIZE = 0.15;
 
 /** 粒子名归一化：小写 + 去 `minecraft:` 命名空间前缀。 */

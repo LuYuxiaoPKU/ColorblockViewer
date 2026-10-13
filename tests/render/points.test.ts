@@ -471,6 +471,17 @@ describe('createPointsLayer 几何', () => {
     layer.dispose();
   });
 
+  it('点尺寸 ×2 换算：size=quadSize（半宽）→ gl_PointSize 全宽（2×quadSize）', () => {
+    // 26.2 javap SingleQuadParticle.renderVertex：Vector3f(±1,±1,0).mul(quadSize)
+    // 展开四角 → quadSize 是 **半宽**，quad 全宽 = 2×quadSize；gl_PointSize 是
+    // 点精灵全宽 → 必须 ×2（2D 快速模式 arc(radius=quadSize) 直径 = 2×quadSize
+    // 同口径）。曾缺此 ×2 → 3D 粒子只有游戏内一半大（2026-10-13 修复）。
+    const layer = createPointsLayer(2);
+    const vs = (layer.points.material as THREE.ShaderMaterial).vertexShader;
+    expect(vs).toMatch(/gl_PointSize\s*=\s*2\.0\s*\*\s*size\b/);
+    layer.dispose();
+  });
+
   it('缓冲尺寸 + 属性 + drawRange 默认 0', () => {
     const layer = createPointsLayer(3);
     expect(layer.pos.length).toBe(9);
