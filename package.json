@@ -20,14 +20,17 @@
     "three": "^0.185.1"
   },
   "devDependencies": {
+    "@napi-rs/canvas": "^1.0.11",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "^6.1.1",
+    "gifenc": "^1.0.3",
     "happy-dom": "^20.14.0",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.2.2",
-    "vitest": "^5.0.0",
-    "vitepress": "^1.6.4"
+    "vitepress": "^1.6.4",
+    "vitest": "^5.0.0"
   }
 }

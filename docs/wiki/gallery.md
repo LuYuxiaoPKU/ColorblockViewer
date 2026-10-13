@@ -1,8 +1,8 @@
 # 示例画廊
 
-> 模组招牌写法的**实况预览**——每张卡片内嵌预览工具实时渲染（约 10 秒加载
-> WebGL 场景），可直接用鼠标拖拽环绕观察；命令文本附在卡片内可复制进游戏。
-> 预览工具为浏览器模拟，命令语义与游戏逐字一致（1161 个测试锁定）。
+> 模组招牌写法的**动图预览**——由预览工具引擎逐帧渲染回放（循环
+> 播放），画面为固定等距视角；命令文本附在卡片内可复制进游戏。
+> 动图渲染口径与预览工具一致，命令语义与游戏逐字一致（1161 个测试锁定）。
 
 <style>
 .gallery-grid {
@@ -20,12 +20,13 @@
   flex-direction: column;
   gap: 8px;
 }
-.gallery-card iframe {
+.gallery-card img {
   width: 100%;
-  height: 300px;
+  height: auto;
   border: 1px solid var(--vp-c-divider);
   border-radius: 6px;
-  background: #0b0e14; /* 主站场景底色，防加载白闪 */
+  background: #0b0e14; /* 与主站场景底色一致，防加载闪烁 */
+  display: block;
 }
 .gallery-card .tags {
   display: flex;
@@ -52,7 +53,7 @@
 
 <div class="tags"><span class="tag">conditional</span><span class="tag">表达式</span><span class="tag">end_rod</span></div>
 
-<iframe src="https://yuer159.github.io/ColorblockViewer/?t=ripple" loading="lazy" allow="pointer-lock; clipboard-write" title="涟漪波面预览"></iframe>
+<img src="/wiki-gallery/ripple.gif" alt="涟漪波面动图预览" loading="lazy">
 
 <details>
   <summary>查看命令（复制进游戏）</summary>
@@ -74,7 +75,7 @@
 
 <div class="tags"><span class="tag">polarparameter</span><span class="tag">表达式</span><span class="tag">end_rod</span></div>
 
-<iframe src="https://yuer159.github.io/ColorblockViewer/?t=ring" loading="lazy" allow="pointer-lock; clipboard-write" title="圆周环预览"></iframe>
+<img src="/wiki-gallery/ring.gif" alt="圆周环动图预览" loading="lazy">
 
 <details>
   <summary>查看命令（复制进游戏）</summary>
