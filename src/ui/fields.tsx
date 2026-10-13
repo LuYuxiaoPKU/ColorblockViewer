@@ -1,15 +1,15 @@
 // 数字字段（SettingsDrawer 用）：本地暂存草稿，blur/Enter 提交
 // （避免输入中间态 "-"/"." 触发解析失败回跳）。
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 function fmtNum(v: number): string {
   return Object.is(v, -0) ? '0' : String(v);
 }
 
 export interface NumFieldProps {
-  /** 行内小标签（与 field-row-label 冗余时可传 ''） */
-  label: string;
+  /** 行内小标签（与 field-row-label 冗余时可传 ''；可含 <em> 注释等节点） */
+  label: ReactNode;
   value: number;
   onChange: (v: number) => void;
   min?: number;

@@ -36,10 +36,17 @@ export function SettingsDrawer({
             <NumField label="z" value={sim.playerPos.z} onChange={(v) => setSim({ playerPos: { ...sim.playerPos, z: v } })} />
           </div>
           <div className="field-row">
-            <span className="field-row-label">
-              默认寿命 <em className="muted">（近似值：因粒子类型而异，仅 age=0 时生效）</em>
-            </span>
-            <NumField label="tick" value={sim.defaultLifetime} min={1} integer onChange={(v) => setSim({ defaultLifetime: v })} />
+            <NumField
+              label={
+                <>
+                  默认寿命 <em className="muted">（近似值：因粒子类型而异，仅 age=0 时生效）</em>
+                </>
+              }
+              value={sim.defaultLifetime}
+              min={1}
+              integer
+              onChange={(v) => setSim({ defaultLifetime: v })}
+            />
           </div>
           <div className="field-row">
             <NumField label="粒子上限" value={sim.maxParticles} min={1} integer onChange={(v) => setSim({ maxParticles: v })} />

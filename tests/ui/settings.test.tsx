@@ -90,10 +90,13 @@ function commitField(el: HTMLElement): void {
   });
 }
 
-/** 抽屉内按小标签定位 NumField（「x」/「tick」/「粒子上限」/「随机种子」…） */
+/** 抽屉内按小标签定位 NumField（「x」/「默认寿命」/「粒子上限」/「随机种子」…）。
+ *  标签可能是富文本（含 <em> 注释）→ 文本前缀匹配（trim 后 startsWith）。 */
 function numField(label: string): HTMLInputElement {
   const scope = container.querySelector('.pane-section.settings')!;
-  const lf = [...scope.querySelectorAll('.numfield-label')].find((e) => e.textContent?.trim() === label);
+  const lf = [...scope.querySelectorAll('.numfield-label')].find((e) =>
+    e.textContent?.trim().startsWith(label),
+  );
   if (!lf) throw new Error('numfield not found: ' + label);
   const input = lf.closest('.numfield')!.querySelector('input') as HTMLInputElement;
   return input;
@@ -152,7 +155,7 @@ describe('设置抽屉（SettingsDrawer ↔ store.sim）', () => {
     act(() => {
       button('设置').dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
-    const tick = numField('tick');
+    const tick = numField('默认寿命');
     inputValue(tick, '0');
     commitField(tick);
     expect(getState().sim.defaultLifetime).toBe(1);
