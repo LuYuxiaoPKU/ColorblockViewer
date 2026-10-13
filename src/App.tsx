@@ -469,7 +469,7 @@ export default function App() {
       <aside className="pane">
         <h1>ColorBlockViewer</h1>
         <div className="project-links">
-          <a href="https://yuer159.github.io/ColorblockViewer/wiki/" target="_blank" rel="noopener">📖 wiki</a>
+          <a href="https://yuer159.github.io/ColorblockViewer/wiki/" target="_blank" rel="noopener">📖 WIKI</a>
           <a href="https://github.com/YuEr159/ColorblockViewer" target="_blank" rel="noopener">GitHub</a>
           <a href="https://github.com/YuEr159/ColorblockViewer/issues" target="_blank" rel="noopener">📮 反馈</a>
         </div>
