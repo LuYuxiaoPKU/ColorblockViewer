@@ -150,8 +150,10 @@ export function createScene(container: HTMLElement): SceneBundle {
       if (g) {
         scene.add(g);
         refGroup = g;
-        fitCameraTo(g);
-        if (camMode === 'free') freeCtrl.enter(camera); // fit 后同步自由视角朝向
+        // 不再 fitCameraTo 自动拉远（曾沿视线拉远到覆盖参照物包围盒）——用户
+        // 要求切换参照物后视角维持原位；哨塔等大体型挡视角时滚轮缩远或自由
+        // 视角 R 键入镜
+        if (camMode === 'free') freeCtrl.enter(camera); // 保持自由视角朝向对齐
       }
     });
   };

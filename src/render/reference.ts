@@ -22,7 +22,7 @@ export const REFERENCE_LABELS: Record<ReferenceType, string> = {
   none: '无',
   command_block: '命令方块（1 格）',
   oak_tree: '橡树（高 6–7 格）',
-  outpost_tower: '袭击哨塔（掠夺者前哨站）',
+  outpost_tower: '袭击哨塔',
 };
 
 /** 资源目录（BASE_URL 前缀兼容 GitHub Pages 子路径部署） */
