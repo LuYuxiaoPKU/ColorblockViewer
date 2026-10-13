@@ -606,15 +606,12 @@ button.small {
 }
 
 
-/* 游戏内格式检查（CommandPane 文本框下方）：ok = 可直接粘回游戏；bad = 引号用法与
-   brigadier 不符（预览宽松解析，但游戏会截断） */
+/* 游戏内格式检查（CommandPane 文本框下方）：bad = 引号用法与
+   brigadier 不符（预览宽松解析，但游戏会截断）；OK 时整块静默不渲染 */
 .format-check {
   margin-top: 8px;
   font-size: 12px;
   line-height: 1.5;
-}
-.format-check.ok {
-  color: var(--muted);
 }
 .format-check.bad {
   color: var(--warn);

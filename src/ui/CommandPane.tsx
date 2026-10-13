@@ -88,27 +88,22 @@ export function CommandPane({
           onChange={(e) => setInputText(e.target.value)}
         />
         {/* 游戏内格式检查：文本参数（表达式/组名）必须满足 brigadier 未加引号字符集，
-            否则游戏里会被截断；serialize 按该规范输出（自动补 '…'） */}
-        <div className={formatIssues.length === 0 ? 'format-check ok' : 'format-check bad'}>
-          {formatIssues.length === 0 ? (
+            否则游戏里会被截断；serialize 按该规范输出（自动补 '…'）。
+            没问题时静默（不渲染），只有问题才显示 */}
+        {formatIssues.length > 0 && (
+          <div className="format-check bad">
             <span>
-              ✅ 格式检查：每行都符合游戏内 brigadier 格式
+              ⚠️ 格式检查：{formatIssues.length} 行的引号用法与游戏不符（预览仍会宽松解析，但粘回游戏会失败）：
             </span>
-          ) : (
-            <>
-              <span>
-                ⚠️ 格式检查：{formatIssues.length} 行的引号用法与游戏不符（预览仍会宽松解析，但粘回游戏会失败）：
-              </span>
-              <ul>
-                {formatIssues.slice(0, 5).map((r) => (
-                  <li key={r.line}>
-                    第 {r.line} 行：{r.issues.map((i) => i.message).join('；')}
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </div>
+            <ul>
+              {formatIssues.slice(0, 5).map((r) => (
+                <li key={r.line}>
+                  第 {r.line} 行：{r.issues.map((i) => i.message).join('；')}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </section>
 
       <SettingsDrawer freeMode={freeMode} onToggleFreeMode={onToggleFreeMode} onResetView={onResetView} />

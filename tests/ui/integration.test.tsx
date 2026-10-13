@@ -220,7 +220,7 @@ describe('粘贴 → 执行', () => {
     expect(hud?.textContent).toContain('粒子 201');
   });
 
-  it('格式检查面板：缺引号表达式 → ⚠️ 指明参数位；补上引号 → ✅', () => {
+  it('格式检查面板：缺引号表达式 → ⚠️ 指明参数位；补上引号 → 静默（无问题不渲染）', () => {
     const head = 'particleex conditional minecraft:end_rod ~ ~ ~ 1 0.95 0.89 1 0 0 0 8 0.6 8 ';
     const tail = ' 0.1 200 vy=0.05 1 null'; // step / age / 速度表达式 / speedStep / group
     setValue(ta(), head + '(abs(y-0.5)<0.05)&(sqrt(x^2+z^2)<8)' + tail);
@@ -232,7 +232,7 @@ describe('粘贴 → 执行', () => {
 
     setValue(ta(), head + "'(abs(y-0.5)<0.05)&(sqrt(x^2+z^2)<8)'" + ' 0.1 200 \'vy=0.05\' 1 null');
     expect(container.querySelector('.format-check.bad')).toBeNull();
-    expect(container.querySelector('.format-check.ok')!.textContent).toContain('每行都符合游戏内 brigadier 格式');
+    expect(container.querySelector('.format-check')).toBeNull(); // 没问题 → 整块静默
   });
 
   it('缺引号表达式执行 → 真源保留原表达式 + 回显自动补单引号（引号不再消失）', () => {
