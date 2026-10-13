@@ -42,12 +42,10 @@ export function SettingsDrawer({
             <NumField label="tick" value={sim.defaultLifetime} min={1} integer onChange={(v) => setSim({ defaultLifetime: v })} />
           </div>
           <div className="field-row">
-            <span className="field-row-label">粒子上限</span>
-            <NumField label="max" value={sim.maxParticles} min={1} integer onChange={(v) => setSim({ maxParticles: v })} />
+            <NumField label="粒子上限" value={sim.maxParticles} min={1} integer onChange={(v) => setSim({ maxParticles: v })} />
           </div>
           <div className="field-row">
-            <span className="field-row-label">随机种子</span>
-            <NumField label="seed" value={sim.seed} integer onChange={(v) => setSim({ seed: v })} />
+            <NumField label="随机种子" value={sim.seed} integer onChange={(v) => setSim({ seed: v })} />
           </div>
           <div className="field-row">
             <span className="field-row-label">游戏版本</span>

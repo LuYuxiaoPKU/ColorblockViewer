@@ -90,7 +90,7 @@ function commitField(el: HTMLElement): void {
   });
 }
 
-/** 抽屉内按小标签定位 NumField（「x」/「tick」/「max」/「seed」…） */
+/** 抽屉内按小标签定位 NumField（「x」/「tick」/「粒子上限」/「随机种子」…） */
 function numField(label: string): HTMLInputElement {
   const scope = container.querySelector('.pane-section.settings')!;
   const lf = [...scope.querySelectorAll('.numfield-label')].find((e) => e.textContent?.trim() === label);
