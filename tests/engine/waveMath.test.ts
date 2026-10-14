@@ -6,7 +6,7 @@ import { SimEngine } from '../../src/sim/engine';
 
 function run(src: string, init: Partial<Record<string, number>> = {}): ParticleStruct {
   const s = new ParticleStruct();
-  for (const [k, v] of Object.entries(init)) (s as unknown as Record<string, number>)[k] = v;
+  for (const [k, v] of Object.entries(init)) (s as unknown as Record<string, number>)[k] = v as number;
   parse(src).run(s);
   return s;
 }
@@ -84,7 +84,6 @@ describe('数学12 §五：色散追及（k=5.236,v=0.06 与 k=2.6,v=0.12 叠加
     // 快波峰：r-0.12t = 2kπ/2.6 → r=3.6（第一峰）；慢波峰 r=0.06t=1.8
     const rFast = 0.12 * t, rSlow = 0.06 * t;
     // 在 rFast 处快分量取峰、慢分量相位 5.236*3.6-0.314*30=18.85-9.42=9.43 rad → sin=-1（反相不叠加抵消）
-    const vFastAtFast = Math.sin(5.236 * rFast - 5.236 * 0.06 * t);
     const slowAtFast = Math.sin(2.6 * rFast - 2.6 * 0.12 * t);
     console.log(`t=${t}：快波峰 r=${rFast}（慢波此时相位 sin=${slowAtFast.toFixed(2)}），慢波峰 r=${rSlow}`);
     expect(rFast).toBeGreaterThan(rSlow); // 快波前超前 —— 追及/分离成立
@@ -116,7 +115,7 @@ describe('数学11 §三：空扫成本（conditional 恒假，引擎侧 spawn �
     let checked = 0;
     for (let ix = -5; ix <= 5.001; ix += 0.1) {
       // 引擎无 ?: 与条件求值短路 → 恒假判定写法：(x>999)*1（恒 0）
-      const s = run(`cx=(x>999)*1`, { x: ix });
+      run(`cx=(x>999)*1`, { x: ix });
       checked++;
     }
     const tEngine = performance.now() - t0;
@@ -134,7 +133,11 @@ describe('数学11 §一：上限语义（预览=拒绝制 dropped++，非 Evict
       defaultLifetime: 100,
       maxParticles: 3,
       seed: 42,
-      gameVersion: '26.2',
+      mcVersion: '26.2',
+      gridSize: 10,
+      gridVisible: false,
+      renderMode: 'full',
+      reference: 'none',
     });
     // 用最小配置压满：maxParticles 拉低
     (eng as unknown as { config: { maxParticles: number } }).config.maxParticles = 3;

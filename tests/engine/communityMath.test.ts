@@ -5,7 +5,7 @@ import { ParticleStruct } from '../../src/engine/struct';
 
 function run(src: string, init: Partial<Record<string, number>> = {}): ParticleStruct {
   const s = new ParticleStruct();
-  for (const [k, v] of Object.entries(init)) (s as unknown as Record<string, number>)[k] = v;
+  for (const [k, v] of Object.entries(init)) (s as unknown as Record<string, number>)[k] = v as number;
   parse(src).run(s);
   return s;
 }
@@ -126,7 +126,7 @@ describe('数学12 §三：驻波节点位置（k=π/5）', () => {
 describe('数学12 §一：ripple 系数 0.3142 ≈ 5.236×0.06 解析导数复核', () => {
   // 原速度式：vy=0.5*exp(-q²/3.24)*(0.3142*sin(5.236q)+0.03704*q*cos(5.236q))，q=sqrt(dx²+dz²)-0.06t-0.03
   // 替换式：0.3142 → (5.236*0.06)。逐点（q、t 扫描）对比两式输出差。
-  const vy = (coef: number, q: number) =>
+  const vy = (coef: string, q: number) =>
     g(
       run(
         `qq=${q};vy=0.5*exp(0-(qq*qq)/3.24)*(${coef}*sin(5.236*qq)+0.03704*qq*cos(5.236*qq))`,
