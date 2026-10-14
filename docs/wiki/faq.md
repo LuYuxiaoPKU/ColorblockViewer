@@ -36,7 +36,7 @@
 超范围值不报错但行为怪（2.0≈近白、-1.0≈近黑，byte 截断环绕——见
 02-expressions 颜色管线）。
 
-**Q：`particleex image ...` 用不了？**
+**Q：`/particleex image ...` 用不了？**
 `image` 图片打印在新版本命令树同样存在（模组实锤：image/imagematrix/
 video/videomatrix 均注册），字段序已按模组确认（见 01-commands：rotate
 须 90 倍数、flip 枚举 not/horizontally/vertical、路径放 mod 同级

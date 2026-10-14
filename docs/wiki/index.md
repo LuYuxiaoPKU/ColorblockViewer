@@ -33,12 +33,12 @@ description: 面向玩家与进阶用户的 ColorBlock 模组知识库——命�
 
 1. 在游戏内（或 [预览工具](https://yuer159.github.io/ColorblockViewer/)）输入：
    ```
-   particleex normal minecraft:flame 0 0 0 1 1 1 1 0 0 0 0 0 0 100
+   /particleex normal minecraft:flame 0 0 0 1 1 1 1 0 0 0 0 0 0 100
    ```
    在 (0,0,0) 生成 100 个红色火焰粒子，原地燃起。
 2. 想让它飞起来：改速度三个数
    ```
-   particleex normal minecraft:flame 0 0 0 1 1 1 1 0 0 1 0 0 0 10
+   /particleex normal minecraft:flame 0 0 0 1 1 1 1 0 0 1 0 0 0 10
    ```
    向上飞（速度 z 或 y 决定方向，见 01-commands）。
 3. 想随时间动起来（模组招牌功能）：换 `parameter` 系列，见 02-expressions。

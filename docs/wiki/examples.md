@@ -11,7 +11,7 @@ conditional 的「范围」是采样域——三维 ±range 的网格上逐点�
 `null` 表达式 = 全点生成。**这正是「实心方块」的正解**：
 
 ```
-particleex conditional minecraft:flame 0 0 0 1 1 1 1 0 0 0 4 4 4 null 0.5
+/particleex conditional minecraft:flame 0 0 0 1 1 1 1 0 0 0 4 4 4 null 0.5
 ```
 
 - 范围 `4 4 4` → 采样域 ±4 → **8×8×8 格**方块
@@ -20,8 +20,8 @@ particleex conditional minecraft:flame 0 0 0 1 1 1 1 0 0 0 4 4 4 null 0.5
 ### 1×1×1 方块（命令方块那么大）
 
 ```
-particleex conditional minecraft:flame 0 0.5 0 1 1 1 1 0 0 0 0.5 0.5 0.5 null 0.25   （125 个，较疏）
-particleex conditional minecraft:flame 0 0.5 0 1 1 1 1 0 0 0 0.5 0.5 0.5 null 0.1    （1331 个，较实）
+/particleex conditional minecraft:flame 0 0.5 0 1 1 1 1 0 0 0 0.5 0.5 0.5 null 0.25   （125 个，较疏）
+/particleex conditional minecraft:flame 0 0.5 0 1 1 1 1 0 0 0 0.5 0.5 0.5 null 0.1    （1331 个，较实）
 ```
 
 `0 0.5 0` 让方块底面贴 y=0 地面。换 `end_rod` 粒子 = 白色发光块；
@@ -30,7 +30,7 @@ particleex conditional minecraft:flame 0 0.5 0 1 1 1 1 0 0 0 0.5 0.5 0.5 null 0.
 ### 空心壳
 
 ```
-particleex conditional minecraft:end_rod 0 0 0 1 0.95 0.89 1 0 0 0 5 5 5
+/particleex conditional minecraft:end_rod 0 0 0 1 0.95 0.89 1 0 0 0 5 5 5
   '(abs(x)==5&!(abs(y)<5&abs(z)<5))|(abs(y)==5&!(abs(x)<5&abs(z)<5))|(abs(z)==5&!(abs(x)<5&abs(y)<5))'
 ```
 
@@ -39,7 +39,7 @@ particleex conditional minecraft:end_rod 0 0 0 1 0.95 0.89 1 0 0 0 5 5 5
 ### 涟漪波面（conditional 表达式筛选 + 波动速度）
 
 ```
-particleex conditional minecraft:end_rod ~ ~ ~ 1 0.95 0.89 1 0 0 0 8 0.6 8
+/particleex conditional minecraft:end_rod ~ ~ ~ 1 0.95 0.89 1 0 0 0 8 0.6 8
   '(abs(y-0.5*exp(0-(x^2+z^2)/3.24)*cos(5.236*sqrt(x^2+z^2)))<0.05)&(sqrt(x^2+z^2)<8)'
   0.1 200 'vy=0.5*exp(0-(sqrt(dx^2+dz^2)-0.06*t-0.03)*(sqrt(dx^2+dz^2)-0.06*t-0.03)/3.24)*(0.3142*sin(5.236*(sqrt(dx^2+dz^2)-0.06*t-0.03))+0.03704*(sqrt(dx^2+dz^2)-0.06*t-0.03)*cos(5.236*(sqrt(dx^2+dz^2)-0.06*t-0.03)))' 1 null
 ```
@@ -50,7 +50,7 @@ particleex conditional minecraft:end_rod ~ ~ ~ 1 0.95 0.89 1 0 0 0 8 0.6 8
 ### 圆周环（polarparameter 环形速度）
 
 ```
-particleex polarparameter minecraft:end_rod ~ ~2 ~ 1 0.95 0.89 1 0 0 0 0 6.2832
+/particleex polarparameter minecraft:end_rod ~ ~2 ~ 1 0.95 0.89 1 0 0 0 0 6.2832
   'dis=0.05;s1=t;s2=0' 0.0628 20 '(vx,vy,vz)=(0.25*exp(0-(t+0.5)/8)*cos(s1),0,0.25*exp(0-(t+0.5)/8)*sin(s1))' 1 null
 ```
 
@@ -67,7 +67,7 @@ particleex polarparameter minecraft:end_rod ~ ~2 ~ 1 0.95 0.89 1 0 0 0 0 6.2832
 ### 正方体壳（Junior_Mo，conditional）✅ 引擎实测 spawned=116
 
 ```
-particleex conditional minecraft:end_rod ~ ~1 ~ 0 1 1 1 0 0 0 0.5 0.5 0.5
+/particleex conditional minecraft:end_rod ~ ~1 ~ 0 1 1 1 0 0 0 0.5 0.5 0.5
   '(abs(y)==0.5&!(abs(z)<0.5))|(abs(x)==0.5&(!(abs(z)<0.5)|!(abs(y)<0.5)))' 0.1 0 'vy=0.01' 1.0 null
 ```
 
@@ -77,7 +77,7 @@ particleex conditional minecraft:end_rod ~ ~1 ~ 0 1 1 1 0 0 0 0.5 0.5 0.5
 ### 立体球（OCEAN，polarparameter）✅ 引擎实测 spawned=5500
 
 ```
-particleex polarparameter minecraft:firework ~ ~2 ~ 0 1 0 1 0 0 0 0 550
+/particleex polarparameter minecraft:firework ~ ~2 ~ 0 1 0 1 0 0 0 0 550
   's1=t;s2=t/50;dis=t/10'
 ```
 
@@ -88,7 +88,7 @@ particleex polarparameter minecraft:firework ~ ~2 ~ 0 1 0 1 0 0 0 0 550
 ### 菊型球（故知，rgbapolarparameter）✅ 引擎实测 spawned=1250
 
 ```
-particleex rgbapolarparameter minecraft:end_rod ~ ~5 ~ 0 0 0 -60.0 65.0
+/particleex rgbapolarparameter minecraft:end_rod ~ ~5 ~ 0 0 0 -60.0 65.0
   's1,s2,dis=t*0.2,t*PI/3.1415926,5;cr,cg,cb=sin(t/7)/4+0.75,sin(t/5)/4+0.75,sin(t/3)/4+0.75;s1=s1*dis;s2=s2*dis'
   0.1 0 0 1.0 null
 ```
@@ -101,7 +101,7 @@ particleex rgbapolarparameter minecraft:end_rod ~ ~5 ~ 0 0 0 -60.0 65.0
 ### 桃心（OCEAN，tickparameter）✅ 引擎实测 spawned=601
 
 ```
-particleex tickparameter minecraft:end_rod ~ ~3 ~ 0.6 0.2 1 1 0 0 0 -3.0 3.0
+/particleex tickparameter minecraft:end_rod ~ ~3 ~ 0.6 0.2 1 1 0 0 0 -3.0 3.0
   'x=(16*pow(sin(t),3))/7;y=(13*cos(t)-5*cos(2*t)-2*cos(3*t)-cos(4*t))/7' 0.01 20 0 'vy=0.0'
 ```
 
@@ -113,7 +113,7 @@ particleex tickparameter minecraft:end_rod ~ ~3 ~ 0.6 0.2 1 1 0 0 0 -3.0 3.0
 ### 旋转的球体（OCEAN，polarparameter + 矩阵 + RGB）✅ 引擎实测 spawned=2001
 
 ```
-particleex polarparameter minecraft:end_rod ~ ~3 ~ 1 1 1 1 0 0 0 -100.0 100.0
+/particleex polarparameter minecraft:end_rod ~ ~3 ~ 1 1 1 1 0 0 0 -100.0 100.0
   's1,s2,dis=t*10,t*PI/200,10' 0.1 0
   'a=0.05;(vx,,vy,,vz)=(-sin(a),0,-cos(a),,0,1,0,,cos(a),0,-sin(a))*(x*2*sin(a),,0.1,,z*2*sin(a));cr=sin(t/7)/2+0.5;cg=sin(t/5)/2+0.5;cb=sin(t/3)/2+0.5' 1.0 null
 ```
@@ -126,7 +126,7 @@ particleex polarparameter minecraft:end_rod ~ ~3 ~ 1 1 1 1 0 0 0 -100.0 100.0
 ### 粒子缠绕（OCEAN，normal + 旋转速度场）✅ 引擎实测 spawned=500
 
 ```
-particleex normal minecraft:end_rod ~ ~1 ~ 0.5 0 0.5 1 0 0. 0 10 5 5 500 200
+/particleex normal minecraft:end_rod ~ ~1 ~ 0.5 0 0.5 1 0 0. 0 10 5 5 500 200
   'a=0.08;(vx,,vy,,vz)=(-sin(a),0,-cos(a),,0,1,0,,cos(a),0,-sin(a))*(x*2*sin(a),,0,,z*2*sin(a))' 1.0 null
 ```
 
@@ -150,7 +150,7 @@ particleex normal minecraft:end_rod ~ ~1 ~ 0.5 0 0.5 1 0 0. 0 10 5 5 500 200
 ## 呼吸缩放（社区最高频模板）
 
 ```
-particleex normal minecraft:end_rod 0 0 0 1 1 1 1 0 0 0 0 0 0 200
+/particleex normal minecraft:end_rod 0 0 0 1 1 1 1 0 0 0 0 0 0 200
   'i=0.1*sin(t/5);(vx,vy,vz)=(x*i,y*i,z*i)'
 ```
 
@@ -161,8 +161,8 @@ particleex normal minecraft:end_rod 0 0 0 1 1 1 1 0 0 0 0 0 0 200
 ## 原版 /particle（预览同样支持）
 
 ```
-particle minecraft:soul_fire_flame 0 100 0 0.5 0.5 0.5 0.05 50
-particle minecraft:dust{color:[1,0.3,0.2],scale:1} 0 64 0 0 0 0 1 1
+/particle minecraft:soul_fire_flame 0 100 0 0.5 0.5 0.5 0.05 50
+/particle minecraft:dust{color:[1,0.3,0.2],scale:1} 0 64 0 0 0 0 1 1
 ```
 
 注意 y 高度：**预览场景看原点附近（y=0 地面）**，游戏常用高度
@@ -174,7 +174,7 @@ particle minecraft:dust{color:[1,0.3,0.2],scale:1} 0 64 0 0 0 0 1 1
 逐帧命令实例（NBS2schematic 生成端实锤）：
 
 ```
-particleex image minecraft:end_rod 11 8 0 lyric/s0000_l0.png 0.03125 0 90 0 not 10 0 0 0 16 null 1 null
+/particleex image minecraft:end_rod 11 8 0 lyric/s0000_l0.png 0.03125 0 90 0 not 10 0 0 0 16 null 1 null
 ```
 
 - `rotate` 只认 90 倍数、`flip` 枚举 not/horizontally/vertical；`speed`

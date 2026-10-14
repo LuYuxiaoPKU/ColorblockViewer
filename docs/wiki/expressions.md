@@ -166,7 +166,7 @@ vx,vy,vz=(x,y,z,1)*translate(a,b,c)*scale(sx,sy,sz)*rotate(0,PI/16,0)
 **呼吸/伸缩特效**（最高频模板，任何粒子构型通用）：
 
 ```
-particleex normal minecraft:end_rod 0 0 0 1 1 1 1 0 0 0 0 0 0 200
+/particleex normal minecraft:end_rod 0 0 0 1 1 1 1 0 0 0 0 0 0 200
   'i=0.1*sin(t/5);(vx,vy,vz)=(x*i,y*i,z*i)'
 ```
 
@@ -182,7 +182,7 @@ vx=0.9^t        （每 tick 速度乘 0.9 → 减速平移）
 **圆环**（polarparameter，预览工具内置模板）：
 
 ```
-particleex polarparameter minecraft:end_rod ~ ~2 ~ 1 0.95 0.89 1 0 0 0 0 6.2832
+/particleex polarparameter minecraft:end_rod ~ ~2 ~ 1 0.95 0.89 1 0 0 0 0 6.2832
   'dis=0.05;s1=t;s2=0' 0.0628 20 '(vx,vy,vz)=(0.25*exp(0-(t+0.5)/8)*cos(s1),0,0.25*exp(0-(t+0.5)/8)*sin(s1))' 1 null
 ```
 
@@ -190,7 +190,7 @@ particleex polarparameter minecraft:end_rod ~ ~2 ~ 1 0.95 0.89 1 0 0 0 0 6.2832
 黄金角 `s1=t*2.39996`，137.5°=2π/φ² 天然最匀 [社区级·推导]）：
 
 ```
-particleex polarparameter minecraft:end_rod 0 2 0 1 1 1 1 0 0 0 0 31.4159
+/particleex polarparameter minecraft:end_rod 0 2 0 1 1 1 1 0 0 0 0 31.4159
   's1=t*10;s2=t*PI/20;dis=1' 0.01 0 null 1 null
 ```
 

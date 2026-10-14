@@ -40,7 +40,7 @@ parameter/rgba 变体合并叙述；`USAGE` 与模组命令树逐字核对，1.2
 ## normal — 批量生成（最常用）
 
 ```
-particleex normal <粒子名> <位置> <颜色> <速度> <范围> <数量> [age] [速度表达式] [speedStep] [group]
+/particleex normal <粒子名> <位置> <颜色> <速度> <范围> <数量> [age] [速度表达式] [speedStep] [group]
 ```
 
 在位置附近生成 `<数量>` 个粒子，每个粒子的偏移 = **高斯随机 × 范围**
@@ -49,13 +49,13 @@ particleex normal <粒子名> <位置> <颜色> <速度> <范围> <数量> [age]
 方块/网格，用 conditional（见 05-examples）。
 
 ```
-particleex normal minecraft:flame 0 0 0 1 1 1 1 0 0 1 0 0 0 100
+/particleex normal minecraft:flame 0 0 0 1 1 1 1 0 0 1 0 0 0 100
 ```
 
 ## conditional — 按表达式筛选网格点
 
 ```
-particleex conditional <粒子名> <位置> <颜色> <速度> <范围> <表达式> [step] [age] [速度表达式] [speedStep] [group]
+/particleex conditional <粒子名> <位置> <颜色> <速度> <范围> <表达式> [step] [age] [速度表达式] [speedStep] [group]
 ```
 
 在 `位置 ± 范围` 的三维网格上逐点采样（间距 = step，默认 0.1），
@@ -67,14 +67,14 @@ particleex conditional <粒子名> <位置> <颜色> <速度> <范围> <表达�
 ## parameter 家族 — 表达式扫参（模组招牌）
 
 ```
-particleex parameter     <粒子名> <位置> <颜色> <速度> <begin> <end> <表达式> [step] [age] [速度表达式] [speedStep] [group]
-particleex polarparameter    （同参数结构；表达式变量带 s1/s2/dis 极坐标）
-particleex tickparameter     （多一个 [cpt]：每 tick 分批发多少个）
-particleex tickpolarparameter
-particleex rgbaparameter     （**没有** <颜色> 槽；颜色由表达式输出 cr/cg/cb/alpha）
-particleex rgbapolarparameter
-particleex rgbatickparameter
-particleex rgbatickpolarparameter
+/particleex parameter     <粒子名> <位置> <颜色> <速度> <begin> <end> <表达式> [step] [age] [速度表达式] [speedStep] [group]
+/particleex polarparameter    （同参数结构；表达式变量带 s1/s2/dis 极坐标）
+/particleex tickparameter     （多一个 [cpt]：每 tick 分批发多少个）
+/particleex tickpolarparameter
+/particleex rgbaparameter     （**没有** <颜色> 槽；颜色由表达式输出 cr/cg/cb/alpha）
+/particleex rgbapolarparameter
+/particleex rgbatickparameter
+/particleex rgbatickpolarparameter
 ```
 
 参数 `t` 从 `begin` 扫到 `end`（步长 step，默认 0.1），每个 t 值：
@@ -93,8 +93,8 @@ particleex rgbatickpolarparameter
 ## group — 批量管理已生成粒子
 
 ```
-particleex group remove <组> [表达式] [位置]
-particleex group change <parameter|speedexpression> <组> <表达式> [条件表达式] [位置]
+/particleex group remove <组> [表达式] [位置]
+/particleex group change <parameter|speedexpression> <组> <表达式> [条件表达式] [位置]
 ```
 
 - `remove`：按表达式条件移除组内粒子（无表达式 = 全组移除）
@@ -109,9 +109,9 @@ GroupUtil.add 同款行为）。
 ## clearparticle / clearcache / functionlist — 工具命令
 
 ```
-particleex clearparticle
-particleex clearcache
-particleex functionlist
+/particleex clearparticle
+/particleex clearcache
+/particleex functionlist
 ```
 
 `clearparticle` 清掉全部已生成粒子（含组）；`clearcache` 清图片缓存
@@ -121,8 +121,8 @@ particleex functionlist
 ## image / video — 图片打印与逐帧视频
 
 ```
-particleex image <粒子名> <x y z> <路径> [scaling=0.1] [xRotate] [yRotate] [zRotate] [flip] [dpb=10] [speed x y z] [age] [speedExpression] [speedStep] [group]
-particleex video <粒子名> <x y z> <路径> [scaling] [xRotate] [yRotate] [zRotate] [flip] [dpb] [speed x y z] [age] [speedExpression] [speedStep] [group]
+/particleex image <粒子名> <x y z> <路径> [scaling=0.1] [xRotate] [yRotate] [zRotate] [flip] [dpb=10] [speed x y z] [age] [speedExpression] [speedStep] [group]
+/particleex video <粒子名> <x y z> <路径> [scaling] [xRotate] [yRotate] [zRotate] [flip] [dpb] [speed x y z] [age] [speedExpression] [speedStep] [group]
 ```
 
 - 图片放模组同级 `particleImages/` 目录；预览暂无图片资源 → 报
@@ -154,8 +154,8 @@ particleex video <粒子名> <x y z> <路径> [scaling] [xRotate] [yRotate] [zRo
 ## imageMatrix / videoMatrix — 矩阵变换版
 
 ```
-particleex imagematrix <粒子名> <x y z> <路径> [scaling] <matrix> [dpb] [speed x y z] [age] [speedExpression] [speedStep] [group]
-particleex videomatrix …（字段序相同）
+/particleex imagematrix <粒子名> <x y z> <路径> [scaling] <matrix> [dpb] [speed x y z] [age] [speedExpression] [speedStep] [group]
+/particleex videomatrix …（字段序相同）
 ```
 
 - `<matrix>`：`E3` / `E4` 快捷名，或括号 16 值字面量（如
