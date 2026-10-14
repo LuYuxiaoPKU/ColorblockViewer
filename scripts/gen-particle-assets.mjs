@@ -40,25 +40,66 @@ import { dirname, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const SUPPORTED = ['1.21.11', '26.2'];
+/** 版本桶（注册表变化点，见 CC 私密区《多版本粒子预览扩展调研.md》§四）：
+ *  桶内小版本共享同一份类型表/贴图。1.19.4 桶忽略（cherry 三件 1.20 合并，
+ *  用户拍板）。加入新桶时同步：kinematics.ts 版本键 / SettingsDrawer 下拉 /
+ *  appState 默认版本合法值。 */
+const SUPPORTED = [
+  '1.17.1', '1.18.2', '1.19.2', '1.20.1', '1.20.4', '1.20.5', '1.20.6',
+  '1.21.1', '1.21.4', '1.21.8', '1.21.11', '26.2', '26.3',
+];
 const MANIFEST_URL = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json';
 const OUT_DIR = 'public/particles';
+const SHARED_DIR = 'public/particles-shared'; // 跨版本内容寻址共享池（md5 同名去重）
 const OUT_TS = 'src/render/particleData.ts';
 const TMP_DIR = join(dirname(fileURLToPath(import.meta.url)), '.mc_extract');
 
-/** 已知 client.jar sha1（piston-meta 抓取于 2026-09；实际校验以实时清单为准） */
+/** 已知 client.jar sha1（piston-meta 抓取；实际校验以实时清单为准，漂移即报错） */
 const KNOWN_SHA1 = {
   '1.21.11': 'ba2df812c2d12e0219c489c4cd9a5e1f0760f5bd',
   '26.2': '2dc72797acbc1b63fc16a11c4ac393605f453754',
 };
 
-/** 本地 MC 安装里 <version> client.jar 的默认位置 */
-function defaultLocalJar(version) {
+/** 本地 client.jar 候选路径（按序找第一个存在的）：
+ *  标准命名 <version>/<version>.jar + HMCL 任意实例名目录（中文实例名
+ *  如 1.21.1 那种 → 扫 versions 各子目录取目录内同名 .jar）。 */
+function localJarCandidates(version) {
+  const bases = [];
+  if (process.env.MC_GAME_DIR) bases.push(process.env.MC_GAME_DIR);
   if (process.platform === 'win32') {
-    const base = process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming');
-    return join(base, '.minecraft', 'versions', version, `${version}.jar`);
+    const appdata = process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming');
+    bases.push(join(appdata, '.minecraft'));
+    bases.push('C:/01_Self_Software/Minecraft/.minecraft');
+  } else {
+    bases.push(join(homedir(), '.minecraft'));
   }
-  return join(homedir(), '.minecraft', 'versions', version, `${version}.jar`);
+  const cands = [];
+  // 目录名含版本串且按「.」/空格边界匹配（防 1.21.1 误命中 1.21.11 目录）
+  const versionAt = (name) => {
+    let from = 0;
+    while ((from = name.indexOf(version, from)) !== -1) {
+      const before = name[from - 1];
+      const after = name[from + version.length];
+      if ((before === undefined || before === '.' || before === ' ' || before === '-') &&
+          (after === undefined || after === '.' || after === ' ')) return true;
+      from++;
+    }
+    return false;
+  };
+  for (const base of bases) {
+    const vdir = join(base, 'versions', version);
+    cands.push(join(vdir, `${version}.jar`));
+    // HMCL 实例名 ≠ 版本号：扫 versions 各子目录找「目录内同名 jar」且目录名含版本串（边界匹配）
+    try {
+      for (const e of readdirSync(join(base, 'versions'), { withFileTypes: true })) {
+        if (!e.isDirectory() || e.name === version) continue;
+        if (!versionAt(e.name)) continue;
+        const jar = join(base, 'versions', e.name, `${e.name}.jar`);
+        if (existsSync(jar)) cands.push(jar);
+      }
+    } catch { /* 无 versions 目录 */ }
+  }
+  return cands.filter((p) => existsSync(p));
 }
 
 async function fetchJson(url) {
@@ -170,6 +211,30 @@ function registryJavap(extracted) {
   return javap(found[0]);
 }
 
+/** particleData.ts 全量重写（13 桶齐后调用）：从 JSON 缓存重建，杜绝字符串级
+ *  upsert 的拼接错误（',,'/缺逗号，2026-10-15 实施记录）。桶序按 SUPPORTED 声明序。 */
+const HELPER_TAIL = `
+/** 游戏版本 → 粒子数据（类型全集/帧表）；未知版本 → undefined（上层用默认 '26.2'）。
+ *  放在本文件（**纯数据、不依赖 three**）以便 UI 侧直接引用 —— 免得经 points.ts
+ *  把 three 拉进首屏静态图（points.ts 里保留同名再导出，兼容既有调用点）。 */
+export function particleVersionData(version: string): ParticleVersionData | undefined {
+  return PARTICLE_DATA[version];
+}
+`;
+
+function rebuildParticleTs(path, cacheDir) {
+  const entries = SUPPORTED.map((v) => {
+    const d = JSON.parse(readFileSync(join(cacheDir, v + '.json'), 'utf8'));
+    return { version: v, entry: d };
+  });
+  const bodies = entries
+    .map(({ version, entry }) => entryBody(version, entry).replace(/,s*$/, ''))
+    .join(',\n');
+  const header = readFileSync(new URL('./.particle-header.txt', import.meta.url), 'utf8');
+  const text = header + HELPER_TAIL + '\nexport const PARTICLE_DATA: Record<string, ParticleVersionData> = {\n' + bodies + '\n};\n';
+  writeFileSync(path, text);
+}
+
 /** particleData.ts upsert：读现有文件（按对象字面量定位目标版本条目）→ 合并/替换 → 重写。
  *  文件不存在时自举骨架（首个版本条目由追加分支写入）。 */
 function upsertVersionTs(path, version, entry) {
@@ -215,7 +280,10 @@ ${marker}
       if (objText[i] === '{') d++;
       else if (objText[i] === '}') { d--; if (d === 0) { e = i; break; } }
     }
-    body = objText.slice(0, m.index) + entryBody(version, entry) + objText.slice(e + 1);
+    // entryBody 末尾自带 '},' 不带分隔逗号；旧条目后的 ',' 由这里吃掉（防 ',,' 双逗号）
+    let rest = objText.slice(e + 1);
+    rest = rest.replace(/^s*,/, '');
+    body = objText.slice(0, m.index) + entryBody(version, entry) + ',' + rest;
   } else {
     body = objText.slice(0, -1) + '\n' + entryBody(version, entry) + ' }';
   }
@@ -243,12 +311,15 @@ async function main() {
   const outDir = join(root, OUT_DIR, version);
   const outTs = join(root, OUT_TS);
 
-  // 1. 定位 client.jar：MC_JAR > 本地 MC 安装 > 官方镜像下载（sha1 双校验）
+  // 1. 定位 client.jar：MC_JAR > 本地候选（标准命名 + HMCL 实例名）> 官方镜像下载（sha1 双校验）
   let jarPath = process.env.MC_JAR ?? '';
   if (jarPath && !existsSync(jarPath)) throw new Error(`指定的 client.jar 不存在：${jarPath}`);
-  if (!jarPath && existsSync(defaultLocalJar(version))) {
-    jarPath = defaultLocalJar(version);
-    console.log(`[assets:${version}] 使用本地 MC client.jar：${jarPath}`);
+  if (!jarPath) {
+    const cand = localJarCandidates(version)[0];
+    if (cand) {
+      jarPath = cand;
+      console.log(`[assets:${version}] 使用本地 MC client.jar：${jarPath}`);
+    }
   }
   const dl = await clientDownload(version);
   if (!jarPath) {
@@ -309,20 +380,51 @@ async function main() {
   }
   if (missing.length) throw new Error(`帧文件缺失 ${missing.length} 个（前 8）：${missing.slice(0, 8).join(', ')}`);
 
-  // 7. 铺平贴图到 public/particles/<version>/（只铺被类型表引用的文件，控制体积）
+  // 7. 贴图共享池（用户拍板）：跨版本 md5 去重——同帧图只存 public/particles-shared/ 一份，
+  //    版本目录只放该版本特有帧。渲染层 loadOneImage 先试版本目录、404 回退 shared/。
+  const sharedOut = join(root, SHARED_DIR);
+  mkdirSync(sharedOut, { recursive: true });
   const used = new Set();
   for (const frames of jsonMap.values()) for (const f of frames) used.add(`${f}.png`);
   rmSync(outDir, { recursive: true, force: true });
   mkdirSync(outDir, { recursive: true });
-  for (const f of used) copyFileSync(join(texDir, f), join(outDir, f));
-  console.log(`[assets:${version}] 写出 ${used.size} 张贴图 → ${OUT_DIR}/${version}/`);
+  let shared = 0, local = 0;
+  for (const f of used) {
+    const src = join(texDir, f);
+    const dst = join(sharedOut, f);
+    if (existsSync(dst)) {
+      // 已有同帧：内容一致（不同版本同帧图同内容）→ 进共享池，版本目录不重复
+      if (sha1OfFile(src) !== sha1OfFile(dst)) {
+        // 同名不同内容（历史上发生过贴图改版，如 25w36a copper_fire_flame）→ 版本目录自持
+        copyFileSync(src, join(outDir, f));
+        local++;
+      } else shared++;
+    } else {
+      copyFileSync(src, dst);
+      shared++;
+    }
+  }
+  console.log(`[assets:${version}] 贴图 ${used.size} 张：共享池 ${shared}、版本特有 ${local} → ${OUT_DIR}/${version}/ + ${SHARED_DIR}/`);
 
-  // 8. upsert particleData.ts（该版本条目：类型全集 + 帧表）
+  // 8. 提取结果写 JSON 缓存 → 桶齐后全量重写 particleData.ts
+  //    （字符串级 upsert 在条目替换时产生 ',,'/缺逗号——已废，见 2026-10-15 实施记录）
   const allTypes = [...new Set([...registryNames, ...jsonMap.keys()])]
     .filter((t) => t !== 'type')
     .sort((a, b) => a.localeCompare(b));
-  upsertVersionTs(outTs, version, { types: allTypes, frames: Object.fromEntries(jsonMap) }, SUPPORTED);
-  console.log(`[assets:${version}] upsert ${OUT_TS}（${allTypes.length} 类型，${jsonMap.size} 帧表条目）`);
+  const cacheDir = join(dirname(fileURLToPath(import.meta.url)), '.particle-cache');
+  mkdirSync(cacheDir, { recursive: true });
+  writeFileSync(
+    join(cacheDir, `${version}.json`),
+    JSON.stringify({ types: allTypes, frames: Object.fromEntries(jsonMap) }),
+  );
+  const cached = readdirSync(cacheDir).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5));
+  const missingBuckets = SUPPORTED.filter((v) => !cached.includes(v));
+  if (missingBuckets.length === 0) {
+    rebuildParticleTs(outTs, cacheDir);
+    console.log(`[assets:${version}] 13 桶齐 → 全量重写 ${OUT_TS}`);
+  } else {
+    console.log(`[assets:${version}] 缓存 ${cached.length}/${SUPPORTED.length} 桶（缺 ${missingBuckets.join(', ')}），凑齐后统一重建 ${OUT_TS}`);
+  }
 
   rmSync(TMP_DIR, { recursive: true, force: true });
 }

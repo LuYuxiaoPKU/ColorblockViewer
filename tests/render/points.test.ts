@@ -271,7 +271,7 @@ describe('atlasKey 版本分区', () => {
 
 // ---------- 并行图集加载（fake DOM + fake Image） ----------
 
-function fakeImageEnv(failAt: number[] = [], delayMs = 0) {
+function fakeImageEnv(failAt: number[] = [], delayMs = 0, sharedFailAt: number[] = []) {
   const drawCalls: number[] = [];
   const srcs: string[] = [];
   let created = 0;
@@ -280,6 +280,7 @@ function fakeImageEnv(failAt: number[] = [], delayMs = 0) {
     complete = true;
     naturalWidth = 8;
     naturalHeight = 8;
+    dataset: Record<string, string> = {};
     onload: (() => void) | null = null;
     onerror: (() => void) | null = null;
     get src() {
@@ -288,16 +289,39 @@ function fakeImageEnv(failAt: number[] = [], delayMs = 0) {
     set src(v: string) {
       this._src = v;
       srcs.push(v); // 记录贴图 URL（验证按版本分目录）
+      // 共享池回退（loadOneImage 换 URL）→ 重新调度完成回调，否则 promise 挂起
+      if (this._scheduled && v.includes('particles-shared')) {
+        if (delayMs > 0) setTimeout(() => this._done(), delayMs);
+        else queueMicrotask(() => this._done());
+      }
+    }
+    private _scheduled = false;
+    private _mine = 0;
+    private _done(): void {
+      const isShared = this._src.includes('particles-shared');
+      if (isShared ? sharedFailAt.includes(this._mine) : failAt.includes(this._mine)) {
+        this.complete = false;
+        this.onerror?.();
+      } else {
+        this.complete = true;
+        this.onload?.();
+      }
     }
     constructor() {
       created++;
       const mine = created; // 构造时快照（延迟解析时 created 已是终值）
-      const shouldFail = failAt.includes(mine);
+      this._mine = mine;
+      this._scheduled = true;
       const done = () => {
-        if (shouldFail) {
+        // 共享池回退（loadOneImage）：版本目录失败 → 换 shared URL → onerror 再触发。
+        // fake 语义：shared URL 总是成功（共享池按 md5 收录全部帧）。
+        const isShared = this._src.includes('particles-shared');
+        if (failAt.includes(mine) && !isShared) {
           this.complete = false;
           this.onerror?.();
         } else {
+          this.complete = true;
+          this.naturalWidth = 8;
           this.onload?.();
         }
       };
@@ -387,12 +411,23 @@ describe('loadAtlasTexture 并行加载与进度（fake DOM）', () => {
   });
 
   it('缺帧 onerror → 跳过不画（drew < total），其余帧正常', async () => {
-    fakeImageEnv([2]); // 第 2 张创建序的图 onerror
+    // 缺帧 = 版本目录 + 共享池双失败（共享池回退后仍 404 才是真缺帧）
+    fakeImageEnv([2], 0, [2]);
     const prog: [number, number][] = [];
     const tex = await loadAtlasTexture('26.2', (d, t) => prog.push([d, t]));
     expect(tex).not.toBeNull();
     const last = prog[prog.length - 1];
     expect(last[0]).toBe(FRAME_COUNT_262 - 1);
+    expect(last[1]).toBe(FRAME_COUNT_262);
+  });
+
+  it('版本目录缺帧但共享池有 → 回退成功全帧画出（共享池口径）', async () => {
+    fakeImageEnv([2]); // 版本目录第 2 张 404，shared 重试成功
+    const prog: [number, number][] = [];
+    const tex = await loadAtlasTexture('26.2', (d, t) => prog.push([d, t]));
+    expect(tex).not.toBeNull();
+    const last = prog[prog.length - 1];
+    expect(last[0]).toBe(FRAME_COUNT_262);
     expect(last[1]).toBe(FRAME_COUNT_262);
   });
 
@@ -413,7 +448,8 @@ describe('loadAtlasTexture 并行加载与进度（fake DOM）', () => {
   });
 
   it('全帧缺帧 → resolve null（着色器走圆点分支）', async () => {
-    fakeImageEnv(Array.from({ length: FRAME_COUNT_262 }, (_, i) => i + 1));
+    const all = Array.from({ length: FRAME_COUNT_262 }, (_, i) => i + 1);
+    fakeImageEnv(all, 0, all); // 版本目录 + 共享池全 404 = 真缺帧
     const tex = await loadAtlasTexture('26.2');
     expect(tex).toBeNull();
   });

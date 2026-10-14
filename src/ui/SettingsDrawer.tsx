@@ -61,8 +61,20 @@ export function SettingsDrawer({
               onChange={(e) => setSim({ mcVersion: e.target.value })}
               aria-label="游戏版本"
             >
-              <option value="26.2">26.2</option>
+              {/* 13 桶 = 注册表变化点（1.19.4 忽略：cherry 三件 1.20 合并），桶内小版本共享 */}
+              <option value="1.17.1">1.17.1</option>
+              <option value="1.18.2">1.18.2</option>
+              <option value="1.19.2">1.19.2</option>
+              <option value="1.20.1">1.20.1</option>
+              <option value="1.20.4">1.20.4</option>
+              <option value="1.20.5">1.20.5</option>
+              <option value="1.20.6">1.20.6</option>
+              <option value="1.21.1">1.21.1</option>
+              <option value="1.21.4">1.21.4</option>
+              <option value="1.21.8">1.21.8</option>
               <option value="1.21.11">1.21.11</option>
+              <option value="26.2">26.2</option>
+              <option value="26.3">26.3</option>
             </select>
           </div>
           <div className="field-row">

@@ -637,6 +637,16 @@ export const NATIVE_KINEMATICS: Record<string, Record<string, NativeKinematics>>
   '26.2': KINEMATICS_26_2,
 };
 
+// 版本桶 → 行为表：全部桶共享 KINEMATICS_26_2 / LIFETIME_26_2（跨版本行为不变的
+// 实证：26.2 建表 → 1.21.11 逐类型字节码核对一致；1.17–26.3 无同类型行为改变，
+// 见 CC《多版本粒子预览扩展调研.md》§一）。桶 = 注册表变化点，表内类型在桶中
+// 是否存在由各桶类型表（particleData.ts）把关，运动学查不到 = 回退模组口径。
+export const VERSION_BUCKETS = [
+  '1.17.1', '1.18.2', '1.19.2', '1.20.1', '1.20.4', '1.20.5', '1.20.6',
+  '1.21.1', '1.21.4', '1.21.8', '1.21.11', '26.2', '26.3',
+] as const;
+// 桶键注册循环在文件尾（NATIVE_LIFETIME 定义之后，避免 TDZ）。
+
 // ---------- 寿命公式（构造器字节码逐式复刻；F = 下一个 nextFloat，I(n) = 下一个 nextInt(n)）----------
 
 /**
@@ -897,4 +907,13 @@ export function fidelityFor(
   if (types.length > 0 && !types.includes(key)) return 'unknown';
   if (nativeSpecFor(key, version)) return 'full';
   return 'approx';
+}
+
+// ---------- 版本桶键注册（13 桶全部共享 KINEMATICS_26_2 / LIFETIME_26_2，见上方
+// VERSION_BUCKETS 注释；放文件尾避开 NATIVE_LIFETIME 的 TDZ） ----------
+for (const b of VERSION_BUCKETS) {
+  if (!NATIVE_KINEMATICS[b]) {
+    NATIVE_KINEMATICS[b] = KINEMATICS_26_2;
+    NATIVE_LIFETIME[b] = LIFETIME_26_2;
+  }
 }

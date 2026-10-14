@@ -95,14 +95,24 @@ export function _resetAtlasCache(): void {
   texPromise = null;
 }
 
-/** 加载单帧 PNG（headless/加载失败 → null，缺帧跳过与旧串行实现一致）。 */
+/** 加载单帧 PNG：版本目录优先、共享池回退（跨版本同帧图只存
+ *  particles-shared/ 一份，gen-particle-assets.mjs 内容寻址去重）。
+ *  headless/加载失败 → null，缺帧跳过与旧串行实现一致。 */
 function loadOneImage(key: string, file: string): Promise<HTMLImageElement | null> {
-  const img = new Image();
-  img.src = `${import.meta.env.BASE_URL}particles/${key}/${file}.png`;
   return new Promise((resolve) => {
+    const img = new Image();
     const done = (ok: boolean) => resolve(ok ? img : null);
     img.onload = () => done(true);
-    img.onerror = () => done(false);
+    img.onerror = () => {
+      // 版本目录 404 → 共享池回退（仅一次，避免循环）
+      if (!img.dataset.sharedRetry) {
+        img.dataset.sharedRetry = '1';
+        img.src = `${import.meta.env.BASE_URL}particles-shared/${file}.png`;
+      } else {
+        done(false);
+      }
+    };
+    img.src = `${import.meta.env.BASE_URL}particles/${key}/${file}.png`;
   });
 }
 

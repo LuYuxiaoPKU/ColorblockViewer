@@ -14,7 +14,7 @@ export interface SimConfig {
   maxParticles: number;
   /** 可注入 PRNG 种子（normal 高斯偏移用） */
   seed: number;
-  /** 游戏版本（'1.21.11' | '26.2'）：原版粒子贴图/类型表按它分区。
+  /** 游戏版本（13 桶之一：1.17.1–26.3，见 VERSION_BUCKETS）：原版粒子贴图/类型表按它分区。
    *  引擎语义不读它（粒子生成与版本无关），App 据此驱动渲染图集与表单类型表。 */
   mcVersion: string;
   /** 3D 网格边长（block，1 block/格）：纯渲染层设置，引擎不读（mcVersion 先例） */

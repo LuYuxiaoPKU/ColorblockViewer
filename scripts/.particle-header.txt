@@ -1,0 +1,13 @@
+// 由 scripts/gen-particle-assets.mjs 生成（Minecraft 1.17.1–26.3 十三桶客户端 jar）。
+// 每个桶（注册表变化点）一条目：
+//  - types：内置粒子类型全集（字节码 <clinit> 内置注册 ∪ assets/minecraft/particles/*.json
+//    data-driven 类型；'type' 是 type{NBT} 复合语法前缀、非类型名，已排除）
+//    → UI 表单粒子名下拉建议。
+//  - frames：类型名 → 帧贴图列表（public/particles/<bucket>/<帧>.png，跨版本同帧图
+//    在 public/particles-shared/ 共享一份，渲染层版本目录 404 回退共享池）。
+//    未收录类型（block/dust/item 等按方块纹理实时渲染的类型、未知名）→ undefined，
+//    渲染层回退软圆点。
+export interface ParticleVersionData {
+  types: string[];
+  frames: Record<string, string[]>;
+}
