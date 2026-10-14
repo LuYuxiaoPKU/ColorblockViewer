@@ -1,7 +1,7 @@
-# [开发中]ColorBlockViewer —— 在浏览器里试 Minecraft 粒子效果
+# ColorBlockViewer —— 在浏览器里试 Minecraft 粒子效果
 
 > 不用装游戏、不用开服务器，打开网页就能调试粒子命令。效果和游戏内
-> **一模一样**（命令语义按模组 Java 源码 1:1 复刻，1154 个测试锁定），
+> **一模一样**（命令语义按模组 Java 源码 1:1 复刻，1221 个测试锁定），
 > 满意后把命令复制回游戏即可直接使用。
 
 [🎮 在线体验](https://yuer159.github.io/ColorblockViewer/) ·
@@ -31,16 +31,19 @@
 
 ### ① 模组粒子：`/particleex`（ColorBlock 模组）
 
-支持模组的全部 13 个子命令：固定生成 `normal`、条件触发 `conditional`、
+支持模组的全部 18 个一级子命令：固定生成 `normal`、条件触发 `conditional`、
 位置随表达式变化（`parameter` 系列 4 种）、颜色随表达式变化
-（`rgba…parameter` 系列 4 种）、粒子分组批量操作（`group remove/change`）、
-清空（`clearparticle`）。
+（`rgba…parameter` 系列 4 种）、极坐标与 tick 系变体（`polarparameter` /
+`tickparameter` / `tickpolarparameter`）、图片/视频打印（`image` /
+`imagematrix` / `video` / `videomatrix`）、粒子分组批量操作
+（`group remove/change`）、清理（`clearparticle` / `clearcache`）、
+函数清单（`functionlist`）。
 
 表达式就是数学公式：支持乘除/取余/矩阵/函数/局部变量，写法和游戏内
 完全一致。例如水平环形火焰（位置随时间沿圆周运动）：
 
 ```
-particleex parameter minecraft:flame 0 64 0 1 1 1 1 0 0 0 0 6.2832 'x,y,z=4*cos(t),3*sin(t),0' 0.1
+particleex parameter minecraft:flame 0 64 0 1 1 1 1 0 0 0 0 6.2832 '(x,y,z)=(4*cos(t),3*sin(t),0)' 0.1
 ```
 
 支持 MC **1.21.1–26.2** 全部版本（各版本命令与表达式语义一致）。
@@ -110,14 +113,14 @@ particleex parameter minecraft:flame 0 64 0 1 1 1 1 0 0 0 0 6.2832 'x,y,z=4*cos(
 技术栈：React 19 + Three.js + TypeScript（strict）+ Vite + Vitest，纯前端
 静态站，无后端。GitHub Actions 自动部署到 Pages。
 
-架构、1:1 移植方法论、验证策略（1154 测试）、性能优化与已知简化见
+架构、1:1 移植方法论、验证策略（1221 测试）、性能优化与已知简化见
 [技术路线综述](docs/技术路线.md)；面向新手的详细操作见
 [使用手册](docs/使用手册.md)。
 
 ```bash
 npm install
 npm run dev        # 开发服务器
-npm test           # 全量测试（1154 tests）
+npm test           # 全量测试（1221 tests）
 npm run build      # 构建
 npm run preview    # 本地预览构建产物
 ```
