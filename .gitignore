@@ -1,12 +1,2 @@
-node_modules/
-dist/
-*.local
-.DS_Store
-.claude/
-scripts/.mc_extract/
-# 本地证据/取证目录（26.2 client.jar 的 javap dump、JDK 探针输出、一次性脚本）：
-# 体积大且可由 jar 重新生成，不入库（文档 §10 只引用其路径）
-.tmp/
-# VitePress 构建产物与缓存（config.ts 入库；dist/cache 可再生）
-docs/wiki/.vitepress/dist/
 docs/wiki/.vitepress/cache/
+colorblockviewer-history-backup.bundle
