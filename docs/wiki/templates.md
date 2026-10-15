@@ -16,7 +16,7 @@
 > 命令要点：`vel` 非零命令速度是刻意的——模组零速命令会触发 stop 回滚，
 > 粒子被钉住不动；多行模板 = 多条命令一起载入。
 
-## 已收录模板（当前 6 条）
+## 已收录模板（当前 7 条）
 
 ### ripple · 涟漪波面（conditional 表达式）
 
@@ -89,6 +89,23 @@
 
 ```
 /particleex polarparameter minecraft:end_rod ~ ~2 ~ 1 0.95 0.89 1 0 0 0 0 6.2832 'x=2*cos(t);z=2*sin(t);y=0' 0.3 200 'i=0.1*sin(t/5);(vx,vy,vz)=(x*i,y*i,z*i)' 1 null
+```
+
+### fireworkball · 烟花球（球面枚举 144 粒一次炸开）
+
+- **标签**：`tickpolarparameter` `表达式` `vel`
+- **说明**：一维 t 锯齿扫球面（DynFirework 球面枚举模型的引擎落法）：
+  `s2=0.35*floorMod(floor(t/16),9)-1.4`（9 层仰角，floorMod double 版
+  引擎有注册、communityMath 批次已锁语义）× `s1=0.4*t`（每层 16 点，
+  跨度 6.4 rad 覆盖一圈；s1 不取模，cos/sin 周期性自动回绕且各层相位
+  错开更自然）。粒子生成在球心（dis=0.01 防 0），速度沿径向 0.3
+  （x/dis 即单位方向向量）——end_rod 原版摩擦 0.96 自然减速，扩散渐近
+  ≈v0/(1−f)=7.5 格后受重力下垂，即烟花球形。`cpt=144` 一次 tick 全出
+  （曾写 143 少一粒——cpt 是每 tick 条数上限，end=143 时须 144）。
+- **命令**（复制即用）：
+
+```
+/particleex tickpolarparameter minecraft:end_rod ~ ~8 ~ 1 0.95 0.89 1 0 0 0 0 143 's2=0.35*floorMod(floor(t/16),9)-1.4;s1=0.4*t;dis=0.01' 1 144 200 '(vx,vy,vz)=(x/dis*0.3,y/dis*0.3,z/dis*0.3)' 1 null
 ```
 
 ## 待采纳候选（社区高频用法）
