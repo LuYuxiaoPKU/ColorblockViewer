@@ -67,6 +67,15 @@ export const TEMPLATES: Template[] = [
       "/particleex rgbapolarparameter minecraft:end_rod ~ ~2 ~ 0 0 0 0 18.84955592153876 'r=(abs(cos(5*s1/4))^1.7+abs(sin(5*s1/4))^1.7)^(-0.5882352941176471);x=r*1.8*cos(s1);z=r*1.8*sin(s1);y=0;cr=0.5+0.5*cos(s1);cg=0.5+0.5*cos(s1+2.0943951023931953);cb=0.5+0.5*cos(s1+4.1887902047863905);alpha=1' 0.03 200 'null' 1 null",
     ],
   },
+  {
+    id: 'breathing',
+    name: '呼吸圆环（社区最高频·正弦径向速度）',
+    desc: 'polarparameter 摆出半径 2 的圆环，速度 = 当前位置 × 正弦呼吸系数 i=0.1*sin(t/5) —— 整个构型周期性胀缩（周期 ≈31 tick），B 站社区最高频用法，改 0.1/5 调幅度与快慢。',
+    tags: ['polarparameter', '表达式', 'vel'],
+    cmds: [
+      "/particleex polarparameter minecraft:end_rod ~ ~2 ~ 1 0.95 0.89 1 0 0 0 0 6.2832 'x=2*cos(t);z=2*sin(t);y=0' 0.3 200 'i=0.1*sin(t/5);(vx,vy,vz)=(x*i,y*i,z*i)' 1 null",
+    ],
+  },
 ];
 
 /** 按 id 查模板（分享链接/测试用） */
