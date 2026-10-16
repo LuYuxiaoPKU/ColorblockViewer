@@ -66,6 +66,8 @@ interface GCtx {
 // coerce 结果逐位一致；非常有限值不内联，留在常量表由运行期转换）
 const numLit = (ctx: GCtx, v: number, natural: number, target: number): string => {
   if (!Number.isFinite(v)) return wrap(cNum(ctx, v), natural, target);
+  // -0 特判：String(-0)==='0' 会把负零吞成 +0（Java dneg 保留 -0，1:1 复刻须保）
+  if (Object.is(v, -0)) return wrap(cNum(ctx, v), natural, target);
   if (natural === 10) {
     if (target === 7 || target === -1) return String(v);
     if (target === 10) return String(v | 0);
