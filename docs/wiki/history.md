@@ -71,7 +71,7 @@ README 转述；原帖随 MCBBS 关站已不可直查）。
 另有 **ColorblockViewer**（本项目，YuEr159）：
 [yuer159.github.io/ColorblockViewer](https://yuer159.github.io/ColorblockViewer/)
 ——按 AnotherColorBlock 命令语义 1:1 复刻的浏览器预览，粘贴命令即可
-验证效果（1161 个测试锁定）。
+验证效果（1200+ 个测试锁定）。
 
 ## 四、文档线
 

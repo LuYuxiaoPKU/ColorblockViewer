@@ -7,7 +7,7 @@ description: 面向玩家与进阶用户的 ColorBlock 模组知识库——命�
 
 > 面向玩家与进阶用户的 ColorBlock 模组知识库。内容由
 > [ColorblockViewer 预览工具项目](https://github.com/YuEr159/ColorblockViewer)
-> 按模组 Java 源码 1:1 移植过程中的一手语义整理（1161 个测试锁定），
+> 按模组 Java 源码 1:1 移植过程中的一手语义整理（1200+ 个测试锁定），
 > 报错文案、表达式行为均与游戏逐字一致。
 
 ## 目录
