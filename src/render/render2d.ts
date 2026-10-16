@@ -118,6 +118,11 @@ export class Render2DViewport {
     this.resize();
   }
 
+  /** 运行时导出（截图/GIF 帧源）：快速模式 2D 画布 */
+  get exportCanvas(): HTMLCanvasElement | null {
+    return this.canvas;
+  }
+
   get size(): number {
     return this.canvas ? this.canvas.clientHeight : 0;
   }

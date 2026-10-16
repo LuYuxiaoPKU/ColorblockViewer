@@ -86,7 +86,32 @@ function copyParticle(p: SimParticle): Record<string, number | string> {
   return o;
 }
 
+/** copyParticle 的逆：扁平键帧拷贝 → SimParticle 形状（GIF 导出等离线消费用；
+ *  与 seek 的 setPool 路径不同——不经引擎活池，直接喂渲染纯函数）。
+ *  字段序与 copyParticle 逐字对齐（新增拷贝字段时两处同步）。 */
+export function reviveParticle(o: Record<string, number | string>): SimParticle {
+  const p = {
+    id: o['id'] as number,
+    name: o['name'] as string,
+    x: o['x'] as number, y: o['y'] as number, z: o['z'] as number,
+    vx: o['vx'] as number, vy: o['vy'] as number, vz: o['vz'] as number,
+    r: o['r'] as number, g: o['g'] as number, b: o['b'] as number, a: o['a'] as number,
+    age: o['age'] as number, lifetime: o['lifetime'] as number,
+    alive: true,
+    stop: false,
+    vanilla: o['vanilla'] === 1,
+    nbtTint: o['nbtTint'] === 1,
+  } as SimParticle;
+  if (o['cfR'] !== undefined) p.colorFrom = { r: o['cfR'] as number, g: o['cfG'] as number, b: o['cfB'] as number };
+  if (o['ctR'] !== undefined) p.colorTo = { r: o['ctR'] as number, g: o['ctG'] as number, b: o['ctB'] as number };
+  if (o['sizeMul'] !== undefined) p.sizeMul = o['sizeMul'] as number;
+  if (o['ttX'] !== undefined) p.trailTarget = { x: o['ttX'] as number, y: o['ttY'] as number, z: o['ttZ'] as number };
+  if (o['vtX'] !== undefined) p.vibrationTarget = { x: o['vtX'] as number, y: o['vtY'] as number, z: o['vtZ'] as number };
+  return p;
+}
+
 export class Timeline {
+
   private frames: SceneFrame[] = [];
   /** 缓冲内粒子拷贝总份数（丢帧判据，摊销 O(1)） */
   private copies = 0;
@@ -160,6 +185,12 @@ export class Timeline {
    *  min(上限, 单帧上限) 截断（与点云缓冲/2D 视图同口径）。累计拷贝超
    *  预算 → 丢最旧帧（至少保留 1 帧：极端大帧单帧即超预算，帧不可拆分）。
    *  只由 App 播放循环调用（命令期不记录 —— 时间线是「播放历史」）。 */
+  /** 全部缓冲帧的只读快照（GIF 导出用；不暴露内部数组引用防误改——
+   *  返回新数组，元素为内部 SceneFrame 引用（只读约定，与 seek 路径同口径）） */
+  framesSnapshot(): SceneFrame[] {
+    return [...this.frames];
+  }
+
   push(snapshot: SimParticle[], tick: number, dropped: number, end: boolean): void {
     const n = Math.min(snapshot.length, this.maxParticles, MAX_PARTICLES_PER_FRAME);
     const particles: Record<string, number | string>[] = new Array(n);

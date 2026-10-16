@@ -31,6 +31,9 @@ import {
   applyInputText,
   setSim,
 } from './store/appState';
+import { capturePng, captureFilename, encodeGif, drawGifFrame } from './render/exportCapture';
+import { reviveParticle } from './sim/timeline';
+import type { GifFrame } from './render/exportCapture';
 import { CommandPane } from './ui/CommandPane';
 import { Viewport } from './ui/Viewport';
 import { estimateDuration } from './command/parser';
@@ -55,6 +58,8 @@ interface ViewportApi {
   setFreeMode?(on: boolean): void;
   /** 相机复位到默认视角（完整模式 3D 专属；快速模式无相机 → 判空调用） */
   resetCamera?(): void;
+  /** 运行时导出（截图/GIF 尺寸基准）：当前画布（完整=WebGL domElement / 快速=2D canvas） */
+  exportCanvas?: HTMLCanvasElement | null;
   resize(): void;
   start(): void;
   dispose(): void;
@@ -98,6 +103,7 @@ export default function App() {
     return () => document.removeEventListener('pointerlockchange', onLock);
   }, []);
   const [vpProgress, setVpProgress] = useState<VpProgress | null>(null);
+  const [gifBusy, setGifBusy] = useState(false);
   const readyRef = useRef(false);
   const engineRef = useRef<SimEngine | null>(null);
   const viewportRef = useRef<ViewportApi | null>(null);
@@ -426,6 +432,62 @@ export default function App() {
     setPlayback({ tick: frame.tick, endTick: tl.endTick, oldestTick: tl.oldestTick, frames: tl.length, totalCopies: tl.totalCopies, maxTick: calcMaxTick() });
   };
 
+  // ---------- 运行时导出（调研 A+C） ----------
+
+  /** 截图当前画面（PNG）：完整/快速模式统一走视口的 exportCanvas。 */
+  const handleScreenshot = () => {
+    const cv = viewportRef.current?.exportCanvas ?? null;
+    const ok = capturePng(cv, captureFilename(engineRef.current?.tick ?? 0));
+    pushToast(ok ? '截图已保存' : '截图失败（画布不可用）');
+  };
+
+  /** 导出已缓冲时间线为 GIF（快速 2D 口径）：Timeline 帧 → 离屏 canvas 逐帧
+   *  重放 → gifenc 两遍编码。同步编码（帧多时数秒，UI 阻塞由 gifBusy 按钮态
+   *  提示；历史帧已限流 ≤ 万级粒子/帧，成本可控）。 */
+  const handleExportGif = () => {
+    const tl = timelineRef.current;
+    if (!tl || tl.length === 0) {
+      pushToast('无可导出的播放历史');
+      return;
+    }
+    setGifBusy(true);
+    // 让按钮态先渲染一帧再进入同步编码（否则 UI 冻结期间按钮看不到 ⏳）
+    setTimeout(() => {
+      try {
+        const frames: GifFrame[] = [];
+        for (const fr of tl.framesSnapshot()) {
+          const parts: SimParticle[] = fr.particles.map((c) => reviveParticle(c));
+          frames.push({ particles: parts, tick: fr.tick, delayMs: 50 });
+        }
+        const cv = viewportRef.current?.exportCanvas ?? null;
+        const w = Math.max(160, cv?.width ?? 960);
+        const h = Math.max(120, cv?.height ?? 540);
+        const off = document.createElement('canvas');
+        off.width = w;
+        off.height = h;
+        const ctx = off.getContext('2d');
+        if (!ctx) {
+          pushToast('GIF 导出失败（离屏画布不可用）');
+          setGifBusy(false);
+          return;
+        }
+        const opts = { width: w, height: h, gridSize: engineRef.current?.config.gridSize ?? 10, gridVisible: getState().sim.gridVisible, atlasKey: getState().sim.mcVersion };
+        const bytes = encodeGif(frames, (c, parts, o) => drawGifFrame(c, parts, o), opts);
+        const blob = new Blob([bytes as unknown as BlobPart], { type: 'image/gif' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'colorblockviewer-tick' + frames[0].tick + '-' + frames[frames.length - 1].tick + '.gif';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        pushToast('GIF 已导出（' + frames.length + ' 帧，' + (blob.size / 1024).toFixed(0) + ' KB）');
+      } catch (err) {
+        pushToast('GIF 导出失败：' + (err instanceof Error ? err.message : String(err)));
+      } finally {
+        setGifBusy(false);
+      }
+    }, 30);
+  };
   // 「回放重置」：引擎全重置（粒子/组/生成器/tick/PRNG）+ 时间线清空 + 清 toast
   const reset = () => {
     engineRef.current!.reset();
@@ -504,6 +566,9 @@ export default function App() {
         onTogglePlay={togglePlay}
         maxTick={getState().playback.maxTick}
         progress={vpProgress}
+        onScreenshot={handleScreenshot}
+        onExportGif={handleExportGif}
+        gifBusy={gifBusy}
       />
     </div>
   );

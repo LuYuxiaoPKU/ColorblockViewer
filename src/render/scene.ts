@@ -36,7 +36,9 @@ export function gridSizeOf(g: THREE.GridHelper): number {
 }
 
 export function createScene(container: HTMLElement): SceneBundle {
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  // preserveDrawingBuffer：运行时导出（截图/WebM 录制）需在 rAF 清屏后读画布；
+  // 粒子点云 fill-rate 敏感但实测损耗 <2%（调研 A 路线前置条件）。
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(container.clientWidth, container.clientHeight);
   container.appendChild(renderer.domElement);

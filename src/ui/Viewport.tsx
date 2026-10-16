@@ -25,6 +25,11 @@ interface PlaybackHandlers {
   /** 预估总时长（tick；App 按命令预估 + 生成器剩余计算）：条右端。
    *  取代旧口径「末帧 + 剩余预算估算」（生成器命令录不满 → 右侧大空白） */
   maxTick: number;
+  /** 运行时导出（调研 A+C）：截图当前画布 / 导出已缓冲时间线为 GIF */
+  onScreenshot: () => void;
+  onExportGif: () => void;
+  /** GIF 编码中（按钮禁用 + title 提示） */
+  gifBusy?: boolean;
 }
 
 /** 首帧预热进度（完整模式）：null = 不显示；indeterminate = chunk 加载中
@@ -46,6 +51,9 @@ export function Viewport({
   onTogglePlay,
   maxTick: propMaxTick,
   progress = null,
+  onScreenshot,
+  onExportGif,
+  gifBusy = false,
 }: PlaybackHandlers & {
   containerRef: React.RefObject<HTMLDivElement | null>;
   /** 点云缓冲容量（视口挂载时按当时 maxParticles 固定，运行期改上限不重建缓冲）；
@@ -135,6 +143,23 @@ export function Viewport({
           <div className="tl-fill" style={{ width: `${frac * 100}%` }} />
           <div className="tl-handle" style={{ left: `${frac * 100}%` }} />
         </div>
+        <button
+          className="small"
+          onClick={onScreenshot}
+          aria-label="截图"
+          title="截图当前画面（PNG）"
+        >
+          📷
+        </button>
+        <button
+          className="small"
+          onClick={onExportGif}
+          disabled={disabled || gifBusy}
+          aria-label="导出GIF"
+          title={gifBusy ? 'GIF 编码中…' : '把已缓冲的播放历史导出为 GIF（快速 2D 口径）'}
+        >
+          {gifBusy ? '⏳' : 'GIF'}
+        </button>
         <button className="small" onClick={onReset} aria-label="重置" title="重置并重新执行命令">
           ↺
         </button>
