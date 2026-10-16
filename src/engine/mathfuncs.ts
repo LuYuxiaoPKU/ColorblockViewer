@@ -200,6 +200,26 @@ for (const [n, f] of UN_D) reg(n, ['D'], (a) => f(a));
 
 reg('getExponent', ['D'], (a) => getExponent(a), 10); // Java 返回 int
 reg('round', ['D'], (a) => jround(a), 'long'); // Java 返回 long（按 int 处理）
+// rint/IEEEremainder：FunctionList 文档化清单内的 JDK 函数（此前漏注册 →
+// 游戏内可用而预览器 not found 的反向分叉，2026-10-15 基础函数专题第二轮补齐）。
+function rintBanker(x: number): number {
+  if (isNaN(x) || !isFinite(x)) return x;
+  const f = Math.floor(x);
+  const d = x - f;
+  const zero = x < 0 ? -0 : 0; // JDK rint 在就近到 0 时保留输入符号（rint(-0.4)=-0.0）
+  if (d > 0.5) return f + 1 === 0 ? zero : f + 1;
+  if (d < 0.5) return f === 0 ? zero : f;
+  if (f % 2 === 0) return f === 0 ? zero : f; // .5 取偶（银行家舍入）
+  return f + 1 === 0 ? zero : f + 1;
+}
+reg('rint', ['D'], (a) => rintBanker(a)); // 银行家舍入：rint(0.5)=0、rint(1.5)=2、rint(2.5)=2
+reg('IEEEremainder', ['D', 'D'], (a, b) => {
+  // Java Math.IEEEremainder：f1 - f2*rint(f1/f2)（IEEE 754 余数，结果可负）
+  if (isNaN(a) || isNaN(b) || !isFinite(a) || b === 0) return NaN;
+  if (!isFinite(b)) return a;
+  return a - b * rintBanker(a / b);
+}); // IEEEremainder(7,2)=-1（就近倍数 4,余 3?→ 7=2*4-1 取最近偶倍数 → -1）
+// powerOfTwoD 在 FunctionList 里列出但 JDK Math 无此函数——模组死条目，不注册。
 
 reg('abs', ['I'], (a) => {
   const v = a | 0;

@@ -100,3 +100,36 @@ describe('基础函数专题:域提升(int 实参进 double 形参)', () => {
     expect(probe('cy=log(100/10)')).toBeCloseTo(Math.log(10), 12);
   });
 });
+
+describe('基础函数专题第二轮:rint/IEEEremainder 补注册(FunctionList 反向缺口)', () => {
+  // FunctionList 文档 47 项中 CBV 此前漏注册 rint/IEEEremainder →
+  // 游戏内可用而预览器 not found(反向分叉);2026-10-15 补齐。
+  // powerOfTwoD 是模组死条目(FunctionList 列了但 JDK Math 无此函数,反射找不到)不注册。
+  it('rint 银行家舍入(JDK 实测对拍)', () => {
+    expect(probe('cy=rint(0.5)')).toBe(0);   // 取偶
+    expect(probe('cy=rint(1.5)')).toBe(2);
+    expect(probe('cy=rint(2.5)')).toBe(2);
+    expect(probe('cy=rint(3.7)')).toBe(4);
+    expect(probe('cy=rint(0-3.7)')).toBe(-4);
+    expect(probe('cy=rint(0-1.5)')).toBe(-2);
+    expect(probe('cy=rint(0-0.6)')).toBe(-1);
+  });
+
+  it('rint 负零(-0.5/-0.4 → -0,一元负号字面量形态)', () => {
+    expect(Object.is(probe('cy=rint(-0.5)'), -0)).toBe(true);
+    expect(Object.is(probe('cy=rint(-0.4)'), -0)).toBe(true);
+    expect(probe('cy=rint(-0.6)')).toBe(-1);
+  });
+
+  it('IEEEremainder = f1 - f2*rint(f1/f2)(JDK 实测对拍)', () => {
+    expect(probe('cy=IEEEremainder(7,2)')).toBe(-1);
+    expect(probe('cy=IEEEremainder(9,2)')).toBe(1);
+    expect(probe('cy=IEEEremainder(7,4)')).toBe(-1);
+    expect(probe('cy=IEEEremainder(0-7,2)')).toBe(1);
+    expect(probe('cy=IEEEremainder(2,3)')).toBe(-1);
+    expect(probe('cy=IEEEremainder(4,2)')).toBe(0);
+    expect(probe('cy=IEEEremainder(1/0.0,2)')).toBeNaN();
+    expect(probe('cy=IEEEremainder(7,1/0.0)')).toBe(7);
+    expect(probe('cy=IEEEremainder(7,0)')).toBeNaN();
+  });
+});
