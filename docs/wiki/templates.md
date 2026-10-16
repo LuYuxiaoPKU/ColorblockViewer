@@ -16,7 +16,7 @@
 > 命令要点：`vel` 非零命令速度是刻意的——模组零速命令会触发 stop 回滚，
 > 粒子被钉住不动；多行模板 = 多条命令一起载入。
 
-## 已收录模板（当前 7 条）
+## 已收录模板（当前 8 条）
 
 ### ripple · 涟漪波面（conditional 表达式）
 
@@ -106,6 +106,26 @@
 
 ```
 /particleex tickpolarparameter minecraft:end_rod ~ ~8 ~ 1 0.95 0.89 1 0 0 0 0 143 's2=0.35*floorMod(floor(t/16),9)-1.4;s1=0.4*t;dis=0.01' 1 144 200 '(vx,vy,vz)=(x/dis*0.3,y/dis*0.3,z/dis*0.3)' 1 null
+```
+
+### nebula · 星云（球内随机分布 + 密度衰减 + 颜色渐变）
+
+- **标签**：`rgbatickpolarparameter` `表达式` `vel`
+- **说明**：DynFirework nebula 型的引擎落法——每 tick 5 粒随机撒在半径 4
+  球内，持续 200 tick 共 1000 粒。三个 random() 各司其职：s1=6.2832·u₁
+  （方位全向）、s2=3.14159·u₂−π/2（仰角全向）、dis=4·u₃²（**密度衰减**：
+  dis∝u² → 内壳 45%/外壳 11%，中心浓外缘稀，星云感）。颜色随半径蓝白→
+  深紫（cr/cg 随 dis/4 递减、cb 恒 1），各粒带 ±0.005 格/tick 微随机漂移
+  （vx/vy/vz 也在主表达式赋值——rgba 系速度取 data）。
+- ⚠️ **引擎语义注记**：random() 是 0 参函数，CBV 曾漏 0 参特判致预览器
+  误报 function not found（游戏内一直可用）——已修并有回归测试
+  （randomZeroArg）。另 random() 值域 [0,1)，**不要裸作整条表达式的顶层
+  返回值**（顶层 int 收口会截成恒 0）；一律用局部变量/字段承载（本模板
+  即此形态）。
+- **命令**（复制即用）：
+
+```
+/particleex rgbatickpolarparameter minecraft:end_rod ~ ~5 ~ 0 0 0 0 200 's1=6.2832*random();s2=3.14159*random()-1.5708;dis=4*pow(random(),2);cr=0.6+0.4*(1-dis/4);cg=0.5+0.3*(1-dis/4);cb=1;alpha=1;vx=0.01*random()-0.005;vy=0.01*random()-0.005;vz=0.01*random()-0.005' 1 5 200 'null' 1 null
 ```
 
 ## 待采纳候选（社区高频用法）

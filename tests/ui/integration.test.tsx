@@ -509,8 +509,8 @@ describe('模板库（复制命令 / 载入并执行）', () => {
     // 模板库增长后逐条核对:涟漪/圆周环/克拉德尼/万花尺/超级公式均带 end_rod 标签
     expect(container.querySelectorAll('.template-card').length).toBe(5);
     setInputValue(search, 'vel');
-    // 呼吸圆环 + 烟花球都用 vel 标签(非零命令速度提示)
-    expect(container.querySelectorAll('.template-card').length).toBe(2);
+    // 呼吸圆环/烟花球/星云都用 vel 标签(非零命令速度提示)
+    expect(container.querySelectorAll('.template-card').length).toBe(3);
     setInputValue(search, '不存在的模板');
     expect(container.querySelectorAll('.template-card').length).toBe(0);
   });

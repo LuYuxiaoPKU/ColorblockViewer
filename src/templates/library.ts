@@ -85,6 +85,15 @@ export const TEMPLATES: Template[] = [
       "/particleex tickpolarparameter minecraft:end_rod ~ ~8 ~ 1 0.95 0.89 1 0 0 0 0 143 's2=0.35*floorMod(floor(t/16),9)-1.4;s1=0.4*t;dis=0.01' 1 144 200 '(vx,vy,vz)=(x/dis*0.3,y/dis*0.3,z/dis*0.3)' 1 null",
     ],
   },
+  {
+    id: 'nebula',
+    name: '星云（球内随机分布 + 密度衰减 + 颜色渐变）',
+    desc: '每 tick 5 粒随机撒在球内：方向全向随机（s1/s2 各配一个 random），dis=4*pow(random(),2) 使中心浓外缘稀（密度∝1/r），颜色随半径蓝白→深紫渐变，带微随机漂移 —— DynFirework nebula 型的引擎落法。',
+    tags: ['rgbatickpolarparameter', '表达式', 'vel'],
+    cmds: [
+      "/particleex rgbatickpolarparameter minecraft:end_rod ~ ~5 ~ 0 0 0 0 200 's1=6.2832*random();s2=3.14159*random()-1.5708;dis=4*pow(random(),2);cr=0.6+0.4*(1-dis/4);cg=0.5+0.3*(1-dis/4);cb=1;alpha=1;vx=0.01*random()-0.005;vy=0.01*random()-0.005;vz=0.01*random()-0.005' 1 5 200 'null' 1 null",
+    ],
+  },
 ];
 
 /** 按 id 查模板（分享链接/测试用） */

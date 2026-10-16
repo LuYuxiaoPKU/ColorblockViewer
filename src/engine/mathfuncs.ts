@@ -306,6 +306,9 @@ export function selectMathSig(name: string, argTypes: TypeTag[]): MathSig | null
   const sigs = T.get(name);
   if (!sigs || sigs.length === 0) return null;
   if (argTypes.length !== sigs[0].params.length) return null;
+  // 0 参特判（CodeGen.java:495：args.length==0 → maxSimilarityIndex=0 直接选首个），
+  // 缺此分支时 random() 在 parse 期误报 function not found
+  if (argTypes.length === 0) return sigs[0];
   let best: MathSig | null = null;
   let bestScore = 0;
   for (const sig of sigs) {
